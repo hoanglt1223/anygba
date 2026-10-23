@@ -203,7 +203,7 @@ std::string psr_name(const Insn& in) {
     if (in.psr_mask & 4) fields += 's';
     if (in.psr_mask & 2) fields += 'x';
     if (in.psr_mask & 1) fields += 'c';
-    return "cpsr_" + fields;
+    return fields.empty() ? "cpsr" : "cpsr_" + fields;
 }
 
 std::string disassemble_arm(const Insn& in) {

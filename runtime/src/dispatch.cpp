@@ -1,0 +1,180 @@
+#include "anygba/system.hpp"
+
+#include "interp/interp.h"
+
+#include <algorithm>
+#include <csetjmp>
+#include <cstring>
+
+// Address-to-function dispatch, the resume trampoline for call sites whose callee came back
+// somewhere unexpected, and the run loop that owns the setjmp target for unwinds.
+namespace anygba {
+
+namespace {
+
+constexpr int kJumpUnwind = 1;
+constexpr int kJumpStop = 2;
+constexpr int kJumpFail = 3;
+
+}  // namespace
+
+anygba_fn System::lookup(std::uint32_t addr, bool thumb) const {
+    if (!game_) {
+        return nullptr;
+    }
+    if (addr >= 0x08000000 && addr < 0x0E000000) {
+        const std::uint32_t off = addr & (Memory::kRomMax - 1);
+        if (off < mem_.rom_size && (off & 1) == 0) {
+            // Generated tables hold canonical 0x08xxxxxx addresses; mirrors map onto them.
+            const anygba_function_entry* e = rom_direct_[off / 2];
+            if (e && (e->thumb != 0) == thumb) {
+                return e->fn;
+            }
+        }
+        return nullptr;
+    }
+    const auto it = std::lower_bound(ram_functions_.begin(), ram_functions_.end(), addr,
+                                     [](const anygba_function_entry& f, std::uint32_t a) { return f.addr < a; });
+    if (it != ram_functions_.end() && it->addr == addr && (it->thumb != 0) == thumb) {
+        return it->fn;
+    }
+    return nullptr;
+}
+
+void System::run_once() {
+    if (anygba_fn fn = lookup(cpu_.r[15], cpu_.t != 0)) {
+        fn(&cpu_);
+    } else {
+        interpret();
+    }
+}
+
+int System::resume(std::uint32_t expected) {
+    for (;;) {
+        const std::uint32_t pc = cpu_.r[15];
+        if (pc == expected) {
+            return 0;
+        }
+        for (std::uint32_t i = cpu_.ret_depth; i-- > 0;) {
+            if (cpu_.ret_stack[i] == pc) {
+                return 1;
+            }
+        }
+        run_once();
+    }
+}
+
+// Owns the setjmp target. Kept free of objects with destructors: longjmp skips them.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4611)  // MSVC flags every setjmp in C++; this frame holds no such objects
+#endif
+int System::run_guarded() {
+    std::jmp_buf jb;
+    top_jmp_ = &jb;
+    const int why = setjmp(jb);
+    if (why == kJumpStop || why == kJumpFail) {
+        return why;
+    }
+    cpu_.ret_depth = 0;
+    for (;;) {
+        run_once();
+    }
+}
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+void System::run() {
+    void* const previous = top_jmp_;
+    stop_requested_ = false;
+    const int why = run_guarded();
+    top_jmp_ = previous;
+    cpu_.ret_depth = 0;
+    if (why == kJumpFail) {
+        throw Error(error_);
+    }
+}
+
+void System::unwind() {
+    if (!top_jmp_) {
+        throw Error("anygba_unwind called outside System::run");
+    }
+    cpu_.ret_depth = 0;
+    std::longjmp(*static_cast<std::jmp_buf*>(top_jmp_), kJumpUnwind);
+}
+
+void System::fail(std::string message) {
+    if (!top_jmp_) {
+        throw Error(message);
+    }
+    error_ = std::move(message);
+    std::longjmp(*static_cast<std::jmp_buf*>(top_jmp_), kJumpFail);
+}
+
+void System::log_miss(std::uint32_t addr, bool thumb) {
+    if (!misses_.insert(addr).second || !options_.log_misses) {
+        return;
+    }
+    if (!miss_file_) {
+        miss_file_ = std::fopen(options_.miss_log.string().c_str(), "a");
+        if (!miss_file_) {
+            options_.log_misses = false;
+            return;
+        }
+    }
+    // For RAM code, name the ROM bytes it was copied from so the next pass can analyse it.
+    char rom_part[24] = "";
+    const bool ewram = addr >= 0x02000000 && addr < 0x03000000;
+    const bool iwram = addr >= 0x03000000 && addr < 0x04000000;
+    if (ewram || iwram) {
+        const std::vector<std::uint8_t>& ram = ewram ? mem_.ewram : mem_.iwram;
+        const std::uint32_t off = addr & static_cast<std::uint32_t>(ram.size() - 1);
+        const std::size_t len = std::min<std::size_t>(32, ram.size() - off);
+        const auto begin = ram.begin() + off;
+        const auto rom_end = mem_.rom.begin() + mem_.rom_size;
+        const auto hit = std::search(mem_.rom.begin(), rom_end, begin, begin + static_cast<std::ptrdiff_t>(len));
+        if (hit != rom_end) {
+            std::snprintf(rom_part, sizeof rom_part, " rom=0x%08x",
+                          0x08000000u + static_cast<std::uint32_t>(hit - mem_.rom.begin()));
+        }
+    }
+    std::fprintf(miss_file_, "0x%08x %s%s\n", addr, thumb ? "thumb" : "arm", rom_part);
+    std::fflush(miss_file_);
+}
+
+void System::interpret() {
+    log_miss(cpu_.r[15], cpu_.t != 0);
+    std::uint32_t expected_next = cpu_.r[15];
+    for (;;) {
+        const std::uint32_t pc = cpu_.r[15];
+        if (pc != expected_next) {
+            // Control flow changed: stop at recompiled code or at a pending call site's return.
+            if (lookup(pc, cpu_.t != 0)) {
+                return;
+            }
+            for (std::uint32_t i = cpu_.ret_depth; i-- > 0;) {
+                if (cpu_.ret_stack[i] == pc) {
+                    return;
+                }
+            }
+        }
+        expected_next = interp::step(*this);
+    }
+}
+
+}  // namespace anygba
+
+extern "C" {
+
+int anygba_resume(anygba_cpu* c, std::uint32_t expected) { return anygba::system_of(c).resume(expected); }
+
+void anygba_unwind(anygba_cpu* c) { anygba::system_of(c).unwind(); }
+
+void anygba_undefined(anygba_cpu* c, std::uint32_t addr, std::uint32_t raw) {
+    char msg[96];
+    std::snprintf(msg, sizeof msg, "undefined instruction 0x%08X at 0x%08X", raw, addr);
+    anygba::system_of(c).fail(msg);
+}
+
+}

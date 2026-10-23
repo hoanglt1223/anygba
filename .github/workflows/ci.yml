@@ -51,13 +51,7 @@ jobs:
             libegl1-mesa-dev libgl1-mesa-dev libgles2-mesa-dev libdrm-dev libgbm-dev \
             libudev-dev libdbus-1-dev libibus-1.0-dev
 
-      - name: Configure
-        run: cmake -S . -B build ${{ matrix.configure }} -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build --config Release --parallel
-
-      # Corpus first: the discovery and ROM tests read it.
+      # Corpus before configure: CMake generates the recompiled-ROM tests only for ROMs present.
       - name: Fetch and verify test corpus (sh)
         if: runner.os != 'Windows'
         run: sh tests/fetch-corpus.sh
@@ -67,5 +61,11 @@ jobs:
         shell: pwsh
         run: ./tests/fetch-corpus.ps1
 
-      - name: Unit tests and headless platform smoke
+      - name: Configure
+        run: cmake -S . -B build ${{ matrix.configure }} -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Unit tests, recompiled ROM tests, headless platform smoke
         run: ctest --test-dir build --build-config Release --output-on-failure

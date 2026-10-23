@@ -10,6 +10,9 @@
 namespace anygba::recomp {
 
 struct Analysis {
+    std::string title;
+    std::string rom_sha256;
+    std::uint32_t rom_size = 0;
     std::unique_ptr<analysis::Image> image;
     analysis::Discovery discovery;
 };
@@ -19,5 +22,8 @@ struct Analysis {
 Analysis analyze(const Options& options);
 
 void write_listing(std::ostream& out, const Analysis& analysis);
+
+// Writes the C project for `analysis` to options.output_dir; returns the number of functions.
+std::size_t generate(const Options& options, const Analysis& analysis);
 
 }  // namespace anygba::recomp

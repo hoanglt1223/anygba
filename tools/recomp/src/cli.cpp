@@ -1,5 +1,6 @@
 #include "cli.h"
 
+#include <cstdlib>
 #include <system_error>
 
 namespace anygba::recomp {
@@ -31,6 +32,18 @@ ParseResult parse_args(std::span<const std::string_view> args) {
         }
         if (arg == "--list") {
             result.options.list_only = true;
+            continue;
+        }
+        if (arg == "--shards") {
+            if (i + 1 >= args.size()) {
+                return fail("--shards needs a value");
+            }
+            const std::string value(args[++i]);
+            const auto n = std::strtoul(value.c_str(), nullptr, 10);
+            if (n == 0 || n > 4096 || value.find_first_not_of("0123456789") != std::string::npos) {
+                return fail("--shards must be a number from 1 to 4096");
+            }
+            result.options.shards = n;
             continue;
         }
         if (arg == "--config" || arg == "-o" || arg == "--output" || arg == "--miss-log") {
@@ -71,6 +84,7 @@ std::string usage() {
            "  --miss-log FILE runtime miss log; its addresses become entry points (repeatable)\n"
            "  -o, --output    directory for the generated C project (default: recomp-out)\n"
            "  --list          print discovered functions with disassembly instead of generating C\n"
+           "  --shards N      split the functions over exactly N funcs_NNN.c files\n"
            "  -h, --help      show this help\n"
            "  --version       show the version\n";
 }

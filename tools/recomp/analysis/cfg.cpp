@@ -333,15 +333,15 @@ private:
             return;
         }
         std::optional<std::uint32_t> target;
-        if (in.op == Op::MOV) {
-            const Val v = operand2(st, in);
-            if (v.is_const()) {
-                constant_jump(v.value, false);
-                target = v.value & (thumb() ? ~1u : ~3u);
-            } else if (v.kind == Val::Kind::TableLoad) {
-                table_jump(in, v, false);
-                return;
-            }
+        std::uint32_t unused_bound = 0;
+        const Val v = dp_result(st, in, unused_bound);
+        if (v.is_const()) {
+            // `subs pc, ...` also restores CPSR; the state it returns to is assumed unchanged.
+            constant_jump(v.value, false);
+            target = v.value & (thumb() ? ~1u : ~3u);
+        } else if (v.kind == Val::Kind::TableLoad) {
+            table_jump(in, v, false);
+            return;
         }
         if (!call_idiom) {
             exit_jump(target);
@@ -512,10 +512,17 @@ private:
             }
             return;
         }
+        std::uint32_t bound = 0;
+        const Val result = dp_result(st, in, bound);
+        set(st, in, in.rd, result, bound);
+    }
+
+    // Abstract result of a data-processing instruction; `bound` receives the case count a
+    // plain register copy carries over.
+    Val dp_result(const State& st, const Insn& in, std::uint32_t& bound) const {
         const Val a = read_reg(st, in, in.rn);
         const Val b = operand2(st, in);
         Val result;
-        std::uint32_t bound = 0;
         switch (in.op) {
         case Op::MOV:
             result = b;
@@ -558,7 +565,7 @@ private:
         default:
             break;
         }
-        set(st, in, in.rd, result, bound);
+        return result;
     }
 
     void literal(std::uint32_t value) {

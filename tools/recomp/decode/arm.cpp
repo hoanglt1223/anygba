@@ -149,8 +149,8 @@ Insn decode_arm(std::uint32_t w, std::uint32_t addr) {
         break;
     case 0b001:
         if (bits(w, 24, 23) == 0b10 && !bit(w, 20)) {
-            // A CPSR write with no fields selected is a hint in later architectures.
-            if ((w & 0x0FB0F000u) == 0x0320F000u && (bit(w, 22) || bits(w, 19, 16) != 0)) {
+            // With no fields selected this is a no-op on ARM7TDMI (a hint on later cores).
+            if ((w & 0x0FB0F000u) == 0x0320F000u) {
                 in.op = Op::MSR;
                 in.spsr = bit(w, 22);
                 in.psr_mask = static_cast<std::uint8_t>(bits(w, 19, 16));

@@ -37,8 +37,12 @@ int main(int argc, char** argv) {
             write_listing(std::cout, analysis);
             return 0;
         }
-        std::fputs("anygba-recomp: C generation is not implemented yet; use --list\n", stderr);
-        return 1;
+        const std::size_t count = generate(parsed.options, analysis);
+        std::printf("anygba-recomp: %zu functions written to %s\n", count, parsed.options.output_dir.string().c_str());
+        for (const auto& note : analysis.discovery.notes) {
+            std::fprintf(stderr, "note: %s\n", note.c_str());
+        }
+        return 0;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "anygba-recomp: %s\n", e.what());
         return 1;

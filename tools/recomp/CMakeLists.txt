@@ -14,10 +14,14 @@ add_library(anygba_recomp_lib STATIC
   analysis/functions.cpp
   analysis/jumptables.cpp
   config/game_config.cpp
-  io/miss_log.cpp)
+  io/miss_log.cpp
+  codegen/c_emitter.cpp
+  codegen/arm_ops.cpp
+  codegen/thumb_ops.cpp
+  codegen/dispatch_table.cpp)
 target_include_directories(anygba_recomp_lib PUBLIC src .)
 target_compile_definitions(anygba_recomp_lib PRIVATE ANYGBA_VERSION="${PROJECT_VERSION}")
-target_link_libraries(anygba_recomp_lib PUBLIC anygba_decode tomlplusplus::tomlplusplus)
+target_link_libraries(anygba_recomp_lib PUBLIC anygba_decode anygba::common tomlplusplus::tomlplusplus)
 anygba_configure_target(anygba_recomp_lib)
 
 add_executable(anygba-recomp src/main.cpp)

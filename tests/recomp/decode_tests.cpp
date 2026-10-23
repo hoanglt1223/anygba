@@ -194,7 +194,7 @@ bool empty_reglist(const Insn& in) { return (in.op == Op::LDM || in.op == Op::ST
 // rejects some of those encodings.
 bool arm_only_ok(const Insn& in) {
     return empty_reglist(in) || ((in.op == Op::MOV || in.op == Op::MVN) && in.rn != 0) ||
-           (in.op == Op::MRS && (in.raw & 0xFFFu) != 0);
+           (in.op == Op::MRS && (in.raw & 0xFFFu) != 0) || (in.op == Op::MSR && in.psr_mask == 0);
 }
 
 }  // namespace

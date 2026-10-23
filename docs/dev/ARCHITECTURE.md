@@ -21,16 +21,63 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 |---|---|---|
 | `cmake/` | | `toolchain` (language levels, output dirs, MSVC flags), `warnings`, `sanitizers`, `dependencies` (pinned FetchContent) |
 | `platform/` | `anyport_platform` (`anyport::platform`) | Host layer on SDL3: context, window, audio, input, timing, log |
-| `runtime/` | `anygba_runtime` (`anygba::runtime`, file `anygba`) | `libanygba`; C interface in `include/anygba/runtime.h` |
+| `common/` | `anygba_common` | SHA-256 (ties generated code to its ROM) |
+| `runtime/` | `anygba_runtime` (`anygba::runtime`, file `anygba`) | `libanygba`: `System` (bus, IO, scheduler, IRQ, DMA, timers, dispatch, fallback interpreter); C ABI for generated code in `include/anygba/cpu.h` |
+| `runtime/src/main.cpp` | `anygba_game_main` (`anygba::game_main`) | `main()` for generated games |
 | `tools/recomp/decode/` | `anygba_decode` | ARMv4T ARM/Thumb decoder (`Insn`) and Capstone-syntax disassembler; shared with the runtime interpreter |
 | `tools/recomp/analysis/` | `anygba_recomp_lib` | ROM image with RAM regions, CFG walker with constant tracking, jump tables, function discovery |
 | `tools/recomp/config/`, `io/` | `anygba_recomp_lib` | Per-game TOML config, runtime miss-log reader ([GAME-CONFIG.md](GAME-CONFIG.md)) |
+| `tools/recomp/codegen/` | `anygba_recomp_lib` | C emitter (`c_emitter`, `arm_ops`, `thumb_ops`) and project writer (`dispatch_table`) |
 | `tools/recomp/src/` | `anygba_recomp_lib`, `anygba-recomp` | CLI and pipeline |
+| `cmake/anygba_game.cmake` | | `anygba_add_game()`: recompile a ROM inside this build (used by the corpus tests) |
 | `tests/` | `anygba-tests`, `platform-smoke` | doctest unit tests by module, smoke app, corpus lock and fetch scripts |
 | `.github/workflows/ci.yml` | | Build and test matrix |
 
-Language levels: C++20 for tools and runtime, C11 for generated game code. `runtime.h` is a C header so
-generated code can include it.
+Language levels: C++20 for tools and runtime, C11 for generated game code. `runtime.h` and `cpu.h` are C
+headers so generated code can include them.
+
+## Generated code
+
+Each discovered function becomes `void f_XXXXXXXX(anygba_cpu* c)`. Registers live in `c->r[16]`, flags in
+separate `n/z/c/v` fields, and PC reads are constants. Inside a function, branches to its own labels are
+`goto`s and conditional instructions are `if` blocks. Memory goes through inline helpers in `cpu.h` with
+a page-table fast path for EWRAM, IWRAM and ROM; everything else calls the bus. PC-relative word loads from
+ROM are folded to constants.
+
+Control flow between functions:
+
+- `BL` stores LR, pushes the return address on `c->ret_stack`, and calls the target directly
+  (`AG_CALL`). A function always returns with `r[15]` set to where execution continues.
+- After a call, if `r[15]` is not the expected return address, `anygba_resume` keeps dispatching from
+  `r[15]` (recompiled function, else the interpreter) until it is, or returns 1 when an outer call site
+  expects that address, and the frames return up to it. Tail calls, `bx` veneers, and non-standard
+  returns all go through this path; `anygba_unwind` (longjmp to `System::run`) is only for context
+  switches and an overflowing return stack.
+- Indirect jumps set `r[15]` and return, except bounded jump tables, which become a `switch` of
+  `goto`s, and jumps with LR already pointing at the next instruction, which are indirect calls.
+- A branch to itself calls `anygba_idle_loop`, which skips to the next scheduled event.
+
+Cycle accounting: each instruction costs the WAITCNT-derived fetch cost of its region plus a small extra
+for loads, multiplies and block transfers. Costs are batched and charged at labels and before control
+flow, where `AG_TICK` calls `anygba_tick` once the budget to the next event is spent. IRQs are delivered
+there synchronously, the way the BIOS vector does it.
+
+`write_project` writes `game.h`, `funcs_NNN.c` shards (500 functions each by default), `dispatch.c`
+(sorted function table plus `anygba_game_info` with the ROM's SHA-256) and a `CMakeLists.txt` that finds
+an installed runtime. The game executable refuses a ROM whose hash differs.
+
+## Runtime
+
+`anygba::System` owns the CPU context, memory, and timeline. Memory map and quirks follow GBATEK:
+mirrors, VRAM's 32 KiB mirror, byte writes to palette (doubled), VRAM (BG only) and OAM (ignored), SRAM's
+8-bit bus, ROM open bus past the image. The scheduler counts cycles down to the next event (HBlank,
+line end, timer overflows); video timing is 1232 cycles per line and 228 lines per frame. DMA channels
+run instantly on their trigger; timers are read lazily and cascade. Errors the runtime will not guess
+about (unknown SWI, undefined instruction) stop `System::run` with `anygba::Error`.
+
+The fallback interpreter (`runtime/src/interp/`) shares only the decoder with the recompiler. It runs
+code that has no recompiled function, logs the entry address to the miss log, and is the oracle for the
+differential tests.
 
 ## Platform layer
 
@@ -65,11 +112,21 @@ To build against a local checkout, set `FETCHCONTENT_SOURCE_DIR_SDL3` or `FETCHC
 
 - `anygba-tests`: doctest unit tests grouped by module under `tests/platform`, `tests/recomp`,
   `tests/runtime`. Platform tests run on the headless context, so they need no display or sound card.
+  - Decoder: exhaustive Thumb and class-sampled ARM against Capstone.
+  - Discovery: hand-assembled ROMs, plus armwrestler against its ELF mapping symbols.
+  - Codegen: about 13,000 sampled instructions are emitted as C at build time
+    (`anygba-codegen-fixture`), then each runs from 80 random register/flag/mode/memory states through
+    both the generated C and the interpreter, and the results must match exactly.
+  - Interpreter: jsmolka arm, thumb and memory with no recompiled code.
+- `gba-tests-arm`, `gba-tests-thumb`, `gba-tests-memory`: the ROMs recompiled by `anygba_add_game`, run
+  with `--headless --exit-on-idle`; they pass when the ROM reaches its idle loop with r12 = 0.
 - `platform-smoke --headless`: end-to-end check of window scaling, audio drain, and keyboard routing.
 - Corpus: `tests/corpus.lock` lists `kind sha256 path url` per line. `file` entries are saved as-is;
   `zip` entries are verified, cached under `.archives/`, and extracted into a directory stamped with the
   archive hash. Butano publishes no prebuilt example ROMs, so the Butano entry is the official Varooom 3D
-  release build; building the Butano examples needs devkitARM and is not part of the corpus.
+  release build; building the Butano examples needs devkitARM and is not part of the corpus. Corpus
+  tests are skipped (with a message) when the corpus is not fetched; fetch it before configuring so the
+  ROM tests are generated.
 
 ## CI
 

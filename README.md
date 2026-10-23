@@ -5,8 +5,10 @@ executable. The ROM's ARM/Thumb code is translated to C ahead of time and linked
 high-level runtime that provides the BIOS, video, audio, and I/O. There is no emulator loop; an
 interpreter exists only as a fallback for code the recompiler missed.
 
-Status: early bring-up. The build, platform layer, CI, and test corpus are in place. The recompiler and
-runtime are skeletons.
+Status: early bring-up. The decoder, function discovery, C code generator, and runtime core (bus,
+scheduler, interrupts, DMA, timers, fallback interpreter) work: jsmolka's arm, thumb and memory tests pass
+as recompiled native code. There is no BIOS emulation beyond Halt/IntrWait, no video, and no audio yet,
+so games do not run.
 
 ## Legal
 
@@ -39,8 +41,11 @@ CMake options:
 ## Programs
 
 - `anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]`: recompiler
-  CLI. `--list` prints the discovered functions with disassembly. Config schema and the miss-log format:
-  [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
+  CLI. Writes a C project to the output directory; `--list` prints the discovered functions with
+  disassembly instead. Config schema and the miss-log format: [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
+- A generated game: `game <rom.gba> --headless [--frames N] [--exit-on-idle] [--miss-log FILE]`. It only
+  accepts the ROM it was generated from (SHA-256) and appends addresses it had to interpret to
+  `anygba-miss.log` for the next recompile.
 - `platform-smoke`: opens a window with a test pattern and plays a 440/660 Hz tone. Held buttons light up
   along the bottom; Escape quits. `--headless` runs on SDL's dummy drivers, checks the scaled output, the
   audio drain, and keyboard routing, and exits non-zero on a mismatch. CTest runs it this way.
