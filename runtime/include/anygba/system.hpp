@@ -150,7 +150,9 @@ private:
     void on_line_end();
     void raise_irq(std::uint16_t bits);
     void deliver_irq();
-    void halt_until_irq();
+    void halt_until_irq(std::uint16_t wake_mask);
+    void check_keypad_irq();
+    void stub_swi(std::uint32_t number, std::uint32_t call_pc);
     void intr_wait(bool discard_old, std::uint16_t flags);
     void dma_write_control(int channel, std::uint16_t value);
     void dma_trigger(int timing);
@@ -194,6 +196,7 @@ private:
     std::FILE* miss_file_ = nullptr;
     void* top_jmp_ = nullptr;  // jmp_buf of run(), while running
     std::uint32_t last_bios_opcode_ = 0xE129F000;
+    std::uint64_t stubs_logged_ = 0;  // stubbed SWI numbers already reported
 };
 
 System& system_of(anygba_cpu* c);

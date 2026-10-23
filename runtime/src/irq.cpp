@@ -1,4 +1,4 @@
-#include "anygba/system.hpp"
+#include "bios/bios.h"
 
 #include <cstdio>
 #include <cstring>
@@ -38,6 +38,7 @@ void System::deliver_irq() {
     c.r[0] = 0x04000000;
     c.r[14] = kBiosIrqReturn;
     c.r[15] = ag_rd32(&c, 0x03FFFFFC) & ~3u;
+    last_bios_opcode_ = bios::kOpcodeInIrq;
 
     if (c.ret_depth >= ANYGBA_RET_STACK) {
         unwind();
@@ -63,7 +64,7 @@ void System::deliver_irq() {
     const std::uint32_t target = c.r[14] - 4;
     restore_cpsr();
     c.r[15] = target & (c.t ? ~1u : ~3u);
-    last_bios_opcode_ = 0xE25EF004;
+    last_bios_opcode_ = bios::kOpcodeAfterIrq;
     if (c.r[15] != resume_pc) {
         unwind();  // the handler switched context; restart dispatch at the new PC
     }
@@ -82,36 +83,12 @@ void System::intr_wait(bool discard_old, std::uint16_t flags) {
             write16(kBiosIf, read16(kBiosIf) & ~flags);
             break;
         }
-        halt_until_irq();
+        halt_until_irq(0x3FFF);
         run_events();
         cpu_.r[15] = resume_pc;
         deliver_irq();
     }
 }
 
-void System::swi(std::uint32_t number) {
-    last_bios_opcode_ = 0xE3A02004;
-    switch (number) {
-    case 0x02:  // Halt
-        halt_until_irq();
-        run_events();
-        deliver_irq();
-        return;
-    case 0x04:  // IntrWait
-        intr_wait(cpu_.r[0] != 0, static_cast<std::uint16_t>(cpu_.r[1]));
-        return;
-    case 0x05:  // VBlankIntrWait
-        intr_wait(true, 1);
-        return;
-    default: {
-        char msg[96];
-        std::snprintf(msg, sizeof msg, "unimplemented BIOS call SWI 0x%02X at 0x%08X", number,
-                      cpu_.r[15] - (cpu_.t ? 2u : 4u));
-        fail(msg);
-    }
-    }
-}
-
 }  // namespace anygba
 
-extern "C" void anygba_swi(anygba_cpu* c, std::uint32_t number) { anygba::system_of(c).swi(number); }

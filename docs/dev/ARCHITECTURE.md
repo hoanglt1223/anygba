@@ -31,6 +31,7 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 | `tools/recomp/src/` | `anygba_recomp_lib`, `anygba-recomp` | CLI and pipeline |
 | `cmake/anygba_game.cmake` | | `anygba_add_game()`: recompile a ROM inside this build (used by the corpus tests) |
 | `tests/` | `anygba-tests`, `platform-smoke` | doctest unit tests by module, smoke app, corpus lock and fetch scripts |
+| `tests/oracle/` | | Scripts that produce reference data with mGBA (not built; see its README) |
 | `.github/workflows/ci.yml` | | Build and test matrix |
 
 Language levels: C++20 for tools and runtime, C11 for generated game code. `runtime.h` and `cpu.h` are C
@@ -74,6 +75,19 @@ mirrors, VRAM's 32 KiB mirror, byte writes to palette (doubled), VRAM (BG only) 
 line end, timer overflows); video timing is 1232 cycles per line and 228 lines per frame. DMA channels
 run instantly on their trigger; timers are read lazily and cascade. Errors the runtime will not guess
 about (unknown SWI, undefined instruction) stop `System::run` with `anygba::Error`.
+
+### HLE BIOS
+
+`runtime/src/bios/` replaces the BIOS ROM. `swi_table.cpp` dispatches SWI 0x00-0x2A; numbers past the
+table stop the run with an error naming the number and address. The functions read r0-r3, leave results
+and documented register side effects (Div: r0 quotient, r1 remainder, r3 absolute quotient; ArcTan2:
+r3 = 0x170), and charge an approximate cycle cost. Halt, Stop, IntrWait and VBlankIntrWait skip time to the
+next interrupt. `boot_state.cpp` holds the post-boot state (stack pointers per mode, SYS mode, DISPCNT
+forced blank, identity BG2/BG3 matrices, SOUNDBIAS 0x200, POSTFLG 1) and SoftReset, RegisterRamReset and
+HardReset. BIOS-region reads return the opcode the real BIOS would have prefetched last: after boot, after
+a SWI, inside an IRQ handler, and after one. BgAffineSet/ObjAffineSet use the BIOS's 1.14 sine table in
+fixed point. The sound-driver SWIs and MultiBoot are stubs that log once. Reference data for the tests is
+described in `tests/runtime/data/bios/README.md` and `tests/oracle/README.md`.
 
 The fallback interpreter (`runtime/src/interp/`) shares only the decoder with the recompiler. It runs
 code that has no recompiled function and is the oracle for the differential tests. It logs the address

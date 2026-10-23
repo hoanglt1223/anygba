@@ -5,10 +5,21 @@ executable. The ROM's ARM/Thumb code is translated to C ahead of time and linked
 high-level runtime that provides the BIOS, video, audio, and I/O. There is no emulator loop; an
 interpreter exists only as a fallback for code the recompiler missed.
 
-Status: early bring-up. The decoder, function discovery, C code generator, and runtime core (bus,
-scheduler, interrupts, DMA, timers, fallback interpreter) work: jsmolka's arm, thumb and memory tests pass
-as recompiled native code. There is no BIOS emulation beyond Halt/IntrWait, no video, and no audio yet,
-so games do not run.
+Status: early bring-up.
+
+What works:
+
+- Decoder, function discovery, C code generator, and runtime core (bus, scheduler, interrupts, DMA,
+  timers, fallback interpreter). jsmolka's arm, thumb, memory and bios tests pass as recompiled native code.
+- HLE BIOS: every GBA SWI from 0x00 to 0x2A. Math, memory copy, decompression and affine functions are
+  native; Div, Sqrt and ArcTan/ArcTan2 match mGBA's HLE BIOS bit for bit on 640 inputs, and the
+  decompressors reproduce data packed by grit. Unknown SWI numbers stop the game with an error.
+
+What does not work yet:
+
+- No video and no audio, so games run but show nothing.
+- The BIOS sound driver (SWI 0x1A-0x1E, 0x20-0x24, 0x28-0x2A) and MultiBoot are stubs that log once.
+  Games that use their own sound engine (most of them) do not call these.
 
 ## Legal
 

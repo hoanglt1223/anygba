@@ -2,3 +2,6 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
 corpus.lock text eol=lf
+*.cmp binary
+*.dat binary
+*.png binary

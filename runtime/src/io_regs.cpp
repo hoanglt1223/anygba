@@ -11,6 +11,7 @@ namespace {
 constexpr std::uint32_t kDispstat = 0x004;
 constexpr std::uint32_t kVcount = 0x006;
 constexpr std::uint32_t kKeyinput = 0x130;
+constexpr std::uint32_t kKeycnt = 0x132;
 constexpr std::uint32_t kIe = 0x200;
 constexpr std::uint32_t kIf = 0x202;
 constexpr std::uint32_t kWaitcnt = 0x204;
@@ -65,6 +66,10 @@ void System::io_write16(std::uint32_t off, std::uint16_t value) {
     case kVcount:
     case kKeyinput:
         return;  // read-only
+    case kKeycnt:
+        set_raw(mem_.io, off, value & 0xC3FF);
+        check_keypad_irq();
+        return;
     case kIf:
         set_raw(mem_.io, off, static_cast<std::uint16_t>(raw(mem_.io, off) & ~value));
         return;
@@ -87,7 +92,7 @@ void System::io_write16(std::uint32_t off, std::uint16_t value) {
     case kPostflgHaltcnt:
         set_raw(mem_.io, off, static_cast<std::uint16_t>(value & 0x00FF));
         if (value & 0xFF00) {
-            halt_until_irq();  // HALTCNT: both halt and stop wait for an interrupt here
+            halt_until_irq((value & 0x8000) ? 0x3080 : 0x3FFF);  // HALTCNT: stop wakes on keypad/cart/serial only
         }
         return;
     case 0x0BA: case 0x0C6: case 0x0D2: case 0x0DE:
@@ -110,6 +115,20 @@ void System::io_write16(std::uint32_t off, std::uint16_t value) {
 
 void System::set_keys(std::uint16_t pressed_mask) {
     set_raw(mem_.io, kKeyinput, static_cast<std::uint16_t>(~pressed_mask & 0x03FF));
+    check_keypad_irq();
+}
+
+void System::check_keypad_irq() {
+    const std::uint16_t keycnt = raw(mem_.io, kKeycnt);
+    if (!(keycnt & 0x4000)) {
+        return;
+    }
+    const std::uint16_t selected = keycnt & 0x03FF;
+    const std::uint16_t pressed = static_cast<std::uint16_t>(~raw(mem_.io, kKeyinput) & selected);
+    const bool all = (keycnt & 0x8000) != 0;
+    if (selected != 0 && (all ? pressed == selected : pressed != 0)) {
+        raise_irq(1u << 12);
+    }
 }
 
 }  // namespace anygba

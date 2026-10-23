@@ -43,48 +43,6 @@ System::~System() {
     }
 }
 
-void System::reset() {
-    void* const runtime = this;
-    std::memset(&cpu_, 0, sizeof cpu_);
-    cpu_.runtime = runtime;
-    map_pages();
-
-    std::fill(mem_.ewram.begin(), mem_.ewram.end(), 0);
-    std::fill(mem_.iwram.begin(), mem_.iwram.end(), 0);
-    std::fill(mem_.io.begin(), mem_.io.end(), 0);
-    std::fill(mem_.palette.begin(), mem_.palette.end(), 0);
-    std::fill(mem_.vram.begin(), mem_.vram.end(), 0);
-    std::fill(mem_.oam.begin(), mem_.oam.end(), 0);
-
-    // Stacks and mode as the BIOS leaves them before entering the cartridge.
-    cpu_.bank_r13_14[0][0] = 0x03007F00;  // USR/SYS
-    cpu_.bank_r13_14[2][0] = 0x03007FA0;  // IRQ
-    cpu_.bank_r13_14[3][0] = 0x03007FE0;  // SVC
-    cpu_.ctrl = ANYGBA_MODE_SYS;
-    cpu_.r[13] = 0x03007F00;
-    cpu_.r[15] = 0x08000000;
-    cpu_.t = 0;
-
-    dma_ = {};
-    timers_ = {};
-    io_write16(0x000, 0x0080);  // forced blank, as the BIOS leaves DISPCNT
-    set_keys(0);
-    update_wait_states();
-
-    line_ = 0;
-    hblank_ = false;
-    frames_ = 0;
-    halted_ = false;
-    in_irq_ = false;
-    last_bios_opcode_ = 0xE129F000;
-    budget_start_ = 0;
-    budget_ = 0;
-    events_.fill(UINT64_MAX);
-    schedule(Event::HBlank, 1006);
-    schedule(Event::LineEnd, 1232);
-    reschedule_budget();
-}
-
 void System::update_wait_states() {
     // Approximate per-instruction fetch cost. ROM waits come from WAITCNT; with the
     // prefetch buffer on, sequential fetches mostly hit the buffer.

@@ -29,7 +29,8 @@ add_executable(anygba-tests
   support/corpus.cpp
   runtime/runtime_tests.cpp
   runtime/interpreter_tests.cpp
-  runtime/system_tests.cpp)
+  runtime/system_tests.cpp
+  runtime/bios_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
@@ -40,7 +41,8 @@ target_link_libraries(anygba-tests PRIVATE
 target_include_directories(anygba-tests PRIVATE . "${PROJECT_SOURCE_DIR}/runtime/src")
 # Corpus-backed tests read from here and report themselves skipped when it is missing.
 set(corpus "${CMAKE_CURRENT_SOURCE_DIR}/corpus")
-target_compile_definitions(anygba-tests PRIVATE ANYGBA_CORPUS_DIR="${corpus}")
+target_compile_definitions(anygba-tests PRIVATE ANYGBA_CORPUS_DIR="${corpus}"
+  ANYGBA_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/runtime/data")
 anygba_configure_target(anygba-tests)
 
 add_test(NAME unit-tests COMMAND anygba-tests)
@@ -67,6 +69,7 @@ endfunction()
 anygba_rom_test(gba-tests-arm gba-tests/arm/arm.gba)
 anygba_rom_test(gba-tests-thumb gba-tests/thumb/thumb.gba)
 anygba_rom_test(gba-tests-memory gba-tests/memory/memory.gba)
+anygba_rom_test(gba-tests-bios gba-tests/bios/bios.gba)
 
 # A large real game, compiled on demand to keep the generated C honest:
 #   cmake --build <out> --target varooom-3d
@@ -76,7 +79,7 @@ if(EXISTS "${corpus}/butano/varooom-3d/varooom-3d.gba")
 endif()
 
 # tonc demos used by the runtime validation (frame count, trace feedback), built on demand.
-foreach(demo irq_demo dma_demo swi_vsync tmr_demo)
+foreach(demo irq_demo dma_demo swi_vsync tmr_demo swi_demo)
   if(EXISTS "${corpus}/tonc/bin/${demo}.gba")
     anygba_add_game(tonc-${demo} ROM "${corpus}/tonc/bin/${demo}.gba" SHARDS 2)
     set_target_properties(tonc-${demo} PROPERTIES EXCLUDE_FROM_ALL TRUE)

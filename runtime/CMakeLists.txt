@@ -9,6 +9,12 @@ add_library(anygba_runtime STATIC
   src/dma.cpp
   src/timers.cpp
   src/cpu_state.cpp
+  src/bios/swi_table.cpp
+  src/bios/boot_state.cpp
+  src/bios/math.cpp
+  src/bios/memcpy.cpp
+  src/bios/decompress.cpp
+  src/bios/affine.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

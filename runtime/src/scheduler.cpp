@@ -108,9 +108,9 @@ void System::idle_loop() {
     tick();
 }
 
-void System::halt_until_irq() {
+void System::halt_until_irq(std::uint16_t wake_mask) {
     // Skip whole budgets until an enabled interrupt is requested (IME is not required).
-    while ((io_read16(0x200) & io_read16(0x202)) == 0) {
+    while ((io_read16(0x200) & io_read16(0x202) & wake_mask) == 0) {
         cpu_.cycles = 0;
         run_events();
         if (stop_requested_ && top_jmp_) {

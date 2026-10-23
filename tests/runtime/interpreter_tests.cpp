@@ -51,10 +51,10 @@ TEST_CASE("the reference interpreter alone passes jsmolka arm, thumb and memory"
     }
 }
 
-TEST_CASE("an unimplemented SWI stops the run with its number") {
-    // mov r0, #0 ; swi 0x2A0000 (ARM comment field: function 0x2A in bits 23-16)
+TEST_CASE("an unknown SWI stops the run with its number") {
+    // mov r0, #0 ; swi 0x2B0000 (ARM comment field: function 0x2B in bits 23-16, past the BIOS table)
     std::vector<std::uint8_t> rom(0x200, 0);
-    const std::uint32_t code[] = {0xE3A00000, 0xEF2A0000};
+    const std::uint32_t code[] = {0xE3A00000, 0xEF2B0000};
     for (std::size_t i = 0; i < 2; ++i) {
         for (int b = 0; b < 4; ++b) {
             rom[i * 4 + static_cast<std::size_t>(b)] = static_cast<std::uint8_t>(code[i] >> (8 * b));
@@ -63,5 +63,5 @@ TEST_CASE("an unimplemented SWI stops the run with its number") {
     anygba::Options options;
     options.log_misses = false;
     anygba::System sys(rom, nullptr, options);
-    CHECK_THROWS_WITH_AS(sys.run(), "unimplemented BIOS call SWI 0x2A at 0x08000004", anygba::Error);
+    CHECK_THROWS_WITH_AS(sys.run(), "unknown BIOS call SWI 0x2B at 0x08000004", anygba::Error);
 }
