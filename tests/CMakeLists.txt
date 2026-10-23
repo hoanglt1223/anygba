@@ -28,7 +28,8 @@ add_executable(anygba-tests
   support/elf_symbols.cpp
   support/corpus.cpp
   runtime/runtime_tests.cpp
-  runtime/interpreter_tests.cpp)
+  runtime/interpreter_tests.cpp
+  runtime/system_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
@@ -73,3 +74,30 @@ if(EXISTS "${corpus}/butano/varooom-3d/varooom-3d.gba")
   anygba_add_game(varooom-3d ROM "${corpus}/butano/varooom-3d/varooom-3d.gba" SHARDS 8)
   set_target_properties(varooom-3d PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# tonc demos used by the runtime validation (frame count, trace feedback), built on demand.
+foreach(demo irq_demo dma_demo swi_vsync tmr_demo)
+  if(EXISTS "${corpus}/tonc/bin/${demo}.gba")
+    anygba_add_game(tonc-${demo} ROM "${corpus}/tonc/bin/${demo}.gba" SHARDS 2)
+    set_target_properties(tonc-${demo} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  endif()
+endforeach()
+
+# Trace feedback, end to end through an installed runtime: after one recompile with the
+# miss log of a first run, a second run must not need the interpreter.
+set(test_prefix "${CMAKE_BINARY_DIR}/test-prefix")
+add_test(NAME install-runtime
+  COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config $<CONFIG> --prefix "${test_prefix}")
+set_tests_properties(install-runtime PROPERTIES FIXTURES_SETUP runtime_install)
+foreach(demo irq_demo dma_demo)
+  if(EXISTS "${corpus}/tonc/bin/${demo}.gba")
+    add_test(NAME feedback-${demo}
+      COMMAND "${CMAKE_COMMAND}"
+        "-DRECOMP=$<TARGET_FILE:anygba-recomp>" "-DPREFIX=${test_prefix}"
+        "-DROM=${corpus}/tonc/bin/${demo}.gba" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/feedback-${demo}"
+        -DFRAMES=600 -DCONFIG=$<CONFIG> "-DGENERATOR=${CMAKE_GENERATOR}"
+        "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/feedback-pass.cmake")
+    set_tests_properties(feedback-${demo} PROPERTIES FIXTURES_REQUIRED runtime_install LABELS slow TIMEOUT 900)
+  endif()
+endforeach()

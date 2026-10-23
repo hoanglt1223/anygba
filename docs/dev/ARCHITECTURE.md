@@ -76,8 +76,22 @@ run instantly on their trigger; timers are read lazily and cascade. Errors the r
 about (unknown SWI, undefined instruction) stop `System::run` with `anygba::Error`.
 
 The fallback interpreter (`runtime/src/interp/`) shares only the decoder with the recompiler. It runs
-code that has no recompiled function, logs the entry address to the miss log, and is the oracle for the
-differential tests.
+code that has no recompiled function and is the oracle for the differential tests. It logs the address
+where it starts and every call target it reaches without recompiled code, so one feedback pass covers
+code that only ever ran inside it.
+
+`runtime/src/main.cpp` is the host loop for generated games, driven from VBlank: present the framebuffer,
+feed the audio stream (silence until the APU exists) and wait while more than two frames of audio are
+queued, so the sound card's clock sets the speed; Tab skips the wait. Headless runs use `FramePacer`
+at 59.7275 Hz when `--pace` is given.
+
+## Install package
+
+`cmake/install.cmake` installs `anygba-recomp`, the runtime libraries (`anygba::runtime`,
+`anygba::game_main`, `anygba::platform`, `anygba::decode`, `anygba::common`), their headers, SDL3 (static,
+through SDL's own install rules), and `lib/cmake/anygba/anygbaConfig.cmake`. The `CMakeLists.txt` that
+anygba-recomp writes does `find_package(anygba)` against that prefix. Release archives are this install
+tree.
 
 ## Platform layer
 
@@ -121,6 +135,10 @@ To build against a local checkout, set `FETCHCONTENT_SOURCE_DIR_SDL3` or `FETCHC
 - `gba-tests-arm`, `gba-tests-thumb`, `gba-tests-memory`: the ROMs recompiled by `anygba_add_game`, run
   with `--headless --exit-on-idle`; they pass when the ROM reaches its idle loop with r12 = 0.
 - `platform-smoke --headless`: end-to-end check of window scaling, audio drain, and keyboard routing.
+- `install-runtime` + `feedback-irq_demo`, `feedback-dma_demo` (label `slow`): install the package, then
+  `tests/feedback-pass.cmake` recompiles a tonc demo, builds it against the package, runs it headless,
+  recompiles with the miss log, and fails if the second run still interprets anything.
+- `varooom-3d`, `tonc-*` targets (not built by default): larger generated programs for manual checks.
 - Corpus: `tests/corpus.lock` lists `kind sha256 path url` per line. `file` entries are saved as-is;
   `zip` entries are verified, cached under `.archives/`, and extracted into a directory stamped with the
   archive hash. Butano publishes no prebuilt example ROMs, so the Butano entry is the official Varooom 3D
@@ -130,5 +148,6 @@ To build against a local checkout, set `FETCHCONTENT_SOURCE_DIR_SDL3` or `FETCHC
 
 ## CI
 
-`.github/workflows/ci.yml` builds Release and runs CTest on Windows (MSVC and clang-cl), Ubuntu (GCC and
-Clang), and macOS arm64, then fetches and verifies the corpus with the script native to each host.
+`.github/workflows/ci.yml` fetches and verifies the corpus with the script native to each host, then
+builds Release and runs CTest on Windows (MSVC and clang-cl), Ubuntu (GCC and Clang), and macOS arm64.
+`.github/workflows/release.yml` packages tagged versions (see the README).

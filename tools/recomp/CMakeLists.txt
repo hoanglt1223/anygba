@@ -3,7 +3,7 @@ add_library(anygba_decode STATIC
   decode/arm.cpp
   decode/thumb.cpp
   decode/disasm.cpp)
-target_include_directories(anygba_decode PUBLIC .)
+target_include_directories(anygba_decode PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 anygba_configure_target(anygba_decode)
 
 add_library(anygba_recomp_lib STATIC

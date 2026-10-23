@@ -9,6 +9,7 @@ add_library(anyport_platform STATIC
   src/log.cpp)
 add_library(anyport::platform ALIAS anyport_platform)
 
-target_include_directories(anyport_platform PUBLIC include)
+target_include_directories(anyport_platform PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(anyport_platform PUBLIC SDL3::SDL3)
 anygba_configure_target(anyport_platform)

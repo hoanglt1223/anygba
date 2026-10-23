@@ -247,7 +247,7 @@ private:
         }
     }
 
-    std::uint32_t load_word(std::uint32_t a) { return std::rotr(sys_.read32(a & ~3u), static_cast<int>((a & 3) * 8)); }
+    std::uint32_t load_word(std::uint32_t a) { return std::rotr(sys_.read32(a), static_cast<int>((a & 3) * 8)); }
 
     void swap() {
         const std::uint32_t a = reg(in_.rn);
@@ -255,7 +255,7 @@ private:
         std::uint32_t old;
         if (in_.op == Op::SWP) {
             old = load_word(a);
-            sys_.write32(a & ~3u, value);
+            sys_.write32(a, value);
         } else {
             old = sys_.read8(a);
             sys_.write8(a, value & 0xFF);
@@ -280,7 +280,7 @@ private:
             switch (in_.op) {
             case Op::LDR: v = load_word(addr); break;
             case Op::LDRB: v = sys_.read8(addr); break;
-            case Op::LDRH: v = std::rotr(sys_.read16(addr & ~1u), static_cast<int>((addr & 1) * 8)); break;
+            case Op::LDRH: v = std::rotr(sys_.read16(addr), static_cast<int>((addr & 1) * 8)); break;
             case Op::LDRSB: v = static_cast<std::uint32_t>(static_cast<std::int8_t>(sys_.read8(addr))); break;
             case Op::LDRSH:
                 v = (addr & 1) ? static_cast<std::uint32_t>(static_cast<std::int8_t>(sys_.read8(addr)))
@@ -296,9 +296,9 @@ private:
         }
         const std::uint32_t v = in_.rd == 15 ? in_.addr + 12 : c_.r[in_.rd];
         switch (in_.op) {
-        case Op::STR: sys_.write32(addr & ~3u, v); break;
+        case Op::STR: sys_.write32(addr, v); break;
         case Op::STRB: sys_.write8(addr, v & 0xFF); break;
-        case Op::STRH: sys_.write16(addr & ~1u, v & 0xFFFF); break;
+        case Op::STRH: sys_.write16(addr, v & 0xFFFF); break;
         default: break;
         }
         if (in_.writeback && in_.rn != 15) {
@@ -338,7 +338,7 @@ private:
                     } else if (r == in_.rn && in_.writeback && r != lowest) {
                         v = new_base;  // the base is written back after the first transfer
                     }
-                    sys_.write32(addr & ~3u, v);
+                    sys_.write32(addr, v);
                     addr += 4;
                 }
             }
@@ -358,7 +358,7 @@ private:
         std::uint32_t values[16] = {};
         for (unsigned r = 0; r < 16; ++r) {
             if ((list >> r) & 1) {
-                values[r] = sys_.read32(addr & ~3u);
+                values[r] = sys_.read32(addr);
                 addr += 4;
             }
         }

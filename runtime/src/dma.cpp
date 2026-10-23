@@ -56,6 +56,17 @@ void System::dma_trigger(int timing) {
     }
 }
 
+void System::request_fifo_dma(int fifo) {
+    const std::uint32_t fifo_addr = fifo == 0 ? 0x040000A0 : 0x040000A4;
+    for (int ch = 1; ch <= 2; ++ch) {
+        const DmaChannel& d = dma_[ch];
+        if (d.active && ((d.control >> 12) & 3) == 3 && d.dst == fifo_addr) {
+            run_dma(ch);
+            return;
+        }
+    }
+}
+
 void System::run_dma(int ch) {
     DmaChannel& d = dma_[ch];
     const bool word = (d.control & 0x0400) != 0;

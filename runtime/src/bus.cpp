@@ -1,5 +1,6 @@
 #include "anygba/system.hpp"
 
+#include <bit>
 #include <cstring>
 
 // Memory map per GBATEK "GBA Memory Map". The fast path in cpu.h covers EWRAM, IWRAM and
@@ -52,6 +53,7 @@ std::uint32_t System::open_bus() const {
 }
 
 std::uint32_t System::read32(std::uint32_t addr) {
+    const std::uint32_t unaligned = addr;  // SRAM sits on an 8-bit bus and reads the exact byte
     addr &= ~3u;
     switch (addr >> 24) {
     case 0x00:
@@ -69,13 +71,14 @@ std::uint32_t System::read32(std::uint32_t addr) {
     case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
         return load(mem_.rom, addr & (Memory::kRomMax - 1), 4);
     case 0x0E: case 0x0F:
-        return read8(addr) * 0x01010101u;
+        return read8(unaligned) * 0x01010101u;
     default:
         return open_bus();
     }
 }
 
 std::uint32_t System::read16(std::uint32_t addr) {
+    const std::uint32_t unaligned = addr;
     addr &= ~1u;
     switch (addr >> 24) {
     case 0x00:
@@ -90,7 +93,7 @@ std::uint32_t System::read16(std::uint32_t addr) {
     case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
         return load(mem_.rom, addr & (Memory::kRomMax - 1), 2);
     case 0x0E: case 0x0F:
-        return read8(addr) * 0x0101u;
+        return read8(unaligned) * 0x0101u;
     default:
         return open_bus() & 0xFFFF;
     }
@@ -118,6 +121,7 @@ std::uint32_t System::read8(std::uint32_t addr) {
 }
 
 void System::write32(std::uint32_t addr, std::uint32_t value) {
+    const std::uint32_t unaligned = addr;
     addr &= ~3u;
     switch (addr >> 24) {
     case 0x02: store(mem_.ewram, addr & (Memory::kEwramSize - 1), value, 4); break;
@@ -131,12 +135,16 @@ void System::write32(std::uint32_t addr, std::uint32_t value) {
     case 0x05: store(mem_.palette, addr & (Memory::kPaletteSize - 1), value, 4); break;
     case 0x06: store(mem_.vram, vram_offset(addr), value, 4); break;
     case 0x07: store(mem_.oam, addr & (Memory::kOamSize - 1), value, 4); break;
-    case 0x0E: case 0x0F: write8(addr, value); break;
+    case 0x0E: case 0x0F:
+        // 8-bit bus: the byte lane the address selects is stored.
+        write8(unaligned, std::rotr(value, static_cast<int>((unaligned & 3) * 8)));
+        break;
     default: break;  // BIOS and ROM are read-only; unmapped writes vanish
     }
 }
 
 void System::write16(std::uint32_t addr, std::uint32_t value) {
+    const std::uint32_t unaligned = addr;
     addr &= ~1u;
     switch (addr >> 24) {
     case 0x02: store(mem_.ewram, addr & (Memory::kEwramSize - 1), value, 2); break;
@@ -149,7 +157,9 @@ void System::write16(std::uint32_t addr, std::uint32_t value) {
     case 0x05: store(mem_.palette, addr & (Memory::kPaletteSize - 1), value, 2); break;
     case 0x06: store(mem_.vram, vram_offset(addr), value, 2); break;
     case 0x07: store(mem_.oam, addr & (Memory::kOamSize - 1), value, 2); break;
-    case 0x0E: case 0x0F: write8(addr, value); break;
+    case 0x0E: case 0x0F:
+        write8(unaligned, (value >> ((unaligned & 1) * 8)) & 0xFF);
+        break;
     default: break;
     }
 }

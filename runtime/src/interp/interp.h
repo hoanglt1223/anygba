@@ -10,10 +10,6 @@
 // differential tests compare two independent implementations.
 namespace anygba::interp {
 
-// Fetches, decodes and executes the instruction at r[15]; returns the address that follows
-// it, which r[15] equals unless the instruction branched.
-std::uint32_t step(System& sys);
-
 // Executes one decoded instruction. On entry r[15] is ignored (in.addr is used); on return
 // r[15] holds the next address. Charges cycles and calls the scheduler when they run out.
 void execute(System& sys, const decode::Insn& in);

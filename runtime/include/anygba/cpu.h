@@ -63,6 +63,8 @@ struct anygba_cpu {
 
 /* ---- Runtime services (implemented by libanygba) ---- */
 
+/* Slow-path memory access. Addresses are passed unaligned; the bus aligns them, except on
+ * SRAM's 8-bit bus, which uses the exact byte address. */
 uint32_t anygba_bus_read32(anygba_cpu* c, uint32_t addr);
 uint32_t anygba_bus_read16(anygba_cpu* c, uint32_t addr);
 uint32_t anygba_bus_read8(anygba_cpu* c, uint32_t addr);
@@ -111,7 +113,7 @@ static inline uint32_t ag_rd32(anygba_cpu* c, uint32_t a) {
         memcpy(&v, p + (a & c->read_mask[a >> 24] & ~3u), 4);
         return v;
     }
-    return anygba_bus_read32(c, a & ~3u);
+    return anygba_bus_read32(c, a);
 }
 
 static inline uint32_t ag_rd16(anygba_cpu* c, uint32_t a) {
@@ -121,7 +123,7 @@ static inline uint32_t ag_rd16(anygba_cpu* c, uint32_t a) {
         memcpy(&v, p + (a & c->read_mask[a >> 24] & ~1u), 2);
         return v;
     }
-    return anygba_bus_read16(c, a & ~1u);
+    return anygba_bus_read16(c, a);
 }
 
 static inline uint32_t ag_rd8(anygba_cpu* c, uint32_t a) {
@@ -138,7 +140,7 @@ static inline void ag_wr32(anygba_cpu* c, uint32_t a, uint32_t v) {
         memcpy(p + (a & c->write_mask[a >> 24] & ~3u), &v, 4);
         return;
     }
-    anygba_bus_write32(c, a & ~3u, v);
+    anygba_bus_write32(c, a, v);
 }
 
 static inline void ag_wr16(anygba_cpu* c, uint32_t a, uint32_t v) {
@@ -148,7 +150,7 @@ static inline void ag_wr16(anygba_cpu* c, uint32_t a, uint32_t v) {
         memcpy(p + (a & c->write_mask[a >> 24] & ~1u), &h, 2);
         return;
     }
-    anygba_bus_write16(c, a & ~1u, v & 0xFFFFu);
+    anygba_bus_write16(c, a, v & 0xFFFFu);
 }
 
 static inline void ag_wr8(anygba_cpu* c, uint32_t a, uint32_t v) {

@@ -62,6 +62,11 @@ struct Timer {
     std::uint64_t started = 0;      // cycle the counter was last latched
 };
 
+inline constexpr int kScreenWidth = 240;
+inline constexpr int kScreenHeight = 160;
+// 16.78 MHz / 280896 cycles per frame.
+inline constexpr double kFramesPerSecond = 16777216.0 / 280896.0;
+
 struct Options {
     std::filesystem::path miss_log = "anygba-miss.log";
     bool log_misses = true;
@@ -90,6 +95,8 @@ public:
 
     std::uint64_t now() const;  // emulated cycles since reset
     std::uint64_t frames() const { return frames_; }
+    // Current picture, RGB555 with red in bits 0-4; filled by the PPU.
+    std::array<std::uint16_t, kScreenWidth * kScreenHeight>& framebuffer() { return framebuffer_; }
     std::uint32_t scanline() const { return line_; }
 
     std::function<void(System&)> on_vblank;       // start of every VBlank
@@ -147,6 +154,11 @@ private:
     void intr_wait(bool discard_old, std::uint16_t flags);
     void dma_write_control(int channel, std::uint16_t value);
     void dma_trigger(int timing);
+public:
+    // Sound FIFO A (0) or B (1) wants data: runs the DMA channel (1 or 2) in FIFO mode
+    // that targets it. Called by the APU on timer overflow.
+    void request_fifo_dma(int fifo);
+private:
     void run_dma(int channel);
     std::uint16_t timer_counter(int timer) const;
     void timer_write_control(int timer, std::uint16_t value);
@@ -173,6 +185,7 @@ private:
     bool in_irq_ = false;
 
     std::array<DmaChannel, 4> dma_{};
+    std::array<std::uint16_t, kScreenWidth * kScreenHeight> framebuffer_{};
     std::array<Timer, 4> timers_{};
 
     bool stop_requested_ = false;

@@ -159,7 +159,16 @@ void System::interpret() {
                 }
             }
         }
-        expected_next = interp::step(*this);
+        const decode::Insn in = interp::fetch(*this, pc, cpu_.t != 0);
+        interp::execute(*this, in);
+        expected_next = in.next();
+        // A jump that leaves LR pointing just past it is a call. Calls made from interpreted
+        // code name function entries the recompiler missed as well; log them so one feedback
+        // pass also covers code that only ever ran in here.
+        const bool call = cpu_.r[15] != expected_next && (cpu_.r[14] & ~1u) == expected_next;
+        if (call && !lookup(cpu_.r[15], cpu_.t != 0)) {
+            log_miss(cpu_.r[15], cpu_.t != 0);
+        }
     }
 }
 

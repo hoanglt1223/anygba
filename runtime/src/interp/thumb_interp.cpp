@@ -16,11 +16,4 @@ decode::Insn fetch(System& sys, std::uint32_t addr, bool thumb) {
     return decode::decode_arm(sys.read32(addr), addr);
 }
 
-std::uint32_t step(System& sys) {
-    anygba_cpu& c = sys.cpu();
-    const decode::Insn in = fetch(sys, c.r[15], c.t != 0);
-    execute(sys, in);
-    return in.next();
-}
-
 }  // namespace anygba::interp

@@ -18,13 +18,16 @@ copyrighted asset is part of this repository or required by it; the BIOS is reim
 ## Build
 
 Requirements: CMake 3.28 or newer, a C++20 compiler (MSVC 2022, clang-cl, GCC 13+, Clang 16+, or Apple
-Clang 15+), and network access on the first configure. SDL 3.4.18 and doctest 2.5.3 are downloaded by
-CMake at pinned versions and verified by SHA-256.
+Clang 15+), and network access on the first configure. SDL 3.4.18, toml++ 3.4.0, and (for tests) doctest
+2.5.3 and Capstone 5.0.6 are downloaded by CMake at pinned versions and verified by SHA-256.
 
 ```sh
+sh tests/fetch-corpus.sh            # optional, before configuring: enables the ROM tests
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
-ctest --test-dir build --build-config Release --output-on-failure
+ctest --test-dir build --build-config Release --output-on-failure           # everything
+ctest --test-dir build --build-config Release --output-on-failure -LE slow  # skip the feedback-pass tests
+cmake --install build --config Release --prefix <prefix>                     # recompiler + runtime package
 ```
 
 On Windows the default generator is Visual Studio; add `-T ClangCL` for clang-cl. Linux needs the usual
@@ -38,14 +41,35 @@ CMake options:
 | `ANYGBA_WARNINGS_AS_ERRORS` | OFF | Treat warnings in project targets as errors |
 | `ANYGBA_SANITIZE` | empty | `address`, `undefined`, or `address;undefined` (MSVC: `address` only) |
 
+## Recompiling a ROM
+
+With an installed package (built as above, or a release archive):
+
+```sh
+<prefix>/bin/anygba-recomp game.gba --output game-src [--config game.toml]
+cmake -S game-src -B game-src/out -DCMAKE_PREFIX_PATH=<prefix>
+cmake --build game-src/out --config Release
+game-src/out/<config>/game game.gba          # window; --headless for none
+```
+
+Code the static analysis missed runs in the interpreter and is listed in `anygba-miss.log`. Recompile
+with `--miss-log anygba-miss.log` and rebuild to turn it into native code.
+
+## Releases
+
+Pushing a tag `v*` runs `.github/workflows/release.yml`, which builds the package on Windows x64, Linux
+x64 and macOS arm64, checks that each one can build a generated project, and attaches the archives to a
+GitHub Release.
+
 ## Programs
 
 - `anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]`: recompiler
   CLI. Writes a C project to the output directory; `--list` prints the discovered functions with
   disassembly instead. Config schema and the miss-log format: [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
-- A generated game: `game <rom.gba> --headless [--frames N] [--exit-on-idle] [--miss-log FILE]`. It only
-  accepts the ROM it was generated from (SHA-256) and appends addresses it had to interpret to
-  `anygba-miss.log` for the next recompile.
+- A generated game: `game <rom.gba> [--headless] [--pace | --fast] [--frames N] [--seconds S]
+  [--exit-on-idle] [--miss-log FILE | --no-miss-log] [--scale N]`. It only accepts the ROM it was generated
+  from (SHA-256). With a window it paces to the audio device and Tab fast-forwards; headless runs are
+  unpaced unless `--pace`. Addresses it had to interpret are appended to `anygba-miss.log`.
 - `platform-smoke`: opens a window with a test pattern and plays a 440/660 Hz tone. Held buttons light up
   along the bottom; Escape quits. `--headless` runs on SDL's dummy drivers, checks the scaled output, the
   audio drain, and keyboard routing, and exits non-zero on a mismatch. CTest runs it this way.

@@ -1,0 +1,70 @@
+# Trace-feedback check, run by CTest as a script (cmake -P):
+#   pass 1: recompile ROM, build it against the installed runtime, run it headless and
+#           collect the miss log;
+#   pass 2: recompile with that log, rebuild, run again: the miss log must stay empty.
+#
+# Inputs (-D): RECOMP, PREFIX, ROM, WORK, FRAMES, CONFIG, GENERATOR, GENERATOR_PLATFORM
+foreach(var RECOMP PREFIX ROM WORK FRAMES CONFIG GENERATOR)
+  if(NOT DEFINED ${var})
+    message(FATAL_ERROR "feedback-pass.cmake needs -D${var}=...")
+  endif()
+endforeach()
+
+set(generator_args -G "${GENERATOR}")
+if(GENERATOR_PLATFORM)
+  list(APPEND generator_args -A "${GENERATOR_PLATFORM}")
+endif()
+
+function(run_checked)
+  execute_process(COMMAND ${ARGN} RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+  if(NOT rc EQUAL 0)
+    message(FATAL_ERROR "command failed (${rc}): ${ARGN}\n${out}\n${err}")
+  endif()
+endfunction()
+
+# Recompiles (with optional miss logs), builds, runs; leaves the miss log in ${WORK}/${tag}.log.
+function(pass tag)
+  set(gen "${WORK}/${tag}")
+  file(REMOVE_RECURSE "${gen}")
+  file(REMOVE "${WORK}/${tag}.log")
+  set(logs "")
+  foreach(log IN LISTS ARGN)
+    list(APPEND logs --miss-log "${log}")
+  endforeach()
+  run_checked("${RECOMP}" "${ROM}" --output "${gen}" ${logs})
+  run_checked("${CMAKE_COMMAND}" -S "${gen}" -B "${gen}/out" ${generator_args}
+              "-DCMAKE_PREFIX_PATH=${PREFIX}" "-DCMAKE_BUILD_TYPE=${CONFIG}")
+  run_checked("${CMAKE_COMMAND}" --build "${gen}/out" --config "${CONFIG}")
+  file(GLOB_RECURSE game LIST_DIRECTORIES false "${gen}/out/game" "${gen}/out/game.exe")
+  if(NOT game)
+    message(FATAL_ERROR "no game executable under ${gen}/out")
+  endif()
+  list(GET game 0 game)
+  run_checked("${game}" "${ROM}" --headless --frames ${FRAMES} --miss-log "${WORK}/${tag}.log")
+endfunction()
+
+file(MAKE_DIRECTORY "${WORK}")
+pass(pass1)
+set(first "")
+if(EXISTS "${WORK}/pass1.log")
+  file(READ "${WORK}/pass1.log" first)
+endif()
+string(STRIP "${first}" first)
+if(first STREQUAL "")
+  message(STATUS "pass 1 had no misses")
+  return()
+endif()
+string(REGEX MATCHALL "\n" lines "${first}\n")
+list(LENGTH lines count)
+message(STATUS "pass 1 missed ${count} addresses:\n${first}")
+
+pass(pass2 "${WORK}/pass1.log")
+set(second "")
+if(EXISTS "${WORK}/pass2.log")
+  file(READ "${WORK}/pass2.log" second)
+endif()
+string(STRIP "${second}" second)
+if(NOT second STREQUAL "")
+  message(FATAL_ERROR "misses remain after one feedback pass:\n${second}")
+endif()
+message(STATUS "no misses after one feedback pass")
