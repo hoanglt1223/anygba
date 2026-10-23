@@ -57,9 +57,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Unit tests and headless platform smoke
-        run: ctest --test-dir build --build-config Release --output-on-failure
-
+      # Corpus first: the discovery and ROM tests read it.
       - name: Fetch and verify test corpus (sh)
         if: runner.os != 'Windows'
         run: sh tests/fetch-corpus.sh
@@ -68,3 +66,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tests/fetch-corpus.ps1
+
+      - name: Unit tests and headless platform smoke
+        run: ctest --test-dir build --build-config Release --output-on-failure

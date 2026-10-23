@@ -1,6 +1,9 @@
 #include "cli.h"
+#include "pipeline.h"
 
 #include <cstdio>
+#include <exception>
+#include <iostream>
 #include <string_view>
 #include <vector>
 
@@ -28,6 +31,16 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "anygba-recomp: %s\n", error->c_str());
         return 1;
     }
-    std::fputs("anygba-recomp: the recompiler pipeline is not implemented yet\n", stderr);
-    return 1;
+    try {
+        const Analysis analysis = analyze(parsed.options);
+        if (parsed.options.list_only) {
+            write_listing(std::cout, analysis);
+            return 0;
+        }
+        std::fputs("anygba-recomp: C generation is not implemented yet; use --list\n", stderr);
+        return 1;
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "anygba-recomp: %s\n", e.what());
+        return 1;
+    }
 }

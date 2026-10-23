@@ -5,6 +5,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace anygba::recomp {
 
@@ -12,6 +13,8 @@ struct Options {
     std::filesystem::path rom;
     std::optional<std::filesystem::path> config;
     std::filesystem::path output_dir = "recomp-out";
+    std::vector<std::filesystem::path> miss_logs;
+    bool list_only = false;  // print discovered functions and disassembly instead of generating C
 };
 
 enum class Action { Run, Help, Version, Error };

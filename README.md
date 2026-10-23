@@ -38,8 +38,9 @@ CMake options:
 
 ## Programs
 
-- `anygba-recomp <rom.gba> [--config game.toml] [--output dir]`: recompiler CLI (skeleton; it validates
-  its inputs and then reports that the pipeline is not implemented yet).
+- `anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]`: recompiler
+  CLI. `--list` prints the discovered functions with disassembly. Config schema and the miss-log format:
+  [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
 - `platform-smoke`: opens a window with a test pattern and plays a 440/660 Hz tone. Held buttons light up
   along the bottom; Escape quits. `--headless` runs on SDL's dummy drivers, checks the scaled output, the
   audio drain, and keyboard routing, and exits non-zero on a mismatch. CTest runs it this way.

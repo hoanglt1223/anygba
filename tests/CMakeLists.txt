@@ -6,6 +6,10 @@ add_executable(anygba-tests
   platform/timing_tests.cpp
   recomp/cli_tests.cpp
   recomp/decode_tests.cpp
+  recomp/discovery_tests.cpp
+  recomp/config_tests.cpp
+  support/elf_symbols.cpp
+  support/corpus.cpp
   runtime/runtime_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
@@ -13,6 +17,9 @@ target_link_libraries(anygba-tests PRIVATE
   anygba_recomp_lib
   capstone_static
   doctest::doctest)
+target_include_directories(anygba-tests PRIVATE .)
+# Corpus-backed tests read from here and report themselves skipped when it is missing.
+target_compile_definitions(anygba-tests PRIVATE ANYGBA_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus")
 anygba_configure_target(anygba-tests)
 
 add_test(NAME unit-tests COMMAND anygba-tests)

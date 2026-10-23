@@ -22,7 +22,10 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 | `cmake/` | | `toolchain` (language levels, output dirs, MSVC flags), `warnings`, `sanitizers`, `dependencies` (pinned FetchContent) |
 | `platform/` | `anyport_platform` (`anyport::platform`) | Host layer on SDL3: context, window, audio, input, timing, log |
 | `runtime/` | `anygba_runtime` (`anygba::runtime`, file `anygba`) | `libanygba`; C interface in `include/anygba/runtime.h` |
-| `tools/recomp/` | `anygba_recomp_lib`, `anygba-recomp` | Recompiler library and CLI |
+| `tools/recomp/decode/` | `anygba_decode` | ARMv4T ARM/Thumb decoder (`Insn`) and Capstone-syntax disassembler; shared with the runtime interpreter |
+| `tools/recomp/analysis/` | `anygba_recomp_lib` | ROM image with RAM regions, CFG walker with constant tracking, jump tables, function discovery |
+| `tools/recomp/config/`, `io/` | `anygba_recomp_lib` | Per-game TOML config, runtime miss-log reader ([GAME-CONFIG.md](GAME-CONFIG.md)) |
+| `tools/recomp/src/` | `anygba_recomp_lib`, `anygba-recomp` | CLI and pipeline |
 | `tests/` | `anygba-tests`, `platform-smoke` | doctest unit tests by module, smoke app, corpus lock and fetch scripts |
 | `.github/workflows/ci.yml` | | Build and test matrix |
 
@@ -52,7 +55,9 @@ belong to the project using the layer (for AnyGBA: 240x160 RGB555, 32768 Hz ster
 All third-party code arrives through `cmake/dependencies.cmake` at an exact release with a SHA-256:
 
 - SDL 3.4.18 (zlib), built static.
+- toml++ 3.4.0 (MIT), single header, recompiler config parsing.
 - doctest 2.5.3 (MIT), single header, tests only.
+- Capstone 5.0.6 (BSD-3-Clause), ARM only, tests only: the disassembler oracle. Nothing shipped links it.
 
 To build against a local checkout, set `FETCHCONTENT_SOURCE_DIR_SDL3` or `FETCHCONTENT_SOURCE_DIR_DOCTEST`.
 

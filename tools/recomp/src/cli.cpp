@@ -29,13 +29,19 @@ ParseResult parse_args(std::span<const std::string_view> args) {
             result.action = Action::Version;
             return result;
         }
-        if (arg == "--config" || arg == "-o" || arg == "--output") {
+        if (arg == "--list") {
+            result.options.list_only = true;
+            continue;
+        }
+        if (arg == "--config" || arg == "-o" || arg == "--output" || arg == "--miss-log") {
             if (i + 1 >= args.size() || args[i + 1].empty()) {
                 return fail(std::string(arg) + " needs a value");
             }
             const std::filesystem::path value(args[++i]);
             if (arg == "--config") {
                 result.options.config = value;
+            } else if (arg == "--miss-log") {
+                result.options.miss_logs.push_back(value);
             } else {
                 result.options.output_dir = value;
             }
@@ -59,10 +65,12 @@ ParseResult parse_args(std::span<const std::string_view> args) {
 }
 
 std::string usage() {
-    return "usage: anygba-recomp <rom.gba> [--config game.toml] [--output dir]\n"
+    return "usage: anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]\n"
            "\n"
            "  --config FILE   per-game TOML configuration\n"
+           "  --miss-log FILE runtime miss log; its addresses become entry points (repeatable)\n"
            "  -o, --output    directory for the generated C project (default: recomp-out)\n"
+           "  --list          print discovered functions with disassembly instead of generating C\n"
            "  -h, --help      show this help\n"
            "  --version       show the version\n";
 }
@@ -78,6 +86,11 @@ std::optional<std::string> validate_inputs(const Options& options) {
     }
     if (options.config && !std::filesystem::is_regular_file(*options.config, ec)) {
         return "config not found: " + options.config->string();
+    }
+    for (const auto& log : options.miss_logs) {
+        if (!std::filesystem::is_regular_file(log, ec)) {
+            return "miss log not found: " + log.string();
+        }
     }
     return std::nullopt;
 }

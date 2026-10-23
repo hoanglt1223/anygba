@@ -7,7 +7,14 @@ target_include_directories(anygba_decode PUBLIC .)
 anygba_configure_target(anygba_decode)
 
 add_library(anygba_recomp_lib STATIC
-  src/cli.cpp)
+  src/cli.cpp
+  src/pipeline.cpp
+  analysis/image.cpp
+  analysis/cfg.cpp
+  analysis/functions.cpp
+  analysis/jumptables.cpp
+  config/game_config.cpp
+  io/miss_log.cpp)
 target_include_directories(anygba_recomp_lib PUBLIC src .)
 target_compile_definitions(anygba_recomp_lib PRIVATE ANYGBA_VERSION="${PROJECT_VERSION}")
 target_link_libraries(anygba_recomp_lib PUBLIC anygba_decode tomlplusplus::tomlplusplus)
