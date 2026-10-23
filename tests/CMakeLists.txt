@@ -5,11 +5,13 @@ add_executable(anygba-tests
   platform/audio_tests.cpp
   platform/timing_tests.cpp
   recomp/cli_tests.cpp
+  recomp/decode_tests.cpp
   runtime/runtime_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
   anygba_recomp_lib
+  capstone_static
   doctest::doctest)
 anygba_configure_target(anygba-tests)
 
