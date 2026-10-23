@@ -242,7 +242,8 @@ TEST_CASE("a mov lr, pc before an indirect jump is a call") {
                             .w32(A(0x08), 0xE3A00001)  // mov r0, #1
                             .w32(A(0x0C), 0xEAFFFFFE)  // b .
                             .image();
-    const Function& f = run(image).functions.at(A(0));
+    const Discovery d = run(image);
+    const Function& f = d.functions.at(A(0));
     CHECK(f.insns.contains(A(0x08)));
     CHECK(f.insns.contains(A(0x0C)));
 }
