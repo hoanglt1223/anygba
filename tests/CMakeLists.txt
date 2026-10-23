@@ -29,11 +29,13 @@ add_executable(anygba-tests
   support/corpus.cpp
   support/png.cpp
   support/headless_run.cpp
+  support/test_roms.cpp
   runtime/runtime_tests.cpp
   runtime/interpreter_tests.cpp
   runtime/system_tests.cpp
   runtime/bios_tests.cpp
-  runtime/ppu_tests.cpp)
+  runtime/ppu_tests.cpp
+  runtime/apu_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
@@ -58,6 +60,10 @@ target_link_libraries(anygba-shot PRIVATE anygba::runtime anygba::common)
 target_include_directories(anygba-shot PRIVATE .)
 target_compile_definitions(anygba-shot PRIVATE ANYGBA_CORPUS_DIR="${corpus}")
 anygba_configure_target(anygba-shot)
+
+add_executable(anygba-test-roms support/test_roms_main.cpp support/test_roms.cpp)
+target_include_directories(anygba-test-roms PRIVATE .)
+anygba_configure_target(anygba-test-roms)
 
 add_executable(platform-smoke platform-smoke/main.cpp)
 target_link_libraries(platform-smoke PRIVATE anyport::platform)
@@ -91,7 +97,7 @@ if(EXISTS "${corpus}/butano/varooom-3d/varooom-3d.gba")
 endif()
 
 # tonc demos used by the runtime validation (frame count, trace feedback), built on demand.
-foreach(demo irq_demo dma_demo swi_vsync tmr_demo swi_demo)
+foreach(demo irq_demo dma_demo swi_vsync tmr_demo swi_demo snd1_demo)
   if(EXISTS "${corpus}/tonc/bin/${demo}.gba")
     anygba_add_game(tonc-${demo} ROM "${corpus}/tonc/bin/${demo}.gba" SHARDS 2)
     set_target_properties(tonc-${demo} PROPERTIES EXCLUDE_FROM_ALL TRUE)

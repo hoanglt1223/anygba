@@ -173,12 +173,14 @@ TEST_CASE("sound FIFO DMA moves four words per request") {
     sys.write32(0x040000C0, 0x040000A0);  // FIFO A
     sys.write16(0x040000C4, 4);
     sys.write16(0x040000C6, 0x8000 | 0x0200 | 0x0400 | (3u << 12) | (2u << 5));
+    // FIFO_A is write-only; the raw IO bytes keep the last word the DMA wrote.
+    const auto last_word = [&sys] { return sys.memory().io[0x0A0] | (sys.memory().io[0x0A1] << 8); };
     sys.request_fifo_dma(1);  // FIFO B: no channel targets it
-    CHECK(sys.io_read16(0x0A0) == 0);
+    CHECK(last_word() == 0);
     sys.request_fifo_dma(0);
-    CHECK(sys.io_read16(0x0A0) == 0x0003);  // the FIFO register holds the last word written
+    CHECK(last_word() == 0x0003);
     sys.request_fifo_dma(0);
-    CHECK(sys.io_read16(0x0A0) == 0x0007);
+    CHECK(last_word() == 0x0007);
 }
 
 TEST_CASE("IRQs run the handler at 0x03007FFC once per VBlank") {

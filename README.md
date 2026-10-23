@@ -18,10 +18,15 @@ What works:
   the OBJ window), alpha blending, brightness, mosaic, and green swap. 48 test pictures from the tonc
   demos, jsmolka's PPU tests and Varooom 3D match mGBA pixel for pixel, including an HBlank DMA raster
   effect; the only accepted differences are documented rounding differences in the reference itself.
+- APU: the four PSG channels (sweep, envelopes, length, wave banks, 7/15-bit noise) and both
+  DirectSound FIFOs fed by DMA, mixed per GBATEK at 32768 Hz. Self-authored test tones correlate with
+  mGBA's output above 0.99 (noise 0.98, a panned mix 0.988); tonc's snd1_demo and a Varooom 3D sound
+  effect match as well. Generated games print a count of DirectSound FIFO underruns on exit.
 
 What does not work yet:
 
-- No audio yet.
+- Audio: never played through a real sound device on the development PC (headless only), so
+  windowed playback, audio-led pacing and fast-forward are untested.
 - The sprite-per-line cycle limit is implemented but no test content reaches it.
 - The BIOS sound driver (SWI 0x1A-0x1E, 0x20-0x24, 0x28-0x2A) and MultiBoot are stubs that log once.
   Games that use their own sound engine (most of them) do not call these.

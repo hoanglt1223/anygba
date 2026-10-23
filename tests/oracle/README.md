@@ -29,6 +29,7 @@ All scripts use only the Python standard library.
 |---|---|
 | `mgba-oracle.py` | Runs a ROM for N frames; writes RGB555 frame hashes, PNG screenshots, a WAV of the audio stream (32768 Hz stereo), and memory dumps. Frame k is the picture at the k-th VBlank, as in AnyGBA. |
 | `make-bios-reference.py` | `tests/runtime/data/bios/mgba-bios.dat` (see that directory's README) |
+| `make-apu-references.py` | `tests/runtime/data/apu/<name>.pcmz` for every case in `tests/runtime/data/apu/cases.txt` (needs `anygba-test-roms`) |
 | `make-ppu-goldens.py` | `tests/golden/ppu/<name>.png` for every case in `tests/golden/ppu/cases.txt` |
 
 Example:

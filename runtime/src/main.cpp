@@ -24,7 +24,7 @@ namespace {
 
 namespace platform = anyport::platform;
 
-constexpr int kSampleRate = 32768;
+constexpr int kSampleRate = anygba::System::kAudioRate;
 
 struct Args {
     std::string rom;
@@ -162,6 +162,8 @@ public:
         if (window_) {
             window_->present(sys_.framebuffer());
         }
+        sound_.clear();
+        sys_.drain_audio(sound_);
         if (audio_) {
             feed_audio_and_wait(fast_forward);
         } else if (pacer_ && !fast_forward) {
@@ -170,19 +172,15 @@ public:
     }
 
 private:
-    // Audio-led pacing: the device consumes 32768 frames per emulated second, so keeping the
-    // queue near two video frames ties emulation speed to the sound card's clock. The APU
-    // replaces the silence here.
+    // Audio-led pacing: the device consumes 32768 frames per emulated second (SDL resamples
+    // to the device rate), so keeping the queue near two video frames ties emulation speed to
+    // the sound card's clock and the queue can neither run dry nor grow.
     void feed_audio_and_wait(bool fast_forward) {
-        sample_debt_ += static_cast<double>(kSampleRate) / anygba::kFramesPerSecond;
-        const auto frames = static_cast<std::size_t>(sample_debt_);
-        sample_debt_ -= static_cast<double>(frames);
         const std::size_t target = 2 * kSampleRate / 60;
         if (fast_forward && audio_->queued_frames() > target) {
             return;  // drop audio while fast-forwarding
         }
-        silence_.assign(frames * 2, 0);
-        audio_->push(silence_);
+        audio_->push(sound_);
         while (!fast_forward && audio_->queued_frames() > target) {
             platform::sleep_ns(1'000'000);
         }
@@ -195,8 +193,7 @@ private:
     std::unique_ptr<platform::AudioStream> audio_;
     std::unique_ptr<platform::Input> input_;
     std::unique_ptr<platform::FramePacer> pacer_;
-    std::vector<std::int16_t> silence_;
-    double sample_debt_ = 0;
+    std::vector<std::int16_t> sound_;
     std::uint64_t start_ns_ = 0;
 };
 
@@ -245,6 +242,9 @@ int main(int argc, char** argv) {
                         elapsed > 0 ? static_cast<double>(sys.frames()) / elapsed : 0.0);
         }
         print_registers(sys.cpu());
+        if (sys.fifo_underruns()) {
+            std::printf("%llu DirectSound FIFO underruns\n", static_cast<unsigned long long>(sys.fifo_underruns()));
+        }
         if (!sys.misses().empty()) {
             std::printf("%zu addresses ran in the interpreter (see %s)\n", sys.misses().size(),
                         args->runtime.miss_log.string().c_str());

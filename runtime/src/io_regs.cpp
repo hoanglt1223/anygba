@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "apu/apu.h"
 #include "ppu/ppu.h"
 
 #include <cstring>
@@ -42,6 +43,11 @@ std::uint16_t System::io_read16(std::uint32_t off) const {
     }
     case kVcount:
         return static_cast<std::uint16_t>(line_);
+    case 0x084:  // SOUNDCNT_X: master enable plus the channels currently playing
+        apu_->catch_up(now());
+        return static_cast<std::uint16_t>((raw(mem_.io, off) & 0x80) | apu_->status());
+    case 0x0A0: case 0x0A2: case 0x0A4: case 0x0A6:
+        return 0;  // FIFOs are write-only
     case 0x0B0: case 0x0B2: case 0x0B4: case 0x0B6: case 0x0B8:  // DMA0 SAD/DAD/CNT_L
     case 0x0BC: case 0x0BE: case 0x0C0: case 0x0C2: case 0x0C4:
     case 0x0C8: case 0x0CA: case 0x0CC: case 0x0CE: case 0x0D0:
@@ -60,6 +66,16 @@ std::uint16_t System::io_read16(std::uint32_t off) const {
 
 void System::io_write16(std::uint32_t off, std::uint16_t value) {
     off &= 0x3FE;
+    if (off >= 0x060 && off < 0x0A8) {
+        // Sound. With the master enable off, the PSG registers ignore writes.
+        if (off < 0x082 && !(raw(mem_.io, 0x084) & 0x80)) {
+            return;
+        }
+        apu_->catch_up(now());
+        set_raw(mem_.io, off, off == 0x084 ? static_cast<std::uint16_t>(value & 0x80) : value);
+        apu_->write(off, value);
+        return;
+    }
     switch (off) {
     case kDispstat:
         set_raw(mem_.io, off, static_cast<std::uint16_t>((value & 0xFF38) | (raw(mem_.io, off) & 7)));

@@ -100,6 +100,15 @@ with the per-line OBJ cycle budget; `compose` applies windows, picks the two top
 BG2/BG3 internal reference points are reloaded at VBlank and when BGxX/BGxY is written, and advance by
 PB/PD after every line. Golden pictures from mGBA (`tests/golden/ppu/`) check the result.
 
+### APU
+
+`runtime/src/apu/` produces 32768 Hz stereo (the GBA's own output rate; SDL resamples to the device).
+Output is generated lazily: register writes and timer overflows first call `catch_up(now)`, which emits
+every 512-cycle sample due so far, so sample timing does not depend on when the CPU ticks. Each output
+sample averages the PSG channels over its 512 cycles (`psg`), FIFOs pop on timer 0/1 overflow and ask
+DMA 1/2 for 16 bytes when half empty (`fifo`), and `mixer` applies GBATEK's volumes, SOUNDBIAS and the
+10-bit clip. `System::drain_audio` hands samples to `main.cpp`, which paces emulation by the queue.
+
 The fallback interpreter (`runtime/src/interp/`) shares only the decoder with the recompiler. It runs
 code that has no recompiled function and is the oracle for the differential tests. It logs the address
 where it starts and every call target it reaches without recompiled code, so one feedback pass covers

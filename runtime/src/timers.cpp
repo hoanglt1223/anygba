@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "apu/apu.h"
 
 // Timers 0-3 (GBATEK "Timers"). A running timer is stored as (counter, start cycle) and
 // read lazily; only its overflow is scheduled. Count-up timers tick on the previous
@@ -49,6 +50,10 @@ void System::timer_write_control(int n, std::uint16_t value) {
 void System::on_timer_overflow(int n) {
     Timer& t = timers_[n];
     const auto e = static_cast<Event>(static_cast<int>(Event::Timer0) + n);
+    const std::uint64_t at = events_[static_cast<int>(e)] != UINT64_MAX ? events_[static_cast<int>(e)] : now();
+    if (n < 2) {
+        apu_->timer_overflow(n, at);
+    }
     if (!(n > 0 && (t.control & 4))) {
         // Restart from reload at the exact overflow time so the period does not drift.
         t.started = events_[static_cast<int>(e)];

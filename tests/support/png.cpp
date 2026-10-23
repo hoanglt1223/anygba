@@ -205,6 +205,8 @@ private:
 
 }  // namespace
 
+std::vector<std::uint8_t> inflate_zlib(const std::vector<std::uint8_t>& data) { return Inflater(data).run(); }
+
 void write_png(const std::filesystem::path& path, std::span<const std::uint16_t> rgb555, int width, int height) {
     std::vector<std::uint8_t> raw;
     for (int y = 0; y < height; ++y) {

@@ -21,6 +21,10 @@ add_library(anygba_runtime STATIC
   src/ppu/bg_bitmap.cpp
   src/ppu/sprites.cpp
   src/ppu/compose.cpp
+  src/apu/apu.cpp
+  src/apu/psg.cpp
+  src/apu/fifo.cpp
+  src/apu/mixer.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

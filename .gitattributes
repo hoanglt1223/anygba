@@ -5,3 +5,4 @@ corpus.lock text eol=lf
 *.cmp binary
 *.dat binary
 *.png binary
+*.pcmz binary

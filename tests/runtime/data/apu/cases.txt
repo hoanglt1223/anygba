@@ -1,0 +1,33 @@
+# APU reference cases: <name> <start> <windows> <check> <threshold> [rom=<corpus path>] [frames=N] [keys=K:A-B,...]
+#
+# Without rom=, the name is a self-authored ROM from tests/support/test_roms.cpp (anygba-test-roms
+# writes them); with it, a corpus ROM (skipped when the corpus is not fetched). frames defaults to 62.
+# <name>.pcmz is mGBA's output for it (zlib-compressed signed 16-bit stereo at 32768 Hz), cut from
+# <start> samples after the first audible sample for <windows> windows of 1024 samples
+# (tests/oracle/make-apu-references.py).
+#
+# corr: in every window, AnyGBA's output is aligned to mGBA's within +-512 samples and the Pearson
+#       correlation of L and R is taken; the mean over windows must reach <threshold>.
+# track: per 512-sample block from the start, the number of waveform periods (rising mean crossings)
+#        must agree within <threshold>, and the blocks must go silent at the same point (+-1 block).
+#        Used for the sweep, where the frequency steps land a few samples apart in the two
+#        emulators and a whole-waveform correlation says nothing useful.
+#
+# Thresholds: tones 0.99 (the plan's target). The 15-bit noise is broadband with steps faster than
+# the output rate, so the two emulators' band limiting differs (mGBA: blip_buf; AnyGBA: average over
+# each output sample): 0.97. The mix combines channels whose start times differ by a few samples
+# between the emulators, so no single lag aligns all of them: 0.98.
+
+square1        2048  8   corr   0.99
+square2        2048  8   corr   0.99
+wave           2048  8   corr   0.99
+noise7         2048  8   corr   0.99
+fifo-a         2048  8   corr   0.99
+noise          2048  8   corr   0.97
+mix            2048  8   corr   0.98
+square1-sweep  0     14  track  1
+
+# Real content: tonc's snd1_demo plays its PSG "SOS" ditty at start-up; Varooom 3D (Butano, maxmod
+# software mixing through DMA sound) plays a sound effect when A is pressed on its first screen.
+snd1_demo      0     60  track  1     rom=tonc/bin/snd1_demo.gba frames=120
+varooom-sfx    0     6   corr   0.99  rom=butano/varooom-3d/varooom-3d.gba frames=360 keys=a:320-322

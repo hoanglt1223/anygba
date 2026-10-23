@@ -16,6 +16,7 @@
 namespace anygba {
 
 class Ppu;
+class Apu;
 
 // Raised for conditions the runtime refuses to guess about: unknown SWIs, undefined
 // instructions, bad ROMs. The message names the address or ID.
@@ -101,6 +102,13 @@ public:
     // Current picture, RGB555 with red in bits 0-4; filled by the PPU.
     std::array<std::uint16_t, kScreenWidth * kScreenHeight>& framebuffer() { return framebuffer_; }
     std::uint32_t scanline() const { return line_; }
+    // Appends the sound produced so far (32768 Hz, interleaved L/R signed 16-bit) to `out`.
+    // Undrained sound is capped at about one second.
+    void drain_audio(std::vector<std::int16_t>& out);
+    static constexpr int kAudioRate = 32768;
+    // DirectSound FIFO pops that found the FIFO empty after it had started playing (an
+    // audible gap: the game's sound DMA did not keep up).
+    std::uint64_t fifo_underruns() const;
 
     std::function<void(System&)> on_vblank;       // start of every VBlank
     std::function<void(System&)> on_idle_loop;    // a branch-to-self was reached
@@ -192,6 +200,7 @@ private:
     std::array<DmaChannel, 4> dma_{};
     std::array<std::uint16_t, kScreenWidth * kScreenHeight> framebuffer_{};
     std::unique_ptr<Ppu> ppu_;
+    std::unique_ptr<Apu> apu_;
     std::array<Timer, 4> timers_{};
 
     bool stop_requested_ = false;

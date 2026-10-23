@@ -19,7 +19,33 @@ namespace {
 
 constexpr const char* kUsage =
     "usage: anygba-shot ROM --frames N [--shot F:out.png] [--hash F] [--keys KEY:A-B] [--dump REGION:out.bin]\n"
-    "  REGION is ewram, iwram, io, palette, vram or oam, written after the last frame\n";
+    "                   [--wav out.wav]\n"
+    "  REGION is ewram, iwram, io, palette, vram or oam, written after the last frame\n"
+    "  --wav writes all sound (32768 Hz stereo 16-bit)\n";
+
+void write_wav(const std::string& path, const std::vector<std::int16_t>& samples) {
+    std::ofstream f(path, std::ios::binary);
+    if (!f) {
+        throw std::runtime_error("cannot write " + path);
+    }
+    const auto put = [&f](std::uint32_t v, int bytes) {
+        for (int i = 0; i < bytes; ++i) f.put(static_cast<char>(v >> (8 * i)));
+    };
+    const auto data_bytes = static_cast<std::uint32_t>(samples.size() * 2);
+    f.write("RIFF", 4);
+    put(36 + data_bytes, 4);
+    f.write("WAVEfmt ", 8);
+    put(16, 4);
+    put(1, 2);  // PCM
+    put(2, 2);  // stereo
+    put(anygba::System::kAudioRate, 4);
+    put(anygba::System::kAudioRate * 4, 4);
+    put(4, 2);
+    put(16, 2);
+    f.write("data", 4);
+    put(data_bytes, 4);
+    for (std::int16_t s : samples) put(static_cast<std::uint16_t>(s), 2);
+}
 
 void write_region(const anygba::Memory& m, const std::string& region, const std::string& path) {
     const std::vector<std::uint8_t>* data = region == "ewram"     ? &m.ewram
@@ -49,6 +75,8 @@ int main(int argc, char** argv) {
         std::set<std::uint64_t> hashes;
         std::vector<anygba::test::KeyHold> keys;
         std::vector<std::pair<std::string, std::string>> dumps;
+        std::string wav;
+        std::vector<std::int16_t> sound;
         for (int i = 1; i < argc; ++i) {
             const std::string_view arg = argv[i];
             const bool has_value = i + 1 < argc;
@@ -64,6 +92,8 @@ int main(int argc, char** argv) {
                 shots[std::strtoull(spec.substr(0, colon).c_str(), nullptr, 10)].push_back(spec.substr(colon + 1));
             } else if (arg == "--hash" && has_value) {
                 hashes.insert(std::strtoull(argv[++i], nullptr, 10));
+            } else if (arg == "--wav" && has_value) {
+                wav = argv[++i];
             } else if (arg == "--dump" && has_value) {
                 const std::string spec = argv[++i];
                 const auto colon = spec.find(':');
@@ -86,6 +116,7 @@ int main(int argc, char** argv) {
             return 2;
         }
         anygba::test::run_headless(anygba::test::read_file(rom), frames, keys, [&](std::uint64_t f, anygba::System& s) {
+            s.drain_audio(sound);
             if (const auto it = shots.find(f); it != shots.end()) {
                 for (const std::string& path : it->second) {
                     anygba::test::write_png(path, s.framebuffer(), anygba::kScreenWidth, anygba::kScreenHeight);
@@ -101,6 +132,9 @@ int main(int argc, char** argv) {
                 }
             }
         });
+        if (!wav.empty()) {
+            write_wav(wav, sound);
+        }
         return 0;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());
