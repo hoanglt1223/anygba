@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "ppu/ppu.h"
 
 #include <algorithm>
 #include <cstring>
@@ -8,7 +9,7 @@ namespace anygba {
 System& system_of(anygba_cpu* c) { return *static_cast<System*>(c->runtime); }
 
 System::System(std::vector<std::uint8_t> rom, const anygba_game* game, Options options)
-    : options_(std::move(options)), game_(game) {
+    : options_(std::move(options)), game_(game), ppu_(std::make_unique<Ppu>(mem_)) {
     if (rom.size() < 0xC0 || rom.size() > Memory::kRomMax) {
         throw Error("ROM must be between 192 bytes and 32 MiB, got " + std::to_string(rom.size()) + " bytes");
     }

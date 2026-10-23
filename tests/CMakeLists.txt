@@ -27,13 +27,17 @@ add_executable(anygba-tests
   recomp/codegen_tests.cpp
   support/elf_symbols.cpp
   support/corpus.cpp
+  support/png.cpp
+  support/headless_run.cpp
   runtime/runtime_tests.cpp
   runtime/interpreter_tests.cpp
   runtime/system_tests.cpp
-  runtime/bios_tests.cpp)
+  runtime/bios_tests.cpp
+  runtime/ppu_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
+  anygba::common
   anygba_recomp_lib
   capstone_static
   anygba_codegen_fixture
@@ -42,10 +46,18 @@ target_include_directories(anygba-tests PRIVATE . "${PROJECT_SOURCE_DIR}/runtime
 # Corpus-backed tests read from here and report themselves skipped when it is missing.
 set(corpus "${CMAKE_CURRENT_SOURCE_DIR}/corpus")
 target_compile_definitions(anygba-tests PRIVATE ANYGBA_CORPUS_DIR="${corpus}"
-  ANYGBA_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/runtime/data")
+  ANYGBA_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/runtime/data"
+  ANYGBA_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden")
 anygba_configure_target(anygba-tests)
 
 add_test(NAME unit-tests COMMAND anygba-tests)
+
+# Headless interpreter runs with screenshots and frame hashes, mirroring tests/oracle/mgba-oracle.py.
+add_executable(anygba-shot support/shot_main.cpp support/corpus.cpp support/png.cpp support/headless_run.cpp)
+target_link_libraries(anygba-shot PRIVATE anygba::runtime anygba::common)
+target_include_directories(anygba-shot PRIVATE .)
+target_compile_definitions(anygba-shot PRIVATE ANYGBA_CORPUS_DIR="${corpus}")
+anygba_configure_target(anygba-shot)
 
 add_executable(platform-smoke platform-smoke/main.cpp)
 target_link_libraries(platform-smoke PRIVATE anyport::platform)

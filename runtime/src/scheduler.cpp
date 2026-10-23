@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "ppu/ppu.h"
 
 #include <algorithm>
 #include <csetjmp>
@@ -65,6 +66,9 @@ void System::run_events() {
 
 void System::on_hblank() {
     hblank_ = true;
+    if (line_ < kScreenHeight) {
+        ppu_->render_line(line_, framebuffer_.data() + static_cast<std::size_t>(line_) * kScreenWidth);
+    }
     if (io_read16(0x004) & 0x10) {
         raise_irq(1u << 1);
     }
@@ -78,6 +82,7 @@ void System::on_line_end() {
     line_ = (line_ + 1) % kLines;
     const std::uint16_t dispstat = io_read16(0x004);
     if (line_ == 160) {
+        ppu_->latch_reference_points();
         if (dispstat & 0x08) {
             raise_irq(1u << 0);
         }

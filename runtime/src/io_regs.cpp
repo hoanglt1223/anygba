@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "ppu/ppu.h"
 
 #include <cstring>
 
@@ -94,6 +95,11 @@ void System::io_write16(std::uint32_t off, std::uint16_t value) {
         if (value & 0xFF00) {
             halt_until_irq((value & 0x8000) ? 0x3080 : 0x3FFF);  // HALTCNT: stop wakes on keypad/cart/serial only
         }
+        return;
+    case 0x028: case 0x02A: case 0x02C: case 0x02E:  // BG2X/BG2Y
+    case 0x038: case 0x03A: case 0x03C: case 0x03E:  // BG3X/BG3Y
+        set_raw(mem_.io, off, value);
+        ppu_->reference_written(off);
         return;
     case 0x0BA: case 0x0C6: case 0x0D2: case 0x0DE:
         set_raw(mem_.io, off, value);

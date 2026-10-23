@@ -29,6 +29,7 @@ All scripts use only the Python standard library.
 |---|---|
 | `mgba-oracle.py` | Runs a ROM for N frames; writes RGB555 frame hashes, PNG screenshots, a WAV of the audio stream (32768 Hz stereo), and memory dumps. Frame k is the picture at the k-th VBlank, as in AnyGBA. |
 | `make-bios-reference.py` | `tests/runtime/data/bios/mgba-bios.dat` (see that directory's README) |
+| `make-ppu-goldens.py` | `tests/golden/ppu/<name>.png` for every case in `tests/golden/ppu/cases.txt` |
 
 Example:
 
@@ -37,8 +38,15 @@ python tests/oracle/mgba-oracle.py --core mgba_libretro.dll tests/corpus/tonc/bi
   --frames 60 --shot 60:sbb_reg.png --hash 60
 ```
 
-## Known mGBA HLE differences
+`anygba-shot` (built with the tests) takes the same `--frames/--shot/--hash/--keys/--dump` options for
+AnyGBA, running the ROM in the interpreter, so outputs can be compared directly.
+
+## Known mGBA differences
 
 - jsmolka's `bios.gba` fails test 1 in mGBA's HLE mode (BIOS reads after boot); AnyGBA passes all four.
 - BgAffineSet/ObjAffineSet: mGBA computes in float, the BIOS in 1.14 fixed point. AnyGBA follows the
   fixed-point form, so matrix entries may differ from mGBA by one 8.8 step.
+- mGBA's libretro core renders in RGB565 and its darken effect rounds the red and green fields
+  differently from blue; see `tests/golden/ppu/cases.txt`.
+- mGBA shows six white frames before these test ROMs start drawing; CPU timing differs as well, so
+  pictures are compared within a window of frames rather than at one frame.

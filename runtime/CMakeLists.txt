@@ -15,6 +15,12 @@ add_library(anygba_runtime STATIC
   src/bios/memcpy.cpp
   src/bios/decompress.cpp
   src/bios/affine.cpp
+  src/ppu/ppu.cpp
+  src/ppu/bg_text.cpp
+  src/ppu/bg_affine.cpp
+  src/ppu/bg_bitmap.cpp
+  src/ppu/sprites.cpp
+  src/ppu/compose.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

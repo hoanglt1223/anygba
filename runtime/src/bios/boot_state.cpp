@@ -1,4 +1,5 @@
 #include "bios/bios.h"
+#include "ppu/ppu.h"
 
 #include <algorithm>
 #include <cstring>
@@ -60,6 +61,7 @@ void System::reset() {
     reschedule_budget();
 
     bios::boot_state(*this);
+    ppu_->reset();
     last_bios_opcode_ = bios::kOpcodeAfterBoot;
 }
 

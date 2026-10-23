@@ -14,10 +14,15 @@ What works:
 - HLE BIOS: every GBA SWI from 0x00 to 0x2A. Math, memory copy, decompression and affine functions are
   native; Div, Sqrt and ArcTan/ArcTan2 match mGBA's HLE BIOS bit for bit on 640 inputs, and the
   decompressors reproduce data packed by grit. Unknown SWI numbers stop the game with an error.
+- PPU: scanline renderer for all six video modes, 128 regular and affine sprites, windows (including
+  the OBJ window), alpha blending, brightness, mosaic, and green swap. 48 test pictures from the tonc
+  demos, jsmolka's PPU tests and Varooom 3D match mGBA pixel for pixel, including an HBlank DMA raster
+  effect; the only accepted differences are documented rounding differences in the reference itself.
 
 What does not work yet:
 
-- No video and no audio, so games run but show nothing.
+- No audio yet.
+- The sprite-per-line cycle limit is implemented but no test content reaches it.
 - The BIOS sound driver (SWI 0x1A-0x1E, 0x20-0x24, 0x28-0x2A) and MultiBoot are stubs that log once.
   Games that use their own sound engine (most of them) do not call these.
 

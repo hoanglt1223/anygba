@@ -7,12 +7,15 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace anygba {
+
+class Ppu;
 
 // Raised for conditions the runtime refuses to guess about: unknown SWIs, undefined
 // instructions, bad ROMs. The message names the address or ID.
@@ -188,6 +191,7 @@ private:
 
     std::array<DmaChannel, 4> dma_{};
     std::array<std::uint16_t, kScreenWidth * kScreenHeight> framebuffer_{};
+    std::unique_ptr<Ppu> ppu_;
     std::array<Timer, 4> timers_{};
 
     bool stop_requested_ = false;

@@ -1,0 +1,73 @@
+# PPU golden cases: <name> <ROM relative to tests/corpus> <frame> [max-diff=N] [KEY:FIRST-LAST ...]
+#
+# <name>.png is mGBA's picture at <frame> (tests/oracle/make-ppu-goldens.py). The test runs the ROM in
+# the AnyGBA interpreter and passes when one of its frames <frame>-12 .. <frame>+2 is identical: the PPU
+# must be pixel exact, but CPU timing is not cycle accurate, so the same picture can arrive a few frames
+# apart (mGBA's start-up alone runs about six frames later than AnyGBA's for these ROMs).
+# max-diff=N allows N differing pixels where the reason is documented here and is not the PPU.
+# oracle-darken-rounding accepts red/green one step brighter than mGBA in darkened areas: mGBA's
+# RGB565 renderer (the libretro build) rounds those two fields differently from blue; AnyGBA uses
+# c - (c*EVY >> 4) for all three channels.
+
+# jsmolka PPU tests
+ppu-hello      gba-tests/ppu/hello.gba     30
+ppu-shades     gba-tests/ppu/shades.gba    30
+ppu-stripes    gba-tests/ppu/stripes.gba   30
+
+# tonc: bitmaps
+m3_demo        tonc/bin/m3_demo.gba        40
+bm_modes-3     tonc/bin/bm_modes.gba       40
+bm_modes-4     tonc/bin/bm_modes.gba       70   right:20-21
+bm_modes-5     tonc/bin/bm_modes.gba       90   right:20-21 right:40-41
+pageflip       tonc/bin/pageflip.gba       40
+txt_bm         tonc/bin/txt_bm.gba         40
+first          tonc/bin/first.gba          30
+second         tonc/bin/second.gba         30
+
+# tonc: tiles, text, sprites
+hello          tonc/bin/hello.gba          30
+sbb_reg        tonc/bin/sbb_reg.gba        40
+cbb_demo       tonc/bin/cbb_demo.gba       40
+brin_demo      tonc/bin/brin_demo.gba      40
+brin_demo-scroll tonc/bin/brin_demo.gba    80   right:20-50 down:30-45
+obj_demo       tonc/bin/obj_demo.gba       40
+obj_demo-flip  tonc/bin/obj_demo.gba       80   a:20-21 b:30-31 right:40-60
+oacombo        tonc/bin/oacombo.gba        60
+prio_demo      tonc/bin/prio_demo.gba      60
+key_demo       tonc/bin/key_demo.gba       100  a:20-90 up:20-90 l:20-90
+txt_se1        tonc/bin/txt_se1.gba        40
+txt_obj        tonc/bin/txt_obj.gba        60
+tte_demo       tonc/bin/tte_demo.gba       40
+octtest        tonc/bin/octtest.gba        40
+irq_demo       tonc/bin/irq_demo.gba       60
+tmr_demo       tonc/bin/tmr_demo.gba       60
+snd1_demo      tonc/bin/snd1_demo.gba      40
+
+# tonc: affine backgrounds and sprites
+sbb_aff        tonc/bin/sbb_aff.gba        40   oracle-darken-rounding
+sbb_aff-turn   tonc/bin/sbb_aff.gba        90   oracle-darken-rounding l:20-40 b:30-50 right:45-60
+obj_aff        tonc/bin/obj_aff.gba        60
+obj_aff-keys   tonc/bin/obj_aff.gba        90   l:20-40 a:30-45 up:40-60
+m7_demo        tonc/bin/m7_demo.gba        60
+m7_demo-move   tonc/bin/m7_demo.gba        100  up:20-60 l:40-55
+m7_demo_mb     tonc/bin/m7_demo_mb.gba     60
+m7_ex          tonc/bin/m7_ex.gba          60
+
+# tonc: windows, blending, mosaic, raster effects (dma_demo is an HBlank DMA window)
+win_demo       tonc/bin/win_demo.gba       40
+win_demo-move  tonc/bin/win_demo.gba       80   right:20-40 down:25-35
+bld_demo       tonc/bin/bld_demo.gba       40
+bld_demo-fade  tonc/bin/bld_demo.gba       90   r:20-21 a:30-50
+bld_demo-dark  tonc/bin/bld_demo.gba       90   r:20-21 r:30-31 a:40-50
+mos_demo       tonc/bin/mos_demo.gba       40
+mos_demo-obj   tonc/bin/mos_demo.gba       90   right:20-60 up:20-50
+mos_demo-bg    tonc/bin/mos_demo.gba       100  a:20-75 right:20-60 up:20-45
+dma_demo       tonc/bin/dma_demo.gba       60
+
+# tonc: BIOS-driven pictures. swi_demo draws its cosine from ObjAffineSet, where AnyGBA uses the
+# BIOS's fixed-point table and mGBA uses float, so a few curve pixels move by one row.
+swi_demo       tonc/bin/swi_demo.gba       40   max-diff=80
+
+# Butano: Varooom 3D (release build): brightness menu, then the rotating Butano splash after A
+varooom-menu   butano/varooom-3d/varooom-3d.gba 300
+varooom-splash butano/varooom-3d/varooom-3d.gba 420  a:320-322

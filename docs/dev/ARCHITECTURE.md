@@ -89,6 +89,17 @@ a SWI, inside an IRQ handler, and after one. BgAffineSet/ObjAffineSet use the BI
 fixed point. The sound-driver SWIs and MultiBoot are stubs that log once. Reference data for the tests is
 described in `tests/runtime/data/bios/README.md` and `tests/oracle/README.md`.
 
+### PPU
+
+`runtime/src/ppu/` renders one line at the start of each visible line's HBlank from the current IO
+registers, VRAM, OAM and palette into `System::framebuffer()` (RGB555, the GBA's own format), so HBlank
+DMA and VCOUNT-IRQ register changes apply from the next line. Text backgrounds (`bg_text`), affine
+backgrounds (`bg_affine`) and bitmap modes 3-5 (`bg_bitmap`, which also use BG2's matrix) fill one line
+buffer per BG; `sprites` fills the OBJ line (priority, semi-transparency flag) and the OBJ-window mask
+with the per-line OBJ cycle budget; `compose` applies windows, picks the two top layers, and blends.
+BG2/BG3 internal reference points are reloaded at VBlank and when BGxX/BGxY is written, and advance by
+PB/PD after every line. Golden pictures from mGBA (`tests/golden/ppu/`) check the result.
+
 The fallback interpreter (`runtime/src/interp/`) shares only the decoder with the recompiler. It runs
 code that has no recompiled function and is the oracle for the differential tests. It logs the address
 where it starts and every call target it reaches without recompiled code, so one feedback pass covers
