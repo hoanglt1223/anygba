@@ -1,0 +1,16 @@
+option(ANYGBA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors in project targets" OFF)
+
+# Applied to project targets only; third-party code keeps its own flags.
+function(anygba_set_warnings target)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4)
+    if(ANYGBA_WARNINGS_AS_ERRORS)
+      target_compile_options(${target} PRIVATE /WX)
+    endif()
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
+    if(ANYGBA_WARNINGS_AS_ERRORS)
+      target_compile_options(${target} PRIVATE -Werror)
+    endif()
+  endif()
+endfunction()

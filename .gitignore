@@ -1,0 +1,19 @@
+# Build output
+/build/
+/out/
+CMakeUserPresets.json
+.vs/
+.vscode/
+.idea/
+
+# Test corpus is downloaded by tests/fetch-corpus.*, never committed
+/tests/corpus/
+
+# Never commit game data: ROMs, BIOS images, saves
+*.gba
+*.agb
+*.mb
+*.bin
+*.sav
+*.srm
+*.elf

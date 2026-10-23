@@ -1,0 +1,33 @@
+# Test corpus lock: one entry per line, fields separated by whitespace.
+#   kind    file = save the download at <path>
+#           zip  = verify the archive, then extract it into the directory <path>
+#   sha256  of the downloaded file
+#   path    relative to the corpus directory
+#   url     pinned to a commit, tag, or immutable release asset
+# The corpus is never committed. Fetch it with fetch-corpus.sh or fetch-corpus.ps1.
+
+# jsmolka/gba-tests (MIT) at a7113b67e63f83a9b321696ddd7042ccfad6c881
+file 77ee88662552bdc885c1080c0172ff119d54db791bd73b21808cf1ff1fe5b40e gba-tests/arm/arm.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/arm/arm.gba
+file b5cb2291df4ab314b31c598acd9bff2ccfa0b38efff29daadfe97422ce369b67 gba-tests/thumb/thumb.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/thumb/thumb.gba
+file 21024fb6aae6343f5f0466dd54e3149de1fbeb23f78e7d85a015c983684d2f87 gba-tests/memory/memory.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/memory/memory.gba
+file 9d7b369fa1aa661ff03692b3d79c6f644b623d72983d0fc890e6d87a0409a3c9 gba-tests/bios/bios.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/bios/bios.gba
+file d990df112763087d0415b3785c1b4d31c0237794a704d0446fc5f5e474a44f98 gba-tests/nes/nes.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/nes/nes.gba
+file 38aed48b67bc0f701e8aa222b0c3334bd306bd29888707bb7224d81f5576c264 gba-tests/ppu/hello.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/ppu/hello.gba
+file 127ce348f17e4d5fd8a0821a7af757eda6109c66c9f7b8f7d1e0fa31831b407d gba-tests/ppu/shades.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/ppu/shades.gba
+file 80d6cc05b5f289b9a2392621fc245270f08e9f0d77fd33982120cef240f5a504 gba-tests/ppu/stripes.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/ppu/stripes.gba
+file 7e2aa32e943aedde88bd750eadcdbf55152d3a1ec61385011b7f15cd85b07c02 gba-tests/save/flash64.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/save/flash64.gba
+file 9ac50e51d3ce4209dbdf85e472e70c067d5827e9af1bb3e707f6bd9059d5f0c6 gba-tests/save/flash128.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/save/flash128.gba
+file edb34ba6590d070c8a50cf0f3566b1e3cc679377b978224ff1b872d27f2b1630 gba-tests/save/none.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/save/none.gba
+file a37ad99c31e3f805eb05a00e498b65bd78e6f43a0a139cd695bea1f88229af2c gba-tests/save/sram.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/save/sram.gba
+file bb727d59fa81915a5f5c609f4befb64872d3a3d830bc6ae0149e26410e648f85 gba-tests/unsafe/unsafe.gba https://raw.githubusercontent.com/jsmolka/gba-tests/a7113b67e63f83a9b321696ddd7042ccfad6c881/unsafe/unsafe.gba
+
+# destoer/armwrestler-gba-fixed at 802e55ad61b421f4bbbc6f74f96aa4e5df4d630f (ELF gives symbol ground truth)
+file 9f08d807c03ef296d38ef73e9b827a3d8c77cead9ced44b07d64c10f5f7d0746 armwrestler/armwrestler-gba-fixed.gba https://raw.githubusercontent.com/destoer/armwrestler-gba-fixed/802e55ad61b421f4bbbc6f74f96aa4e5df4d630f/armwrestler-gba-fixed.gba
+file eb6376652123c92957f28039e41d1bb436a1f76d90c82c10ee7047ba2c18a753 armwrestler/armwrestler-gba-fixed.elf https://raw.githubusercontent.com/destoer/armwrestler-gba-fixed/802e55ad61b421f4bbbc6f74f96aa4e5df4d630f/armwrestler-gba-fixed.elf
+file 0d8f0a2affaf74b18d0b22d75e598f73d121cf40e2883657a822bd9f7e59407a armwrestler/armwrestler.gba https://raw.githubusercontent.com/destoer/armwrestler-gba-fixed/802e55ad61b421f4bbbc6f74f96aa4e5df4d630f/armwrestler.gba
+
+# Tonc demo binaries by Jasper Vijn (coranac.com), 2013-03-24 build
+zip f172fc9308eb030ae8d3479872e9f3521b7f0cae3a64b0cd5f526b7b4b1650ba tonc https://www.coranac.com/files/tonc-bin.zip
+
+# Butano: Varooom 3D release build by GValiente (Butano publishes no prebuilt example ROMs)
+zip 32a2db40f2f113ed90221fd7e66fb8698c622b3e98c9121b5f87b9906a8bc655 butano/varooom-3d https://github.com/GValiente/butano/releases/download/7.3.0/varooom-3d.zip
