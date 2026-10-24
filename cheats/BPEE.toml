@@ -35,6 +35,7 @@ items = [
   "110 Nugget", "111 Heart Scale",
 ]
 vitamins = ["63 HP Up", "64 Protein", "65 Iron", "66 Carbos", "67 Calcium", "70 Zinc"]
+encounters = ["0 Never", "1 On almost every step"]
 exp_multipliers = ["2 x2", "3 x3", "5 x5", "10 x10", "255 x255 (as much as one battle can give)"]
 # Wild encounter species, by internal species number (pret/pokeemerald include/constants/species.h).
 # Each value is the two Thumb instructions the encounter patch writes: movs r6, #min(n, 255) and
@@ -255,3 +256,24 @@ code = ["080B4E6C:{v:8}"]
 param = { label = "Species", list = "wild_species" }
 default = 0x36002619
 
+[[cheat]]
+name = "Wild Pokemon/Wild Pokemon level of your choice"
+note = "ROM patch of ChooseWildMonLevel (0x080B4C74): grass, water, fishing and Rock Smash encounters"
+format = "raw"
+code = ["080B4C74:477020{v:2}"]
+param = { label = "Level", min = 1, max = 100 }
+default = 50
+
+[[cheat]]
+name = "Wild Pokemon/Random encounters"
+note = "ROM patch of WildEncounterCheck (0x080B5170): never, or on almost every step in grass, water and caves (fishing is not affected)"
+format = "raw"
+code = ["080B5170:477020{v:2}"]
+param = { label = "Encounters", list = "encounters" }
+default = 0
+
+[[cheat]]
+name = "Wild Pokemon/Shiny Pokemon"
+note = "ROM patch of CreateBoxMon: every Pokemon created with you as its trainer is shiny (wild Pokemon, gifts, eggs; the nature may differ from Synchronize's). Caught ones stay shiny"
+format = "raw"
+code = ["08067C74:89908951", "08067C78:883B4048", "08067C7C:80784058", "08067C80:04008990", "08067C84:46C04301"]
