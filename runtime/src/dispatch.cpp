@@ -228,7 +228,11 @@ void System::interpret() {
         }
         if (!breakpoints_.empty()) hit_breakpoint(pc);
         const decode::Insn in = interp::fetch(*this, pc, cpu_.t != 0);
+        // Counted per instruction: interpret() can be left by longjmp, so a total taken on
+        // return would miss those runs. A state load can move time back; skip that step.
+        const std::uint64_t started = now();
         interp::execute(*this, in);
+        if (const std::uint64_t ended = now(); ended > started) interpreted_cycles_ += ended - started;
         expected_next = in.next();
         // A jump that leaves LR pointing just past it is a call. Calls made from interpreted
         // code name function entries the recompiler missed as well; log them so one feedback

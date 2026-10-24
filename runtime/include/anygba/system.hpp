@@ -131,6 +131,8 @@ public:
     // DirectSound FIFO pops that found the FIFO empty after it had started playing (an
     // audible gap: the game's sound DMA did not keep up).
     std::uint64_t fifo_underruns() const;
+    // Emulated cycles spent in interpret() (code the recompiler missed), for the stats overlay.
+    std::uint64_t interpreted_cycles() const { return interpreted_cycles_; }
 
     std::function<void(System&)> on_vblank;       // start of every VBlank
     std::function<void(System&)> on_idle_loop;    // a branch-to-self was reached
@@ -321,6 +323,7 @@ private:
     std::function<void(System&)> safe_point_;
     // Dispatch after a safe point restarts mid-function; that address is not a miss.
     bool resuming_ = false;
+    std::uint64_t interpreted_cycles_ = 0;
     static constexpr std::uint32_t kNoSwi = 0xFFFFFFFF;
     std::uint32_t swi_pc_ = kNoSwi;  // the SWI being executed, for safe points in its halt
     std::string rom_sha256_;  // computed on first use

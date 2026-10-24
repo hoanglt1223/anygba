@@ -4,6 +4,7 @@
 #include "player/osd.h"
 #include "player/script.h"
 #include "player/speed.h"
+#include "player/stats.h"
 #include "support/temp_dir.h"
 
 #include <doctest.h>
@@ -419,6 +420,44 @@ TEST_CASE("fast-forward speed: steps, settings file and the menu's Speed page") 
     CHECK(menu.lines()[0] == "== AnyGBA ==");
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::MappingChanged) == 3);
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::SpeedChanged) == 2);
+}
+
+TEST_CASE("stats overlay: hotkey, setting and lines") {
+    const auto defaults = anygba::input::default_mapping();
+    CHECK(defaults.hotkeys[static_cast<int>(Hotkey::Stats)] == std::vector<std::string>{"Ctrl+F"});
+    CHECK(!defaults.stats);
+    auto m = anygba::input::parse_mapping("[player]\nStats = on\n", "t.ini");
+    CHECK(m.stats);
+    CHECK(anygba::input::parse_mapping(anygba::input::format_mapping(m), "rt").stats);
+    CHECK_THROWS_WITH(anygba::input::parse_mapping("[player]\nStats = yes\n", "t.ini"), doctest::Contains("t.ini:2"));
+
+    Script s = Script::parse("1 key down Left Ctrl\n1 key down F\n", "s");
+    s.advance(1);
+    CHECK(anygba::input::has(anygba::input::hotkeys_held(defaults, s), Hotkey::Stats));
+
+    anygba::player::Stats st;
+    st.host_fps = 60;
+    st.gba_fps = 16777216.0 / 280896.0 * 3;
+    st.target_speed = 300;
+    st.fast_forward = true;
+    st.frame_ms = 1.25;
+    st.audio_fill = 50;
+    st.underruns = 2;
+    st.interpreted = 0.5;
+    st.filter = "xbrz4x+lcd-grid";
+    st.output = "1280x720";
+    st.cheats = 3;
+    st.save = "flash128";
+    st.rtc = true;
+    const auto lines = anygba::player::stats_lines(st);
+    CHECK(lines == std::vector<std::string>{"FPS 60.0 host, 179.2 GBA", "Speed 300% of 300% (FF)", "Frame 1.25 ms",
+                                            "Audio 50%, 2 underruns", "Interpreter 0.5%", "Video xbrz4x+lcd-grid 1280x720",
+                                            "Cheats 3  Save flash128  RTC on"});
+    for (const auto& l : lines) CHECK(l.size() < static_cast<std::size_t>(anygba::player::kColumns));
+    std::array<std::uint16_t, 240 * 160> picture{};
+    anygba::player::draw_stats(picture, lines);
+    CHECK(std::count(picture.begin(), picture.end(), anygba::player::color::kGreen) > 0);
+    CHECK(picture[240 * 159 + 239] == 0);  // only the top-left corner
 }
 
 TEST_CASE("OSD text folds accents and draws inside the picture") {

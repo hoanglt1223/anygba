@@ -39,6 +39,7 @@ add_library(anygba_runtime STATIC
   src/cheats/cheat_list.cpp
   src/player/osd.cpp
   src/player/speed.cpp
+  src/player/stats.cpp
   src/player/script.cpp
   src/player/menu.cpp
   src/video/parallel.cpp

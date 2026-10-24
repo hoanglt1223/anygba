@@ -39,6 +39,7 @@ FastForward = Space
 CheatButton = F12
 AiControl = F10
 Journal = F11
+Stats = Ctrl+F
 
 [gamepad]
 A = South
@@ -63,6 +64,8 @@ FastForward = RightTrigger
 Speed = 100
 # Speed while FastForward is held: 150, 200, 300, 400, 500, 800 or unlimited (no sound).
 FastForwardSpeed = 300
+# The stats overlay (Stats hotkey) is shown: on or off.
+Stats = off
 # Left stick travel ignored before it presses the d-pad (0-32767).
 StickDeadzone = 12000
 ```
@@ -70,7 +73,8 @@ StickDeadzone = 12000
 - Names are the GBA buttons `A`, `B`, `Select`, `Start`, `Right`, `Left`, `Up`, `Down`, `R`, `L` and the
   hotkeys `SaveState1`-`SaveState9`, `LoadState1`-`LoadState9`, `SpeedUp`, `SpeedDown`, `Menu`,
   `FastForward` (held), `CheatButton` (held; the cheat device's button that some codes test), `AiControl`
-  and `Journal` (switch AI agent control and the play journal on and off, [AI-CONTROL.md](AI-CONTROL.md)).
+  and `Journal` (switch AI agent control and the play journal on and off, [AI-CONTROL.md](AI-CONTROL.md)),
+  and `Stats` (the stats overlay, [USAGE.md](USAGE.md)).
 - A value is a comma-separated list: `A = X, K`. An empty value unbinds the name for that device.
 - A name you do not mention keeps its default, so a file can hold just the lines you change.
 - Keyboard names are SDL key names: letters and digits, `Return`, `Space`, `Backspace`, `Tab`,

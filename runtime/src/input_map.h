@@ -30,6 +30,7 @@ enum class Hotkey : std::uint8_t {
     CheatButton,  // held: the GameShark / Action Replay device button
     AiControl,    // agent control server on/off (docs/user/AI-CONTROL.md)
     Journal,      // play journal on/off
+    Stats,        // the stats overlay on/off
     Count,
 };
 inline constexpr int kHotkeys = static_cast<int>(Hotkey::Count);
@@ -46,6 +47,7 @@ struct Mapping {
     std::array<std::vector<std::string>, kHotkeys> pad_hotkeys;
     int speed = 100;              // [player] Speed: starting speed in percent
     int fast_forward = 300;       // [player] FastForwardSpeed: percent, 0 = unlimited
+    bool stats = false;           // [player] Stats: the stats overlay is shown
     int stick_deadzone = 12000;   // [player] StickDeadzone: left stick travel ignored (0-32767)
 };
 

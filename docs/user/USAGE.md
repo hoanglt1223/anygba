@@ -70,6 +70,7 @@ Options (`anygba help build`):
 | F12 (hold) | | the cheat device's button, for codes that need it |
 | F10 | | AI control on/off ([AI-CONTROL.md](AI-CONTROL.md)) |
 | F11 | | play journal on/off |
+| Ctrl+F | | stats overlay on/off (see below) |
 
 All of them can be changed in the Controls page of the menu or in
 [INPUT_MAPPING.md](INPUT_MAPPING.md). Messages about slots, speed, cheats and gamepads appear at the bottom
@@ -86,6 +87,17 @@ sound resampled the same way, or *unlimited*, which runs as fast as the computer
 the card cannot keep up with. Set it in the menu (Speed page), with `FastForwardSpeed` in the input file's
 `[player]` section, or for one run with `--ff-speed N|unlimited`. A change in the menu is saved to the
 input file.
+
+## Stats overlay
+
+Ctrl+F (the `Stats` hotkey) shows figures in the top-left corner, updated every second: pictures shown
+and GBA frames emulated per second, the measured speed against its target (`(FF)` while fast-forward is
+held), the host time to emulate one frame, how full the sound queue is and how many times the game's
+sound DMA fell behind (FIFO underruns), the share of emulated time spent in the interpreter (code the
+recompiler missed; see "When something is missing"), the video filter and output resolution, the
+number of active cheats, the save type and whether the cartridge clock is on. It is off by default; the
+choice is saved as `Stats = on|off` in the input file's `[player]` section. Headless runs print the
+lines as `stats| ...`.
 
 ## Save states
 

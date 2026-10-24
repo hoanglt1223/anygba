@@ -153,6 +153,7 @@ std::string hotkey_name(Hotkey hotkey) {
     case Hotkey::CheatButton: return "CheatButton";
     case Hotkey::AiControl: return "AiControl";
     case Hotkey::Journal: return "Journal";
+    case Hotkey::Stats: return "Stats";
     default: return "?";
     }
 }
@@ -192,6 +193,7 @@ Mapping default_mapping() {
     set(Hotkey::CheatButton, {"F12"}, {});
     set(Hotkey::AiControl, {"F10"}, {});
     set(Hotkey::Journal, {"F11"}, {});
+    set(Hotkey::Stats, {"Ctrl+F"}, {});
     m.pad_hotkeys[static_cast<int>(Hotkey::SaveState1)] = {"Back+RightShoulder"};
     m.pad_hotkeys[static_cast<int>(Hotkey::LoadState1)] = {"Back+LeftShoulder"};
     return m;
@@ -245,11 +247,14 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
                 const auto ff = player::parse_fast_forward(value);
                 if (!ff) fail("FastForwardSpeed must be 150, 200, 300, 400, 500, 800 or unlimited");
                 m.fast_forward = *ff;
+            } else if (key == "Stats") {
+                if (value != "on" && value != "off") fail("Stats must be on or off");
+                m.stats = value == "on";
             } else if (key == "StickDeadzone") {
                 if (*end != '\0' || n < 0 || n > 32767) fail("StickDeadzone must be 0 to 32767");
                 m.stick_deadzone = static_cast<int>(n);
             } else {
-                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, StickDeadzone)");
+                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, Stats, StickDeadzone)");
             }
             continue;
         }
@@ -266,7 +271,7 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
         if (button < 0 && hotkey < 0) {
             fail("unknown name '" + std::string(key) +
                  "' (GBA buttons A, B, Select, Start, Right, Left, Up, Down, R, L; hotkeys SaveState1-9, LoadState1-9, "
-                 "SpeedUp, SpeedDown, Menu, FastForward, CheatButton, AiControl, Journal)");
+                 "SpeedUp, SpeedDown, Menu, FastForward, CheatButton, AiControl, Journal, Stats)");
         }
         if (section == Section::Keyboard) {
             std::vector<std::string> keys;
@@ -336,6 +341,7 @@ std::string format_mapping(const Mapping& m) {
     }
     out += "\n[player]\nSpeed = " + std::to_string(m.speed) +
            "\nFastForwardSpeed = " + player::format_fast_forward(m.fast_forward, false) +
+           "\nStats = " + (m.stats ? "on" : "off") +
            "\nStickDeadzone = " + std::to_string(m.stick_deadzone) + "\n";
     return out;
 }

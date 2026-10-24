@@ -13,6 +13,7 @@
 #include "player/osd.h"
 #include "player/script.h"
 #include "player/speed.h"
+#include "player/stats.h"
 #include "player/touch_overlay.h"
 #include "save/save.h"
 #include "video/presenter.h"
@@ -522,6 +523,7 @@ public:
         if (control_ && !stopping_) {
             control_->service_frame();
         }
+        vblank_end_ns_ = platform::now_ns();
     }
 
     void stop() {
@@ -634,6 +636,7 @@ private:
         }
         if (control_ && anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
         if (control_ && anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
+        if (anygba::input::has(pressed, Hotkey::Stats)) toggle_stats();
     }
 
     void set_speed(int speed) {
@@ -666,15 +669,76 @@ private:
         sync_menu_settings();  // a switch that failed to turn on shows Off again
     }
 
+    // One-second windows: the frame rate for agents, and the stats overlay's figures.
     void measure_fps() {
         const std::uint64_t now = platform::now_ns();
+        if (vblank_end_ns_) work_ns_ += now - vblank_end_ns_;
         if (fps_frames_++ == 0) {
             fps_start_ns_ = now;
+            start_stats_window();
         } else if (now - fps_start_ns_ >= 1'000'000'000ull) {
-            fps_ = static_cast<double>(fps_frames_ - 1) * 1e9 / static_cast<double>(now - fps_start_ns_);
+            const double seconds = static_cast<double>(now - fps_start_ns_) / 1e9;
+            fps_ = static_cast<double>(fps_frames_ - 1) / seconds;
+            if (mapping_.stats) update_stats(seconds, fps_frames_ - 1);
             fps_frames_ = 1;
             fps_start_ns_ = now;
+            start_stats_window();
         }
+    }
+
+    void start_stats_window() {
+        window_cycles_ = sys_.now();
+        window_interpreted_ = sys_.interpreted_cycles();
+        presents_ = 0;
+        work_ns_ = 0;
+    }
+
+    void update_stats(double seconds, std::uint64_t frames) {
+        player::Stats s;
+        s.host_fps = static_cast<double>(presents_) / seconds;
+        s.gba_fps = fps_;
+        s.fast_forward = fast_forward_held_;
+        s.target_speed = unthrottled() ? player::kUnlimited : effective_speed();
+        s.frame_ms = frames ? static_cast<double>(work_ns_) / 1e6 / static_cast<double>(frames) : 0;
+        if (audio_) {
+            s.audio_fill = 100.0 * static_cast<double>(audio_->queued_frames()) / (2.0 * kSampleRate / 60);
+        }
+        s.underruns = sys_.fifo_underruns();
+        const std::uint64_t cycles = sys_.now();
+        const std::uint64_t interpreted = sys_.interpreted_cycles();
+        if (cycles > window_cycles_ && interpreted >= window_interpreted_) {
+            s.interpreted = std::min(100.0, 100.0 * static_cast<double>(interpreted - window_interpreted_) /
+                                                static_cast<double>(cycles - window_cycles_));
+        }
+        s.filter = anygba::video::filter_spec(video_options_);
+        if (window_) {
+            const auto [w, h] = window_->render_size();
+            s.output = std::to_string(w) + "x" + std::to_string(h);
+        } else {
+            s.output = "headless";
+        }
+        s.cheats = cheats_.active().size();
+        s.save = anygba::save::name(sys_.backup().type());
+        s.rtc = sys_.has_rtc();
+        stats_lines_ = player::stats_lines(s);
+        if (args_.headless) {
+            for (const auto& l : stats_lines_) std::printf("stats| %s\n", l.c_str());
+            std::fflush(stdout);
+        }
+    }
+
+    void toggle_stats() {
+        mapping_.stats = !mapping_.stats;
+        stats_lines_.clear();  // filled at the end of the next one-second window
+        osd_.show(mapping_.stats ? "Stats on" : "Stats off");
+        save_mapping();
+    }
+
+    // The overlays drawn over the game picture in frame_copy_.
+    void decorate() {
+        if (mapping_.stats) player::draw_stats(frame_copy_, stats_lines_);
+        osd_.draw(frame_copy_);
+        draw_indicator();
     }
 
     // One host frame while an agent keeps the game paused.
@@ -692,10 +756,10 @@ private:
         hotkeys_prev_ = held;
         if (anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
         if (anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
+        if (anygba::input::has(pressed, Hotkey::Stats)) toggle_stats();
         user = anygba::input::gba_keys(mapping_, *device_);
         frame_copy_ = sys_.framebuffer();
-        osd_.draw(frame_copy_);
-        draw_indicator();
+        decorate();
         show(frame_copy_);
         osd_.tick();
         return true;
@@ -885,19 +949,19 @@ private:
     }
 
     void present(bool unthrottled) {
-        if (!window_) return;
         const std::uint64_t now = platform::now_ns();
         if ((unthrottled || effective_speed() > 100) && now - last_present_ns_ < 15'000'000) {
             return;  // fast play: show at most about 60 pictures a second
         }
         last_present_ns_ = now;
-        if (osd_.empty() && (!control_ || control_->indicator().empty())) {
+        ++presents_;  // counted headless too, as the pictures a window would show
+        if (!window_) return;
+        if (osd_.empty() && (!control_ || control_->indicator().empty()) && !mapping_.stats) {
             show(sys_.framebuffer());
             return;
         }
         frame_copy_ = sys_.framebuffer();
-        osd_.draw(frame_copy_);
-        draw_indicator();
+        decorate();
         show(frame_copy_);
     }
 
@@ -993,6 +1057,12 @@ private:
     double fps_ = 0;
     std::uint64_t fps_frames_ = 0;
     std::uint64_t fps_start_ns_ = 0;
+    std::uint64_t vblank_end_ns_ = 0;
+    std::uint64_t work_ns_ = 0;  // emulation time in this window, waits excluded
+    std::uint64_t presents_ = 0;
+    std::uint64_t window_cycles_ = 0;
+    std::uint64_t window_interpreted_ = 0;
+    std::vector<std::string> stats_lines_;
     player::MenuSettings menu_settings_;
     // Declared last: destroyed first, while everything its hooks use still exists.
     std::unique_ptr<anygba::control::Controller> control_;

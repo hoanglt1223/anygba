@@ -126,7 +126,7 @@ if(EXISTS "${corpus}/tonc/bin/irq_demo.gba" AND EXISTS "${corpus}/tonc/bin/first
   # Animates on its own and sleeps in VBlankIntrWait: the save-state round trip runs on it.
   anygba_add_game(player-swi-vsync ROM "${corpus}/tonc/bin/swi_vsync.gba" SHARDS 1)
   anygba_add_game(player-first ROM "${corpus}/tonc/bin/first.gba" SHARDS 1)
-  foreach(feature states cheats menu speed)
+  foreach(feature states cheats menu speed stats)
     add_test(NAME player-${feature}
       COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:player-irq-demo>" "-DROM=${corpus}/tonc/bin/irq_demo.gba"
         "-DVSYNC_GAME=$<TARGET_FILE:player-swi-vsync>" "-DVSYNC_ROM=${corpus}/tonc/bin/swi_vsync.gba"
