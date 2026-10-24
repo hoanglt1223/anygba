@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -55,6 +56,11 @@ struct PadState {
     std::int16_t axis(Axis a) const noexcept { return axes[static_cast<std::size_t>(a)]; }
 };
 
+struct GamepadEvent {
+    bool connected = false;  // false: removed
+    std::string name;
+};
+
 // Keyboard plus every connected gamepad, merged into one PadState.
 // Default keys: arrows = d-pad, X = South, Z = East, A = West, S = North,
 // Q = LeftShoulder, W = RightShoulder, Return = Start, Backspace = Back.
@@ -77,13 +83,25 @@ public:
 
     void handle_event(const SDL_Event& event);
 
+    // Key names pressed since the last call, in order, without auto-repeat (for text entry
+    // and "press a key" prompts).
+    std::vector<std::string> take_key_presses();
+    // Gamepads connected or removed since the last call.
+    std::vector<GamepadEvent> take_gamepad_events();
+
 private:
     static constexpr std::size_t kScancodeCount = 512;
 
     std::vector<std::pair<int, Button>> key_bindings_;
     std::array<bool, kScancodeCount> keys_down_{};
     std::vector<std::pair<std::uint32_t, SDL_Gamepad*>> gamepads_;
+    std::vector<std::string> key_presses_;
+    std::vector<GamepadEvent> gamepad_events_;
 };
+
+// Adds SDL gamepad mappings (the gamecontrollerdb.txt format) for controllers SDL does not
+// know. Returns the number added; throws Error when the file cannot be read.
+int add_gamepad_mappings(const std::string& path_utf8);
 
 // Drains pending events into `input`. Returns false once the user asked to quit.
 bool pump_events(Input& input);

@@ -231,7 +231,7 @@ TEST_CASE("input mapping: defaults, overrides, unbinding, errors") {
     CHECK(m.keys[0] == std::vector<std::string>{"K", "Space"});
     CHECK(m.keys[1].empty());
     CHECK(m.keys[3] == std::vector<std::string>{"Return"});  // untouched default
-    CHECK(m.fast_forward == std::vector<std::string>{"Left Shift"});
+    CHECK(m.hotkeys[static_cast<int>(anygba::input::Hotkey::FastForward)] == std::vector<std::string>{"Left Shift"});
     CHECK(m.pad[0] == std::vector<Button>{Button::East});
     CHECK(m.pad[9] == std::vector<Button>{Button::LeftTrigger});
 
@@ -244,7 +244,7 @@ TEST_CASE("input mapping: defaults, overrides, unbinding, errors") {
     const auto round_trip = parse_mapping(anygba::input::format_mapping(m), "round-trip");
     CHECK(round_trip.keys == m.keys);
     CHECK(round_trip.pad == m.pad);
-    CHECK(round_trip.fast_forward == m.fast_forward);
+    CHECK(round_trip.hotkeys == m.hotkeys);
 }
 
 TEST_CASE("embedded ROM trailer") {

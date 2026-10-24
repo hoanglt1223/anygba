@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <string>
+#include <utility>
 
 namespace anyport::platform {
 
@@ -144,6 +145,9 @@ void Input::handle_event(const SDL_Event& event) {
         if (scancode < kScancodeCount) {
             keys_down_[scancode] = event.type == SDL_EVENT_KEY_DOWN;
         }
+        if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && key_presses_.size() < 64) {
+            key_presses_.emplace_back(SDL_GetScancodeName(event.key.scancode));
+        }
         break;
     }
     case SDL_EVENT_WINDOW_FOCUS_LOST:
@@ -159,6 +163,8 @@ void Input::handle_event(const SDL_Event& event) {
         // A pad that fails to open is skipped rather than aborting the session.
         if (SDL_Gamepad* pad = SDL_OpenGamepad(id)) {
             gamepads_.emplace_back(id, pad);
+            const char* name = SDL_GetGamepadName(pad);
+            gamepad_events_.push_back({true, name ? name : "unknown controller"});
         } else {
             SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "SDL_OpenGamepad(%u) failed: %s",
                         static_cast<unsigned>(id), SDL_GetError());
@@ -170,6 +176,8 @@ void Input::handle_event(const SDL_Event& event) {
         const auto it = std::find_if(gamepads_.begin(), gamepads_.end(),
                                      [id](const auto& entry) { return entry.first == id; });
         if (it != gamepads_.end()) {
+            const char* name = SDL_GetGamepadName(it->second);
+            gamepad_events_.push_back({false, name ? name : "unknown controller"});
             SDL_CloseGamepad(it->second);
             gamepads_.erase(it);
         }
@@ -178,6 +186,18 @@ void Input::handle_event(const SDL_Event& event) {
     default:
         break;
     }
+}
+
+std::vector<std::string> Input::take_key_presses() { return std::exchange(key_presses_, {}); }
+
+std::vector<GamepadEvent> Input::take_gamepad_events() { return std::exchange(gamepad_events_, {}); }
+
+int add_gamepad_mappings(const std::string& path_utf8) {
+    const int added = SDL_AddGamepadMappingsFromFile(path_utf8.c_str());
+    if (added < 0) {
+        detail::throw_sdl_error("SDL_AddGamepadMappingsFromFile");
+    }
+    return added;
 }
 
 bool pump_events(Input& input) {

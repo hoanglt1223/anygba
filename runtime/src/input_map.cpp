@@ -1,18 +1,19 @@
 #include "input_map.h"
 
-#include <SDL3/SDL_scancode.h>
 #include <SDL3/SDL_keyboard.h>
+#include <SDL3/SDL_scancode.h>
 
+#include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 
 namespace anygba::input {
 
 namespace {
-
-using anyport::platform::Button;
 
 constexpr std::pair<std::string_view, Button> kPadNames[] = {
     {"South", Button::South},
@@ -34,6 +35,9 @@ constexpr std::pair<std::string_view, Button> kPadNames[] = {
     {"RightTrigger", Button::RightTrigger},
 };
 
+constexpr std::string_view kModifiers[] = {"Ctrl", "Alt", "Shift"};
+constexpr int kRight = 4, kLeft = 5, kUp = 6, kDown = 7;
+
 std::string_view trim(std::string_view s) {
     const auto first = s.find_first_not_of(" \t\r");
     if (first == std::string_view::npos) {
@@ -42,30 +46,119 @@ std::string_view trim(std::string_view s) {
     return s.substr(first, s.find_last_not_of(" \t\r") - first + 1);
 }
 
-std::vector<std::string> split_list(std::string_view value) {
+std::vector<std::string> split(std::string_view value, char separator) {
     std::vector<std::string> items;
     while (!value.empty()) {
-        const auto comma = value.find(',');
-        const std::string_view item = trim(value.substr(0, comma));
+        const auto at = value.find(separator);
+        const std::string_view item = trim(value.substr(0, at));
         if (!item.empty()) {
             items.emplace_back(item);
         }
-        if (comma == std::string_view::npos) {
+        if (at == std::string_view::npos) {
             break;
         }
-        value.remove_prefix(comma + 1);
+        value.remove_prefix(at + 1);
     }
     return items;
 }
 
-const char* pad_name(Button b) {
+std::optional<Button> pad_button(std::string_view name) {
+    for (const auto& [n, b] : kPadNames) {
+        if (n == name) return b;
+    }
+    return std::nullopt;
+}
+
+std::string canonical_key(std::string_view name) {
+    const SDL_Scancode code = SDL_GetScancodeFromName(std::string(name).c_str());
+    if (code == SDL_SCANCODE_UNKNOWN) {
+        return {};
+    }
+    return SDL_GetScancodeName(code);
+}
+
+bool is_modifier_key(std::string_view key) {
+    return key == "Left Shift" || key == "Right Shift" || key == "Left Ctrl" || key == "Right Ctrl" ||
+           key == "Left Alt" || key == "Right Alt";
+}
+
+struct KeyChord {
+    bool ctrl = false, alt = false, shift = false;
+    std::string key;
+};
+
+// "Shift+F1" -> {shift, "F1"}. A key name that itself contains '+' ("Keypad +") stays whole.
+std::optional<KeyChord> parse_key_chord(std::string_view text) {
+    KeyChord chord;
+    for (;;) {
+        bool matched = false;
+        for (const std::string_view mod : kModifiers) {
+            if (text.size() > mod.size() + 1 && text.substr(0, mod.size()) == mod && text[mod.size()] == '+') {
+                (mod == "Ctrl" ? chord.ctrl : mod == "Alt" ? chord.alt : chord.shift) = true;
+                text.remove_prefix(mod.size() + 1);
+                matched = true;
+            }
+        }
+        if (!matched) break;
+    }
+    chord.key = canonical_key(trim(text));
+    if (chord.key.empty()) {
+        return std::nullopt;
+    }
+    return chord;
+}
+
+std::optional<std::vector<Button>> parse_pad_chord(std::string_view text) {
+    std::vector<Button> buttons;
+    for (const std::string& part : split(text, '+')) {
+        const auto b = pad_button(part);
+        if (!b) return std::nullopt;
+        buttons.push_back(*b);
+    }
+    if (buttons.empty()) return std::nullopt;
+    return buttons;
+}
+
+bool modifiers_match(const KeyChord& chord, const Source& source) {
+    const bool ctrl = source.key_held("Left Ctrl") || source.key_held("Right Ctrl");
+    const bool alt = source.key_held("Left Alt") || source.key_held("Right Alt");
+    const bool shift = source.key_held("Left Shift") || source.key_held("Right Shift");
+    return ctrl == chord.ctrl && alt == chord.alt && shift == chord.shift;
+}
+
+bool key_chord_held(std::string_view text, const Source& source) {
+    const auto chord = parse_key_chord(text);
+    if (!chord || !source.key_held(chord->key)) return false;
+    return is_modifier_key(chord->key) || modifiers_match(*chord, source);
+}
+
+bool pad_chord_held(std::string_view text, const anyport::platform::PadState& pad) {
+    const auto buttons = parse_pad_chord(text);
+    return buttons && std::all_of(buttons->begin(), buttons->end(), [&](Button b) { return pad.held(b); });
+}
+
+}  // namespace
+
+std::string hotkey_name(Hotkey hotkey) {
+    const int i = static_cast<int>(hotkey);
+    if (i < 9) return "SaveState" + std::to_string(i + 1);
+    if (i < 18) return "LoadState" + std::to_string(i - 8);
+    switch (hotkey) {
+    case Hotkey::SpeedUp: return "SpeedUp";
+    case Hotkey::SpeedDown: return "SpeedDown";
+    case Hotkey::Menu: return "Menu";
+    case Hotkey::FastForward: return "FastForward";
+    case Hotkey::CheatButton: return "CheatButton";
+    default: return "?";
+    }
+}
+
+const char* pad_button_name(Button b) {
     for (const auto& [name, button] : kPadNames) {
         if (button == b) return name.data();
     }
     return "?";
 }
-
-}  // namespace
 
 Mapping default_mapping() {
     Mapping m;
@@ -80,13 +173,27 @@ Mapping default_mapping() {
               {Button::DpadDown},
               {Button::RightShoulder},
               {Button::LeftShoulder}}};
-    m.fast_forward = {"Space"};
+    for (int slot = 1; slot <= 9; ++slot) {
+        m.hotkeys[static_cast<int>(save_slot_key(slot))] = {"Shift+F" + std::to_string(slot)};
+        m.hotkeys[static_cast<int>(load_slot_key(slot))] = {"F" + std::to_string(slot)};
+    }
+    const auto set = [&m](Hotkey h, std::vector<std::string> keys, std::vector<std::string> pad) {
+        m.hotkeys[static_cast<int>(h)] = std::move(keys);
+        m.pad_hotkeys[static_cast<int>(h)] = std::move(pad);
+    };
+    set(Hotkey::SpeedUp, {"="}, {"Back+DpadUp"});
+    set(Hotkey::SpeedDown, {"-"}, {"Back+DpadDown"});
+    set(Hotkey::Menu, {"Escape"}, {"Back+Start"});
+    set(Hotkey::FastForward, {"Space"}, {"RightTrigger"});
+    set(Hotkey::CheatButton, {"F12"}, {});
+    m.pad_hotkeys[static_cast<int>(Hotkey::SaveState1)] = {"Back+RightShoulder"};
+    m.pad_hotkeys[static_cast<int>(Hotkey::LoadState1)] = {"Back+LeftShoulder"};
     return m;
 }
 
 Mapping parse_mapping(std::string_view text, std::string_view source_name) {
     Mapping m = default_mapping();
-    enum class Section { None, Keyboard, Gamepad } section = Section::None;
+    enum class Section { None, Keyboard, Gamepad, Player } section = Section::None;
     std::size_t line_no = 0;
     const auto fail = [&](const std::string& message) {
         throw std::runtime_error(std::string(source_name) + ":" + std::to_string(line_no) + ": " + message);
@@ -105,54 +212,81 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
                 section = Section::Keyboard;
             } else if (line == "[gamepad]") {
                 section = Section::Gamepad;
+            } else if (line == "[player]") {
+                section = Section::Player;
             } else {
-                fail("unknown section " + std::string(line) + " (expected [keyboard] or [gamepad])");
+                fail("unknown section " + std::string(line) + " (expected [keyboard], [gamepad] or [player])");
             }
             continue;
         }
         const auto eq = line.find('=');
         if (eq == std::string_view::npos) {
-            fail("expected 'Button = ...'");
+            fail("expected 'Name = ...'");
         }
         if (section == Section::None) {
-            fail("binding outside a [keyboard] or [gamepad] section");
+            fail("setting outside a [keyboard], [gamepad] or [player] section");
         }
         const std::string_view key = trim(line.substr(0, eq));
-        const std::vector<std::string> values = split_list(line.substr(eq + 1));
-        if (key == "FastForward") {
-            if (section != Section::Keyboard) {
-                fail("FastForward can only be bound in [keyboard]");
+        const std::string_view value = trim(line.substr(eq + 1));
+        if (section == Section::Player) {
+            char* end = nullptr;
+            const std::string v(value);
+            const long n = std::strtol(v.c_str(), &end, 10);
+            if (key == "Speed") {
+                if (*end != '\0' || (n != 100 && n != 200 && n != 300 && n != 400)) fail("Speed must be 100, 200, 300 or 400");
+                m.speed = static_cast<int>(n);
+            } else if (key == "StickDeadzone") {
+                if (*end != '\0' || n < 0 || n > 32767) fail("StickDeadzone must be 0 to 32767");
+                m.stick_deadzone = static_cast<int>(n);
+            } else {
+                fail("unknown [player] setting '" + std::string(key) + "' (Speed, StickDeadzone)");
             }
-            for (const auto& v : values) {
-                if (SDL_GetScancodeFromName(v.c_str()) == SDL_SCANCODE_UNKNOWN) fail("unknown key name '" + v + "'");
-            }
-            m.fast_forward = values;
             continue;
         }
-        int index = -1;
+        // Value lists: a key name may contain neither ',' nor be empty.
+        const std::vector<std::string> values = split(value, ',');
+        int button = -1;
         for (int i = 0; i < kGbaButtons; ++i) {
-            if (kGbaButtonNames[i] == key) index = i;
+            if (kGbaButtonNames[i] == key) button = i;
         }
-        if (index < 0) {
-            fail("unknown GBA button '" + std::string(key) + "' (A, B, Select, Start, Right, Left, Up, Down, R, L, FastForward)");
+        int hotkey = -1;
+        for (int i = 0; i < kHotkeys; ++i) {
+            if (hotkey_name(static_cast<Hotkey>(i)) == key) hotkey = i;
+        }
+        if (button < 0 && hotkey < 0) {
+            fail("unknown name '" + std::string(key) +
+                 "' (GBA buttons A, B, Select, Start, Right, Left, Up, Down, R, L; hotkeys SaveState1-9, LoadState1-9, "
+                 "SpeedUp, SpeedDown, Menu, FastForward, CheatButton)");
         }
         if (section == Section::Keyboard) {
+            std::vector<std::string> keys;
             for (const auto& v : values) {
-                if (SDL_GetScancodeFromName(v.c_str()) == SDL_SCANCODE_UNKNOWN) fail("unknown key name '" + v + "'");
-            }
-            m.keys[index] = values;
-        } else {
-            m.pad[index].clear();
-            for (const auto& v : values) {
-                bool found = false;
-                for (const auto& [name, button] : kPadNames) {
-                    if (name == v) {
-                        m.pad[index].push_back(button);
-                        found = true;
-                    }
+                if (button >= 0) {
+                    const std::string k = canonical_key(v);
+                    if (k.empty()) fail("unknown key name '" + v + "'");
+                    keys.push_back(k);
+                } else {
+                    const auto chord = parse_key_chord(v);
+                    if (!chord) fail("unknown key name in '" + v + "'");
+                    keys.push_back(keyboard_chord(chord->key, chord->ctrl, chord->alt, chord->shift));
                 }
-                if (!found) fail("unknown gamepad button '" + v + "'");
             }
+            (button >= 0 ? m.keys[button] : m.hotkeys[hotkey]) = std::move(keys);
+        } else if (button >= 0) {
+            m.pad[button].clear();
+            for (const auto& v : values) {
+                const auto b = pad_button(v);
+                if (!b) fail("unknown gamepad button '" + v + "'");
+                m.pad[button].push_back(*b);
+            }
+        } else {
+            std::vector<std::string> chords;
+            for (const auto& v : values) {
+                const auto buttons = parse_pad_chord(v);
+                if (!buttons) fail("unknown gamepad button in '" + v + "'");
+                chords.push_back(pad_chord(*buttons));
+            }
+            m.pad_hotkeys[hotkey] = std::move(chords);
         }
     }
     return m;
@@ -169,41 +303,177 @@ Mapping load_mapping(const std::filesystem::path& path) {
 }
 
 std::string format_mapping(const Mapping& m) {
-    std::string out = "[keyboard]\n";
-    const auto join = [](const auto& items, auto&& to_string) {
+    const auto join = [](const std::vector<std::string>& items) {
         std::string s;
-        for (const auto& item : items) {
-            s += (s.empty() ? "" : ", ") + std::string(to_string(item));
-        }
+        for (const auto& item : items) s += (s.empty() ? "" : ", ") + item;
         return s;
     };
+    std::string out = "[keyboard]\n";
     for (int i = 0; i < kGbaButtons; ++i) {
-        out += std::string(kGbaButtonNames[i]) + " = " + join(m.keys[i], [](const std::string& k) { return k; }) + "\n";
+        out += std::string(kGbaButtonNames[i]) + " = " + join(m.keys[i]) + "\n";
     }
-    out += "FastForward = " + join(m.fast_forward, [](const std::string& k) { return k; }) + "\n\n[gamepad]\n";
+    for (int i = 0; i < kHotkeys; ++i) {
+        out += hotkey_name(static_cast<Hotkey>(i)) + " = " + join(m.hotkeys[i]) + "\n";
+    }
+    out += "\n[gamepad]\n";
     for (int i = 0; i < kGbaButtons; ++i) {
-        out += std::string(kGbaButtonNames[i]) + " = " + join(m.pad[i], [](Button b) { return pad_name(b); }) + "\n";
+        std::vector<std::string> names;
+        for (const Button b : m.pad[i]) names.emplace_back(pad_button_name(b));
+        out += std::string(kGbaButtonNames[i]) + " = " + join(names) + "\n";
     }
+    for (int i = 0; i < kHotkeys; ++i) {
+        out += hotkey_name(static_cast<Hotkey>(i)) + " = " + join(m.pad_hotkeys[i]) + "\n";
+    }
+    out += "\n[player]\nSpeed = " + std::to_string(m.speed) + "\nStickDeadzone = " + std::to_string(m.stick_deadzone) +
+           "\n";
     return out;
 }
 
-std::uint16_t gba_keys(const Mapping& m, const anyport::platform::Input& input) {
-    const anyport::platform::PadState pad = input.state();
+std::optional<std::string> save_mapping(const Mapping& mapping, const std::filesystem::path& path) {
+    std::error_code ec;
+    if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path(), ec);
+    std::filesystem::path tmp = path;
+    tmp += ".tmp";
+    {
+        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+        out << "# AnyGBA input mapping (docs/user/INPUT_MAPPING.md)\n" << format_mapping(mapping);
+        out.close();
+        if (!out) return "cannot write " + tmp.string();
+    }
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) return "cannot replace " + path.string() + ": " + ec.message();
+    return std::nullopt;
+}
+
+std::uint16_t gba_keys(const Mapping& m, const Source& source) {
+    const anyport::platform::PadState pad = source.pad();
+    std::uint32_t chord_buttons = 0;  // pad buttons consumed by a held hotkey chord
+    for (const auto& chords : m.pad_hotkeys) {
+        for (const auto& chord : chords) {
+            const auto buttons = parse_pad_chord(chord);
+            if (buttons && buttons->size() > 1 && pad_chord_held(chord, pad)) {
+                for (const Button b : *buttons) chord_buttons |= 1u << static_cast<unsigned>(b);
+            }
+        }
+    }
     std::uint16_t keys = 0;
     for (int i = 0; i < kGbaButtons; ++i) {
         bool held = false;
-        for (const auto& k : m.keys[i]) held = held || input.key_held(k);
-        for (const Button b : m.pad[i]) held = held || pad.held(b);
+        for (const auto& k : m.keys[i]) held = held || source.key_held(k);
+        for (const Button b : m.pad[i]) {
+            held = held || (pad.held(b) && !((chord_buttons >> static_cast<unsigned>(b)) & 1u));
+        }
         if (held) keys = static_cast<std::uint16_t>(keys | (1u << i));
     }
+    const int dz = m.stick_deadzone;
+    const int x = pad.axis(anyport::platform::Axis::LeftX);
+    const int y = pad.axis(anyport::platform::Axis::LeftY);
+    if (x > dz) keys |= 1u << kRight;
+    if (x < -dz) keys |= 1u << kLeft;
+    if (y < -dz) keys |= 1u << kUp;
+    if (y > dz) keys |= 1u << kDown;
     return keys;
 }
 
-bool fast_forward_held(const Mapping& m, const anyport::platform::Input& input) {
-    for (const auto& k : m.fast_forward) {
-        if (input.key_held(k)) return true;
+std::uint32_t hotkeys_held(const Mapping& m, const Source& source) {
+    const anyport::platform::PadState pad = source.pad();
+    std::uint32_t held = 0;
+    for (int i = 0; i < kHotkeys; ++i) {
+        bool on = false;
+        for (const auto& chord : m.hotkeys[i]) on = on || key_chord_held(chord, source);
+        for (const auto& chord : m.pad_hotkeys[i]) on = on || pad_chord_held(chord, pad);
+        if (on) held |= 1u << i;
     }
-    return false;
+    return held;
+}
+
+std::string target_name(Target target) {
+    return target.hotkey ? hotkey_name(static_cast<Hotkey>(target.index)) : std::string(kGbaButtonNames[target.index]);
+}
+
+std::string describe(const Mapping& m, Target target, Device device) {
+    std::vector<std::string> names;
+    if (device == Device::Keyboard) {
+        names = target.hotkey ? m.hotkeys[target.index] : m.keys[target.index];
+    } else if (target.hotkey) {
+        names = m.pad_hotkeys[target.index];
+    } else {
+        for (const Button b : m.pad[target.index]) names.emplace_back(pad_button_name(b));
+    }
+    std::string s;
+    for (const auto& n : names) s += (s.empty() ? "" : ", ") + n;
+    return s;
+}
+
+std::string keyboard_chord(std::string_view key, bool ctrl, bool alt, bool shift) {
+    const std::string k(key);
+    if (is_modifier_key(k)) return k;
+    return std::string(ctrl ? "Ctrl+" : "") + (alt ? "Alt+" : "") + (shift ? "Shift+" : "") + k;
+}
+
+std::string pad_chord(const std::vector<Button>& buttons) {
+    std::vector<Button> sorted = buttons;
+    std::sort(sorted.begin(), sorted.end());
+    sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+    std::string s;
+    for (const Button b : sorted) s += (s.empty() ? "" : "+") + std::string(pad_button_name(b));
+    return s;
+}
+
+std::optional<std::string> rebind(Mapping& m, Target target, Device device, const std::string& binding) {
+    // Every binding of one device as (target, text) for conflict search.
+    const auto list_of = [&m, device](Target t) -> std::vector<std::string>& {
+        static thread_local std::vector<std::string> scratch;
+        if (device == Device::Keyboard) return t.hotkey ? m.hotkeys[t.index] : m.keys[t.index];
+        if (t.hotkey) return m.pad_hotkeys[t.index];
+        scratch.clear();
+        for (const Button b : m.pad[t.index]) scratch.emplace_back(pad_button_name(b));
+        return scratch;
+    };
+    std::string value = binding;
+    if (device == Device::Gamepad && !target.hotkey) {
+        const auto buttons = parse_pad_chord(binding);
+        if (!buttons) throw std::invalid_argument("unknown gamepad binding " + binding);
+        value = pad_button_name(buttons->back());
+    } else if (device == Device::Keyboard && !target.hotkey) {
+        const auto chord = parse_key_chord(binding);  // GBA buttons ignore modifiers
+        if (!chord) throw std::invalid_argument("unknown key " + binding);
+        value = chord->key;
+    }
+    const std::vector<std::string> previous = list_of(target);
+
+    std::optional<std::string> swapped;
+    const auto visit = [&](Target other) {
+        if (other == target) return;
+        std::vector<std::string> list = list_of(other);
+        const auto it = std::find(list.begin(), list.end(), value);
+        if (it == list.end()) return;
+        // Same kind of binding only: a GBA button cannot take a key chord.
+        const bool can_take = !previous.empty() && (other.hotkey || previous.front().find('+') == std::string::npos);
+        if (can_take) {
+            *it = previous.front();
+        } else {
+            list.erase(it);
+        }
+        swapped = target_name(other);
+        if (device == Device::Gamepad && !other.hotkey) {
+            m.pad[other.index].clear();
+            for (const auto& name : list) {
+                if (const auto b = pad_button(name)) m.pad[other.index].push_back(*b);
+            }
+        } else {
+            list_of(other) = list;
+        }
+    };
+    for (int i = 0; i < kGbaButtons; ++i) visit({false, i});
+    for (int i = 0; i < kHotkeys; ++i) visit({true, i});
+
+    if (device == Device::Gamepad && !target.hotkey) {
+        m.pad[target.index] = {*pad_button(value)};
+    } else {
+        list_of(target) = {value};
+    }
+    return swapped;
 }
 
 }  // namespace anygba::input
