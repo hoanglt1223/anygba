@@ -56,6 +56,7 @@ foreach(abi IN LISTS ABIS)
       "-DCMAKE_TOOLCHAIN_FILE=${NDK}/build/cmake/android.toolchain.cmake"
       -DANDROID_ABI=${abi} -DANDROID_PLATFORM=android-24 -DANDROID_STL=c++_static
       -DCMAKE_BUILD_TYPE=Release -DANYGBA_BUILD_TESTS=OFF
+      -DCMAKE_CXX_SCAN_FOR_MODULES=OFF
       "-DCMAKE_INSTALL_PREFIX=${PREFIX}/android/${abi}"
     RESULT_VARIABLE rc)
   if(NOT rc EQUAL 0)

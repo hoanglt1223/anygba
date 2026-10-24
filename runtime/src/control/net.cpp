@@ -20,6 +20,7 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <mutex>

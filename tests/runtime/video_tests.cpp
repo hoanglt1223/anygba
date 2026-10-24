@@ -114,6 +114,8 @@ void check_golden(const std::string& name, const video::Image& image) {
 // ANYGBA_VIDEO_TIMING=1 and runs serially); otherwise the timings are just reported.
 bool timing_checked() {
 #ifdef NDEBUG
+    // Shared CI runners are too slow and noisy for a frame budget; keep it local.
+    if (std::getenv("CI")) return false;
     const char* v = std::getenv("ANYGBA_VIDEO_TIMING");
     return v && std::string(v) == "1";
 #else

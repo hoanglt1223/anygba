@@ -4,6 +4,7 @@
 // by the area the edge covers). No xBRZ code (GPL-3) is used; output differs from it in detail.
 #include "video/scalers.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <vector>
