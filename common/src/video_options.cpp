@@ -3,6 +3,8 @@
 #include <array>
 #include <charconv>
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 
 namespace anygba::video {
 
@@ -189,9 +191,11 @@ std::optional<std::string> apply_setting(Options& options, std::string_view key,
         return std::nullopt;
     }
     if (key == "gamma") {
-        double g = 0;
-        const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), g);
-        if (ec != std::errc{} || end != value.data() + value.size() || !(g >= kMinGamma && g <= kMaxGamma)) {
+        // strtod, not from_chars: the NDK's libc++ has no floating-point from_chars.
+        const std::string text(value);
+        char* end = nullptr;
+        const double g = text.empty() ? 0 : std::strtod(text.c_str(), &end);
+        if (text.empty() || end != text.c_str() + text.size() || !(g >= kMinGamma && g <= kMaxGamma)) {
             return "gamma must be a number from 0.5 to 2.5";
         }
         options.gamma = g;
