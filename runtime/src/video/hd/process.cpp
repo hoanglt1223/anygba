@@ -6,8 +6,10 @@
 #endif
 #include <windows.h>
 #else
+#include <signal.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <time.h>
 extern char** environ;
 #endif
 
@@ -49,7 +51,8 @@ std::wstring quote(const std::wstring& a) {
 
 }  // namespace
 
-std::optional<std::string> run_process(const std::vector<std::string>& args) {
+std::optional<std::string> run_process(const std::vector<std::string>& args, const std::atomic<bool>* cancel,
+                                       const std::function<void()>& tick) {
     if (args.empty()) return "no program to run";
     std::wstring line;
     for (const auto& a : args) {
@@ -62,7 +65,16 @@ std::optional<std::string> run_process(const std::vector<std::string>& args) {
     if (!CreateProcessW(nullptr, line.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
         return "cannot run " + args[0] + " (error " + std::to_string(GetLastError()) + ")";
     }
-    WaitForSingleObject(pi.hProcess, INFINITE);
+    while (WaitForSingleObject(pi.hProcess, 200) == WAIT_TIMEOUT) {
+        if (cancel && *cancel) {
+            TerminateProcess(pi.hProcess, 1);
+            WaitForSingleObject(pi.hProcess, INFINITE);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+            return kCancelled;
+        }
+        if (tick) tick();
+    }
     DWORD code = 1;
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hThread);
@@ -73,10 +85,13 @@ std::optional<std::string> run_process(const std::vector<std::string>& args) {
 
 #else
 
-std::optional<std::string> run_process(const std::vector<std::string>& args) {
+std::optional<std::string> run_process(const std::vector<std::string>& args, const std::atomic<bool>* cancel,
+                                       const std::function<void()>& tick) {
     if (args.empty()) return "no program to run";
 #if defined(__ANDROID__) && __ANDROID_API__ < 28
     // posix_spawn needs API 28; the Android runtime has no use for helper programs.
+    (void)cancel;
+    (void)tick;
     return "running " + args[0] + " is not supported on this Android version";
 #else
     std::vector<char*> argv;
@@ -85,7 +100,19 @@ std::optional<std::string> run_process(const std::vector<std::string>& args) {
     pid_t pid;
     if (posix_spawnp(&pid, argv[0], nullptr, nullptr, argv.data(), environ) != 0) return "cannot run " + args[0];
     int status = 0;
-    if (waitpid(pid, &status, 0) < 0) return "cannot wait for " + args[0];
+    for (int ticks = 0;; ++ticks) {
+        const pid_t r = waitpid(pid, &status, WNOHANG);
+        if (r == pid) break;
+        if (r < 0) return "cannot wait for " + args[0];
+        if (cancel && *cancel) {
+            kill(pid, SIGKILL);
+            waitpid(pid, &status, 0);
+            return kCancelled;
+        }
+        if (tick && ticks % 10 == 9) tick();
+        const timespec pause{0, 20'000'000};
+        nanosleep(&pause, nullptr);
+    }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return args[0] + " failed";
     return std::nullopt;
 #endif

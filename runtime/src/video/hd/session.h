@@ -57,8 +57,10 @@ public:
 
     // Once per frame on the game thread: applies pack hot reloads and writes the dump index now and then.
     void between_frames();
-    // Status and warnings for the on-screen display.
+    // Status and warnings for the on-screen display. Download progress lines start with
+    // kAiDownloadPrefix; each replaces the previous one.
     std::vector<std::string> take_messages();
+    static constexpr const char* kAiDownloadPrefix = "AI download: ";
     // ROM patches of the widescreen rules (empty unless widescreen is on).
     std::map<std::uint32_t, std::uint16_t> rom_patches() const;
     // Name of the widescreen scene of the last frame ("" when widescreen is off).
@@ -90,7 +92,8 @@ private:
     std::mutex messages_mutex_;
     std::vector<std::string> messages_;
 
-    // AI: a worker thread loads the model, then upscales the newest frame it is given.
+    // AI: a worker thread loads the model (downloading ONNX Runtime and the model on first use;
+    // turning AI off cancels), then upscales the newest frame it is given.
     struct AiState;
     std::unique_ptr<AiState> ai_;
     Image ai_picture_;

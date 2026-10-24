@@ -637,7 +637,11 @@ public:
             mp2k_.update(sys_.memory(), normal_speed_music() ? audio_speed() : 100);
         }
         hd_->between_frames();
-        for (auto& m : hd_->take_messages()) osd_.show(std::move(m));
+        for (auto& m : hd_->take_messages()) {
+            using Session = anygba::video::hd::Session;
+            const bool progress = m.starts_with(Session::kAiDownloadPrefix);
+            osd_.show(std::move(m), 150, progress ? Session::kAiDownloadPrefix : "");
+        }
         for (const auto& [frame, file] : args_.screenshots) {
             if (frame == sys_.frames()) screenshot(file);
         }

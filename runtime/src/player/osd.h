@@ -39,7 +39,9 @@ public:
     // With `echo`, every message is also printed to stdout as "osd: <text>" (headless runs).
     explicit Osd(bool echo) : echo_(echo) {}
 
-    void show(std::string text, int frames = 150);
+    // A message starting with a non-empty `replaces` prefix takes the place of earlier ones with it
+    // (progress lines).
+    void show(std::string text, int frames = 150, std::string_view replaces = {});
     // One host frame passes.
     void tick();
     // The newest messages, bottom-left, above the game picture.

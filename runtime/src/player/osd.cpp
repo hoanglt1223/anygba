@@ -162,10 +162,14 @@ void shade(Picture picture, int x, int y, int width, int height) {
     }
 }
 
-void Osd::show(std::string text, int frames) {
+void Osd::show(std::string text, int frames, std::string_view replaces) {
     if (echo_) {
         std::printf("osd: %s\n", text.c_str());
         std::fflush(stdout);
+    }
+    if (!replaces.empty()) {
+        const std::string prefix = to_ascii(replaces);
+        std::erase_if(messages_, [&](const Message& m) { return m.text.starts_with(prefix); });
     }
     messages_.push_back({to_ascii(text), frames});
     while (messages_.size() > 4) {

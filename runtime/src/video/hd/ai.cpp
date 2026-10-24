@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
@@ -105,27 +107,6 @@ bool write_file(const fs::path& p, const std::vector<std::uint8_t>& bytes) {
     return !ec;
 }
 
-// Downloads `url` to `file` unless a file with the right hash is already there.
-std::optional<std::string> download(const std::string& url, const std::string& sha256, const fs::path& file) {
-    if (const auto have = read_file(file); have && sha256_hex(*have) == sha256) return std::nullopt;
-    std::error_code ec;
-    fs::create_directories(file.parent_path(), ec);
-    fs::path part = file;
-    part += ".part";
-    if (const auto error = run_process({"curl", "--location", "--fail", "--silent", "--show-error", "--output", utf8(part), url})) {
-        fs::remove(part, ec);
-        return "download of " + url + " failed: " + *error + " (is curl installed?)";
-    }
-    const auto got = read_file(part);
-    if (!got || sha256_hex(*got) != sha256) {
-        fs::remove(part, ec);
-        return "download of " + url + " does not have the pinned SHA-256 " + sha256;
-    }
-    fs::rename(part, file, ec);
-    if (ec) return "cannot store " + utf8(file) + ": " + ec.message();
-    return std::nullopt;
-}
-
 // Unpacks a zip archive (also .nupkg) into `dir`, all of it or only `members`.
 std::optional<std::string> extract(const fs::path& archive, const fs::path& dir, const std::vector<const char*>& members) {
     std::error_code ec;
@@ -159,6 +140,12 @@ struct Runtime {
 
 std::mutex g_runtime_mutex;
 Runtime g_runtime;
+
+std::string megabytes(std::uintmax_t bytes) {
+    char text[32];
+    std::snprintf(text, sizeof text, "%.1f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+    return text;
+}
 
 const OrtApi* open_library(const fs::path& file, std::string* error) {
 #ifdef _WIN32
@@ -198,7 +185,7 @@ std::string status_message(const OrtApi* api, OrtStatus* s) {
     return m;
 }
 
-const Runtime* runtime(const fs::path& cache, std::string* error) {
+const Runtime* runtime(const fs::path& cache, std::string* error, const Fetch& fetch) {
     std::lock_guard lock(g_runtime_mutex);
     if (g_runtime.api) return &g_runtime;
     std::vector<fs::path> candidates;
@@ -214,7 +201,7 @@ const Runtime* runtime(const fs::path& cache, std::string* error) {
     if (found != candidates.end()) {
         file = *found;
     } else {
-        const auto fetched = fetch_runtime(cache, false, error);
+        const auto fetched = fetch_runtime(cache, false, error, fetch);
         if (!fetched) return nullptr;
         file = *fetched;
     }
@@ -449,6 +436,55 @@ const ModelInfo& info(AiModel model) {
     return kModels[0];
 }
 
+std::optional<std::string> download(const std::string& url, const std::string& sha256, const fs::path& file,
+                                    const std::string& what, const Fetch& fetch) {
+    if (const auto have = read_file(file); have && sha256_hex(*have) == sha256) return std::nullopt;
+    if (cancelled(fetch)) return kCancelled;
+    std::string source = url;
+    if (const char* mirror = std::getenv("ANYGBA_AI_MIRROR"); mirror && *mirror) {
+        std::string base = mirror;
+        if (base.back() != '/') base += '/';
+        source = base + url.substr(url.rfind('/') + 1);
+    }
+    std::error_code ec;
+    fs::create_directories(file.parent_path(), ec);
+    fs::path part = file;
+    part += ".part";
+    const auto report = [&](std::uintmax_t bytes) {
+        if (fetch.progress) fetch.progress(what + ": " + megabytes(bytes));
+    };
+    report(0);
+    auto last = std::chrono::steady_clock::now();
+    std::uintmax_t last_size = 0;
+    const auto tick = [&] {
+        if (std::chrono::steady_clock::now() - last < std::chrono::seconds(1)) return;
+        last = std::chrono::steady_clock::now();
+        std::error_code size_ec;
+        const std::uintmax_t size = fs::file_size(part, size_ec);
+        if (size_ec || size == last_size) return;
+        last_size = size;
+        report(size);
+    };
+    const auto error = run_process({"curl", "--location", "--fail", "--silent", "--show-error", "--output", utf8(part), source},
+                                   fetch.cancel, tick);
+    if (error) {
+        fs::remove(part, ec);
+        if (*error == kCancelled) return kCancelled;
+        return "download of " + source + " failed: " + *error + " (is curl installed?)";
+    }
+    const auto got = read_file(part);
+    if (!got || sha256_hex(*got) != sha256) {
+        fs::remove(part, ec);
+        return "download of " + source + " does not have the pinned SHA-256 " + sha256;
+    }
+    fs::rename(part, file, ec);
+    if (ec) {
+        fs::remove(part, ec);
+        return "cannot store " + utf8(file) + ": " + ec.message();
+    }
+    return std::nullopt;
+}
+
 fs::path default_cache(const std::optional<fs::path>& data_dir) {
     if (const char* env = std::getenv("ANYGBA_AI_CACHE"); env && *env) return from_utf8(env);
     if (data_dir) return *data_dir / "ai";
@@ -473,7 +509,8 @@ const char* device_name(Device d) {
     return "?";
 }
 
-std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redistributable, std::string* error) {
+std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redistributable, std::string* error,
+                                      const Fetch& fetch) {
 #ifdef _WIN32
     const fs::path dir = cache / kRuntimeFolder;
     std::error_code ec;
@@ -484,8 +521,12 @@ std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redis
         if (&p != &windows_runtime()[0] && !directml_redistributable) continue;
         const std::string url = p.url;
         const fs::path archive = cache / "downloads" / from_utf8(url.substr(url.rfind('/') + 1));
-        if (auto e = download(url, p.sha256, archive)) {
+        if (auto e = download(url, p.sha256, archive, &p == &windows_runtime()[0] ? "ONNX Runtime" : "DirectML", fetch)) {
             *error = *e;
+            return std::nullopt;
+        }
+        if (cancelled(fetch)) {
+            *error = kCancelled;
             return std::nullopt;
         }
         const fs::path unpacked = cache / "downloads" / (utf8(archive.filename()) + ".d");
@@ -508,13 +549,14 @@ std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redis
 #else
     (void)cache;
     (void)directml_redistributable;
+    (void)fetch;
     *error = std::string("no ONNX Runtime found: set ANYGBA_ONNXRUNTIME to ") + kLibrary +
              " from an ONNX Runtime 1.24+ release, or put it next to the program";
     return std::nullopt;
 #endif
 }
 
-std::optional<fs::path> ensure_model(AiModel model, const fs::path& cache, std::string* error) {
+std::optional<fs::path> ensure_model(AiModel model, const fs::path& cache, std::string* error, const Fetch& fetch) {
     const ModelInfo& m = info(model);
     const fs::path dir = cache / "models" / m.name;
     const fs::path onnx = dir / from_utf8(m.onnx);
@@ -524,7 +566,7 @@ std::optional<fs::path> ensure_model(AiModel model, const fs::path& cache, std::
     if (fs::exists(dynamic, ec)) return dynamic;
     const std::string url = m.url;
     const fs::path archive = dir / from_utf8(url.substr(url.rfind('/') + 1));
-    if (auto e = download(url, m.sha256, archive)) {
+    if (auto e = download(url, m.sha256, archive, std::string("model ") + m.name, fetch)) {
         *error = *e;
         return std::nullopt;
     }
@@ -546,13 +588,18 @@ std::optional<fs::path> ensure_model(AiModel model, const fs::path& cache, std::
     return dynamic;
 }
 
-std::unique_ptr<Upscaler> Upscaler::create(AiModel model, const fs::path& cache, Device device, std::string* error) {
+std::unique_ptr<Upscaler> Upscaler::create(AiModel model, const fs::path& cache, Device device, std::string* error,
+                                           const Fetch& fetch) {
     std::string local;
     std::string* err = error ? error : &local;
-    const Runtime* rt = runtime(cache, err);
+    const Runtime* rt = runtime(cache, err, fetch);
     if (!rt) return nullptr;
-    const auto path = ensure_model(model, cache, err);
+    const auto path = ensure_model(model, cache, err, fetch);
     if (!path) return nullptr;
+    if (cancelled(fetch)) {
+        *err = kCancelled;
+        return nullptr;
+    }
     try {
         return std::make_unique<OrtUpscaler>(*rt, *path, info(model).factor, device);
     } catch (const std::exception& e) {

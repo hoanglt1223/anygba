@@ -177,6 +177,13 @@ Models are downloaded on first use into the cache with `curl` and unpacked with 
 checked against pinned SHA-256 hashes, and never shipped with AnyGBA. They are published with fixed
 128x128 inputs; AnyGBA stores a copy whose inputs take any size, so a whole frame is one run.
 
+Downloads in the player run on a worker thread, so the game keeps running: the on-screen display
+shows `AI download: <what>: <MB so far>` about once a second. Turning AI off again (the video menu
+or settings) cancels the download; a cancelled or failed download leaves no partial file and the
+game stays on the picture without AI, with a message saying so. `ANYGBA_AI_MIRROR=<base URL>`
+fetches each archive from `<base URL>/<archive file name>` instead (an offline mirror; the pinned
+hashes still apply).
+
 | Model | Weights | Licence | ONNX export | Archive SHA-256 |
 |---|---|---|---|---|
 | `general-x4v3` | realesr-general-x4v3, [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | BSD-3-Clause | Qualcomm AI Hub (qai-hub-models 0.65.0) | `fc094329b24a00c9...` |

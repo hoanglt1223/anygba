@@ -46,6 +46,7 @@ add_executable(anygba-tests
   runtime/control_tests.cpp
   runtime/hd_tests.cpp
   runtime/hd_pack_tests.cpp
+  runtime/hd_download_tests.cpp
   driver/driver_tests.cpp
   driver/android_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE

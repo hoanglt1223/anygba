@@ -34,6 +34,7 @@ struct Session::AiState {
     std::mutex mutex;
     std::condition_variable cv;
     bool stop = false;
+    std::atomic<bool> cancel{false};  // stops a download of ONNX Runtime or the model
     std::atomic<bool> loaded{false};
     std::unique_ptr<ai::Upscaler> upscaler;
     Image job;
@@ -173,7 +174,7 @@ void Session::on_line(System& sys, unsigned line) {
     cfg.layer_filter = options_.layer_filter;
     cfg.textures = options_.hd_pack ? pack_.get() : nullptr;
     cfg.sink = dumper_.get();
-    if (options_.ai == Ai::Frame) {
+    if (options_.ai == Ai::Frame && ai_ && ai_->loaded) {
         cfg.scale = 1;  // the model upscales the finished 1x picture
     } else if (options_.ai == Ai::Layers && ai_ && ai_->loaded) {
         cfg.scale = ai_->upscaler->factor();
@@ -227,9 +228,14 @@ void Session::ai_worker() {
     std::string error;
     const fs::path cache = ai::default_cache(setup_.data_dir);
     message(std::string("AI upscaling: loading ") + ai::info(s.model).name + "...");
-    auto upscaler = ai::Upscaler::create(s.model, cache, setup_.ai_device, &error);
+    ai::Fetch fetch;
+    fetch.cancel = &s.cancel;
+    fetch.progress = [this](const std::string& line) { message(kAiDownloadPrefix + line + " (turn AI off to cancel)"); };
+    auto upscaler = ai::Upscaler::create(s.model, cache, setup_.ai_device, &error, fetch);
     if (!upscaler) {
-        message("AI upscaling unavailable: " + error);
+        // The renderer keeps drawing without AI (ai_->loaded stays false).
+        message(s.cancel ? std::string("AI upscaling cancelled; picture without AI")
+                         : "AI upscaling unavailable: " + error + "; picture without AI");
         return;
     }
     message(std::string("AI upscaling: ") + ai::info(s.model).name + " on " + upscaler->device());
@@ -259,6 +265,7 @@ void Session::ai_worker() {
 
 void Session::stop_ai() {
     if (!ai_) return;
+    ai_->cancel = true;
     {
         std::lock_guard lock(ai_->mutex);
         ai_->stop = true;
