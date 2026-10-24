@@ -404,11 +404,9 @@ TEST_CASE("menu: tabs, rail, save state slots, audio, settings, search and click
     menu.open();
     menu.update({});
     // The Game page: Reset and Exit want a second A.
-    press(Down);
-    press(Down);
-    press(Down);
+    for (int i = 0; i < 4; ++i) press(Down);
     press(A);
-    CHECK(menu.lines()[4] == "> Reset  Press again to confirm");
+    CHECK(menu.lines()[7] == "> Reset  Press again to confirm");
     CHECK(actions.empty());
     press(A);
     CHECK(actions == std::vector<MenuAction>{MenuAction::Reset, MenuAction::Close});
@@ -495,7 +493,7 @@ TEST_CASE("menu: tabs, rail, save state slots, audio, settings, search and click
     // Clicks: a tab, then a row.
     actions = menu.click({anyui::HitKind::Tab, 0});
     CHECK(menu.lines()[0] == "== Game ==");
-    actions = menu.click({anyui::HitKind::Increase, 1});
+    actions = menu.click({anyui::HitKind::Increase, 2});
     CHECK(speed == 200);
     actions = menu.click({anyui::HitKind::Row, 0});
     CHECK(actions == std::vector<MenuAction>{MenuAction::Close});
@@ -563,15 +561,16 @@ TEST_CASE("fast-forward speed: steps, settings file and the menu's Game and Audi
         auto a = menu.update(in);
         actions.insert(actions.end(), a.begin(), a.end());
     };
-    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Down = 128, R = 256;
+    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Down = 128;
     menu.open();
     menu.update({});
     press(Down);
     press(Right);
     CHECK(speed == 200);
     CHECK(menu.lines()[0] == "== Game ==");
-    CHECK(menu.lines()[2] == "> Speed  < 200% >");
-    CHECK(menu.lines()[3] == "  Fast-forward speed  < 300% >");
+    CHECK(menu.lines()[2] == "  -- Speed --");
+    CHECK(menu.lines()[3] == "> Speed  < 200% >");
+    CHECK(menu.lines()[4] == "  Fast-forward (hold)  < 300% >");
     press(Left);
     CHECK(speed == 100);
     press(Down);
@@ -580,12 +579,8 @@ TEST_CASE("fast-forward speed: steps, settings file and the menu's Game and Audi
     CHECK(mapping.fast_forward == 500);
     press(Left);
     CHECK(mapping.fast_forward == 400);
-    press(R);
-    press(R);
-    REQUIRE(menu.lines()[0] == "== Audio ==");
     press(Down);
-    press(Down);
-    CHECK(menu.lines()[3] == "> Normal-speed music  Off");
+    CHECK(menu.lines()[5] == "> Normal-speed music  Off");
     press(A);
     CHECK(mapping.normal_speed_music);
     CHECK(anygba::input::parse_mapping(anygba::input::format_mapping(mapping), "rt").normal_speed_music);

@@ -868,14 +868,29 @@ std::vector<Row> Menu::rows() const {
     const auto toggle = [&](const char* id, bool on, Icon icon = Icon::None, std::string detail = {}) {
         out.push_back(make_row([&](Row& x) { x.id = id; x.kind = RowKind::Toggle; x.label = tr(id); x.value = on_off(on); x.on = on; x.icon = icon; x.detail = std::move(detail); }));
     };
-    const auto choice = [&](const char* id, std::string value, Icon icon = Icon::None) {
-        out.push_back(make_row([&](Row& x) { x.id = id; x.kind = RowKind::Choice; x.label = tr(id); x.value = std::move(value); x.icon = icon; }));
+    const auto choice = [&](const char* id, std::string value, Icon icon = Icon::None, std::string detail = {}) {
+        out.push_back(make_row([&](Row& x) { x.id = id; x.kind = RowKind::Choice; x.label = tr(id); x.value = std::move(value); x.icon = icon; x.detail = std::move(detail); }));
+    };
+    const auto header = [&](const char* id) { out.push_back(make_row([&](Row& x) { x.id = id; x.kind = RowKind::Header; x.label = tr(id); })); };
+    // "Keys: F3, F4" from the hotkeys' keyboard and gamepad bindings, or "" when none is bound.
+    const auto keys = [&](std::initializer_list<input::Hotkey> hotkeys) {
+        std::string list;
+        for (const input::Hotkey h : hotkeys) {
+            for (const input::Device d : {input::Device::Keyboard, input::Device::Gamepad}) {
+                const std::string b = input::describe(mapping_, {true, static_cast<int>(h)}, d);
+                if (!b.empty()) list += (list.empty() ? "" : ", ") + b;
+            }
+        }
+        return list.empty() ? std::string() : tr("game.keys") + ": " + list;
     };
     switch (page_) {
     case Page::Game:
         out.push_back(make_row([&](Row& x) { x.id = "game.resume"; x.label = tr("game.resume"); x.icon = Icon::Resume; }));
-        choice("game.speed", std::to_string(speed_) + "%", Icon::Speed);
-        choice("game.ff", format_fast_forward(mapping_.fast_forward), Icon::Speed);
+        header("hdr.speed");
+        choice("game.speed", std::to_string(speed_) + "%", Icon::Speed, keys({input::Hotkey::SpeedUp, input::Hotkey::SpeedDown}));
+        choice("game.ff", format_fast_forward(mapping_.fast_forward), Icon::Speed, keys({input::Hotkey::FastForward}));
+        toggle("audio.music", mapping_.normal_speed_music, Icon::Speed, tr("audio.music.detail"));
+        header("hdr.game");
         out.push_back(make_row([&](Row& x) { x.id = "game.reset"; x.label = tr("game.reset"); x.value = confirm_ == "game.reset" ? tr("confirm") : ""; x.icon = Icon::Reset; }));
         out.push_back(make_row([&](Row& x) { x.id = "game.exit"; x.label = tr("game.exit"); x.value = confirm_ == "game.exit" ? tr("confirm") : ""; x.danger = true; x.icon = Icon::Exit; }));
         break;
@@ -893,7 +908,6 @@ std::vector<Row> Menu::rows() const {
     case Page::Audio:
         out.push_back(make_row([&](Row& x) { x.id = "audio.volume"; x.kind = RowKind::Slider; x.label = tr("audio.volume"); x.value = std::to_string(mapping_.volume) + "%"; x.level = static_cast<float>(mapping_.volume) / 100.f; x.icon = Icon::Audio; }));
         toggle("audio.mute", mapping_.mute, Icon::Mute);
-        toggle("audio.music", mapping_.normal_speed_music, Icon::Speed, tr("audio.music.detail"));
         break;
     case Page::Controls:
     case Page::Capture:

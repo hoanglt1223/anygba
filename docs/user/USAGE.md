@@ -140,14 +140,15 @@ window's full resolution in its own font (Noto Sans), in English or Vietnamese, 
 
 The tabs:
 
-- **Game**: *Resume*, *Speed*, *Fast-forward speed*, *Reset* and *Exit game* (both ask for a second A; Exit
-  writes the game's save first).
+- **Game**: *Resume*; a *Speed* section with *Speed* (100-400%), *Fast-forward (hold)* (150-800% or
+  unlimited while the fast-forward key is held) and *Normal-speed music*, each showing its hotkeys; then
+  *Reset* and *Exit game* (both ask for a second A; Exit writes the game's save first).
 - **Save states**: the nine slots as a grid with a picture of the moment and when it was saved. A (or a
   click) on a slot offers *Load*, *Save here* and *Delete*; Select deletes. The picture is kept next to the
   state as `<state>.png`.
 - **Video**: filter, screen effect, ghosting, colour, gamma, debanding, resolution, fullscreen, integer
   scale and the HD and widescreen settings; they apply at once and are kept for this game ([VIDEO.md](VIDEO.md)).
-- **Audio**: *Volume* (0-100%), *Mute* and *Normal-speed music*. Volume and Mute change what the sound
+- **Audio**: *Volume* (0-100%) and *Mute*. Volume and Mute change what the sound
   card plays, not `--wav` recordings.
 - **Controls**: a picture of the GBA with the selected button lit, then every GBA button and hotkey with
   its keyboard and gamepad bindings. Choose one, then press the new key (with Ctrl, Alt or Shift for a

@@ -14,7 +14,10 @@ error	Error	Lỗi
 confirm	Press again to confirm	Nhấn lần nữa để xác nhận
 game.resume	Resume	Tiếp tục
 game.speed	Speed	Tốc độ
-game.ff	Fast-forward speed	Tốc độ tua nhanh
+game.ff	Fast-forward (hold)	Tua nhanh (giữ phím)
+hdr.speed	Speed	Tốc độ
+hdr.game	Reset and exit	Chơi lại và thoát
+game.keys	Keys	Phím
 game.reset	Reset	Khởi động lại
 game.reset.confirm	Press A again to reset the game	Nhấn A lần nữa để khởi động lại trò chơi
 game.exit	Exit game	Thoát trò chơi
