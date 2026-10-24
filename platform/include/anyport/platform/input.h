@@ -61,6 +61,16 @@ struct GamepadEvent {
     std::string name;
 };
 
+// A mouse or touch action. Positions are fractions of the window (0-1 across and down).
+struct PointerEvent {
+    enum class Kind : std::uint8_t { Move, Down, Up, Wheel };
+    Kind kind = Kind::Move;
+    float x = 0, y = 0;
+    float wheel = 0;  // Wheel: notches, positive toward the user (scroll down)
+    bool touch = false;
+    std::int64_t finger = 0;
+};
+
 // Keyboard plus every connected gamepad, merged into one PadState.
 // Default keys: arrows = d-pad, X = South, Z = East, A = West, S = North,
 // Q = LeftShoulder, W = RightShoulder, Return = Start, Backspace = Back.
@@ -88,6 +98,9 @@ public:
     std::vector<std::string> take_key_presses();
     // Gamepads connected or removed since the last call.
     std::vector<GamepadEvent> take_gamepad_events();
+    // Left mouse button, wheel and finger actions since the last call (mouse events SDL makes
+    // up from touches are left out).
+    std::vector<PointerEvent> take_pointer_events();
 
 private:
     static constexpr std::size_t kScancodeCount = 512;
@@ -97,6 +110,7 @@ private:
     std::vector<std::pair<std::uint32_t, SDL_Gamepad*>> gamepads_;
     std::vector<std::string> key_presses_;
     std::vector<GamepadEvent> gamepad_events_;
+    std::vector<PointerEvent> pointer_events_;
 };
 
 // Adds SDL gamepad mappings (the gamecontrollerdb.txt format) for controllers SDL does not

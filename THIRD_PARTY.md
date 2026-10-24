@@ -36,7 +36,21 @@ or translated from the implementations named here, several of which are under co
   downloaded on first use, SHA-256 pinned, never committed ([HD-PACKS.md](docs/user/HD-PACKS.md#ai-upscaling)).
 - PNG files are read and written with SDL 3.4 (zlib licence), already a dependency.
 
+## In-game menu (`runtime/src/ui/`)
+
+- Font: Noto Sans Regular and SemiBold 2.015 (the `NotoSans-v2.015` release of
+  [notofonts/latin-greek-cyrillic](https://github.com/notofonts/latin-greek-cyrillic), unhinted TTF),
+  SIL Open Font License 1.1, copyright 2022 The Noto Project Authors; the licence is in
+  `runtime/src/ui/fonts/OFL.txt`. The files are subsets made with fontTools `pyftsubset` (Basic Latin,
+  Latin-1, Latin Extended-A, U+01A0-01B0, combining marks U+0300-0323, Latin Extended Additional
+  U+1EA0-1EF9 and general punctuation; no layout tables, no hinting), enough for English and Vietnamese.
+  They are compiled into the runtime.
+- `runtime/src/ui/anyui/` (rasteriser, TrueType reader, icons, menu layout) is written for AnyGBA and
+  shared, MIT-licensed, with AnyPSP. The area-coverage line rasteriser follows the published description
+  of the signed-area accumulation technique (as in font-rs); no code is copied.
+
 ## Test pictures
 
 The golden images in `tests/golden/video/` come from a test frame drawn by code in
-`tests/runtime/video_tests.cpp`; no game graphics are involved.
+`tests/runtime/video_tests.cpp`; no game graphics are involved. Those in `tests/golden/menu/` are the
+menu drawn over a scene drawn by `tests/runtime/menu_view_tests.cpp` (the 2x ones kept at half size).

@@ -171,6 +171,8 @@ void Osd::show(std::string text, int frames, std::string_view replaces) {
         const std::string prefix = to_ascii(replaces);
         std::erase_if(messages_, [&](const Message& m) { return m.text.starts_with(prefix); });
     }
+    ++count_;
+    last_ = text;
     messages_.push_back({to_ascii(text), frames});
     while (messages_.size() > 4) {
         messages_.pop_front();

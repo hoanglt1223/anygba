@@ -52,6 +52,12 @@ struct Mapping {
     bool normal_speed_music = false;  // [player] NormalSpeedMusic: music keeps 1x tempo and pitch when faster
     std::string save_folder;      // [player] SaveFolder: saves, states and cheats (UTF-8); empty = default
     int stick_deadzone = 12000;   // [player] StickDeadzone: left stick travel ignored (0-32767)
+    int volume = 100;             // [player] Volume: percent, 0-100 in steps of 10
+    bool mute = false;            // [player] Mute
+    std::string language = "en";  // [player] Language: menu language, en or vi
+    bool light_theme = false;     // [player] Theme: dark or light
+    int ui_scale = 100;           // [player] UiScale: menu size in percent, 75-150 in steps of 25
+    bool reduce_motion = false;   // [player] ReduceMotion: the menu does not animate
 };
 
 Mapping default_mapping();

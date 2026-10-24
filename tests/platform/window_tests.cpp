@@ -4,9 +4,23 @@
 #include <doctest.h>
 
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace pf = anyport::platform;
+
+TEST_CASE("present_ui covers the window and checks the picture size") {
+    pf::Context context({.headless = true});
+    pf::Window window({.title = "t", .width = 8, .height = 4, .scale = 2, .vsync = false});
+    const auto [w, h] = window.output_pixels();
+    REQUIRE(w > 0);
+    REQUIRE(h > 0);
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0xFF2040FFu);
+    CHECK_NOTHROW(window.present_ui(pixels, w, h));
+    CHECK_THROWS_AS(window.present_ui(std::span<const std::uint32_t>(pixels).first(pixels.size() - 1), w, h), pf::Error);
+    std::vector<std::uint16_t> fb(8 * 4, 0x7FFF);
+    CHECK_NOTHROW(window.present(fb));  // the game picture still shows afterwards
+}
 
 TEST_CASE("window rejects invalid configuration") {
     pf::Context context({.headless = true});

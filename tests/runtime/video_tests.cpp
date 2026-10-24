@@ -214,7 +214,7 @@ TEST_CASE("menu: the Video page steps every setting and reports the change") {
     anygba::player::Menu menu(list, mapping, speed, slot);
     menu.set_video(&options);
     using anygba::player::MenuAction;
-    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Up = 64, Down = 128;
+    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Down = 128, R = 256;
     std::vector<MenuAction> actions;
     const auto press = [&](std::uint16_t buttons) {
         menu.update({});
@@ -225,9 +225,8 @@ TEST_CASE("menu: the Video page steps every setting and reports the change") {
     };
     menu.open();
     menu.update({});
-    press(Up);  // wraps to the last row, Options
-    press(Up);  // Video
-    press(A);
+    press(R);  // Save states
+    press(R);  // Video
     REQUIRE(menu.lines()[0] == "== Video ==");
     CHECK(menu.lines()[1] == "> Filter  < nearest >");
     press(Right);
@@ -264,7 +263,7 @@ TEST_CASE("menu: the Video page steps every setting and reports the change") {
     CHECK(options.integer_scale);
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::VideoChanged) == 13);
     press(B);
-    CHECK(menu.lines()[0] == "== AnyGBA ==");
+    CHECK(!menu.is_open());
 }
 
 TEST_CASE("the picture keeps 3:2 inside any output, optionally at whole multiples") {

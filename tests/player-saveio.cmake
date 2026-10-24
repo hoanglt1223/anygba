@@ -52,21 +52,21 @@ if(rc EQUAL 0 OR NOT err MATCHES "does not fit the sram save")
   message(FATAL_ERROR "bad.sav was not refused (exit ${rc}):\n${out}\n${err}")
 endif()
 
-# The menu: Options > Export save writes sram.sav next to the ROM; Import save loads it back
-# and restarts the game.
+# The menu: Settings > Export save writes sram.sav next to the ROM; Import save loads it back
+# and restarts the game. L (the A key) from the first tab goes to the last one, Settings; Up
+# from its first row wraps to Import, then Export.
 file(REMOVE "${WORK}/sram.sav")
 file(WRITE "${WORK}/menu.txt" "
 10 key tap Escape
-14 key tap Up
-16 key tap Z
-18 key tap Down
-20 key tap Down
-22 key tap Z
-24 key tap Down
-26 key tap Z
+14 key tap A
+16 key tap Up
+18 key tap Up
+20 key tap Z
+22 key tap Down
+24 key tap Z
 ")
 run_game(out --frames 60 --save-dir "${WORK}/a" --script "${WORK}/menu.txt")
-expect_output("${out}" "menu\\| == Options ==")
+expect_output("${out}" "menu\\| == Settings ==")
 expect_output("${out}" "osd: Exported sram.sav")
 expect_output("${out}" "osd: Imported sram.sav; game restarted")
 file(SHA256 "${WORK}/sram.sav" menu_hash)

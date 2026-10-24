@@ -6,6 +6,8 @@
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_log.h>
+#include <SDL3/SDL_mouse.h>
+#include <SDL3/SDL_video.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -153,6 +155,56 @@ void Input::handle_event(const SDL_Event& event) {
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         keys_down_.fill(false);
         break;
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL: {
+        const bool wheel = event.type == SDL_EVENT_MOUSE_WHEEL;
+        const SDL_MouseID which = wheel ? event.wheel.which : event.type == SDL_EVENT_MOUSE_MOTION ? event.motion.which
+                                                                                                  : event.button.which;
+        if (which == SDL_TOUCH_MOUSEID || pointer_events_.size() >= 256) break;
+        if (!wheel && event.type != SDL_EVENT_MOUSE_MOTION && event.button.button != SDL_BUTTON_LEFT) break;
+        const SDL_WindowID window_id = wheel ? event.wheel.windowID : event.type == SDL_EVENT_MOUSE_MOTION
+                                                                          ? event.motion.windowID
+                                                                          : event.button.windowID;
+        int w = 0, h = 0;
+        SDL_Window* window = SDL_GetWindowFromID(window_id);
+        if (!window || !SDL_GetWindowSize(window, &w, &h) || w <= 0 || h <= 0) break;
+        PointerEvent p;
+        float x = 0, y = 0;
+        if (wheel) {
+            p.kind = PointerEvent::Kind::Wheel;
+            x = event.wheel.mouse_x, y = event.wheel.mouse_y;
+            p.wheel = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? event.wheel.y : -event.wheel.y;
+        } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+            x = event.motion.x, y = event.motion.y;
+        } else {
+            p.kind = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? PointerEvent::Kind::Down : PointerEvent::Kind::Up;
+            x = event.button.x, y = event.button.y;
+        }
+        p.x = x / static_cast<float>(w);
+        p.y = y / static_cast<float>(h);
+        pointer_events_.push_back(p);
+        break;
+    }
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_FINGER_MOTION:
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_CANCELED: {
+        if (pointer_events_.size() >= 256) break;
+        PointerEvent p;
+        p.kind = event.type == SDL_EVENT_FINGER_DOWN     ? PointerEvent::Kind::Down
+                 : event.type == SDL_EVENT_FINGER_MOTION ? PointerEvent::Kind::Move
+                                                         : PointerEvent::Kind::Up;
+        p.x = event.tfinger.x;
+        p.y = event.tfinger.y;
+        p.touch = true;
+        p.finger = static_cast<std::int64_t>(event.tfinger.fingerID);
+        // A cancelled touch ends where it was, but must not count as a tap.
+        if (event.type == SDL_EVENT_FINGER_CANCELED) p.x = p.y = -1;
+        pointer_events_.push_back(p);
+        break;
+    }
     case SDL_EVENT_GAMEPAD_ADDED: {
         const SDL_JoystickID id = event.gdevice.which;
         const bool known = std::any_of(gamepads_.begin(), gamepads_.end(),
@@ -191,6 +243,8 @@ void Input::handle_event(const SDL_Event& event) {
 std::vector<std::string> Input::take_key_presses() { return std::exchange(key_presses_, {}); }
 
 std::vector<GamepadEvent> Input::take_gamepad_events() { return std::exchange(gamepad_events_, {}); }
+
+std::vector<PointerEvent> Input::take_pointer_events() { return std::exchange(pointer_events_, {}); }
 
 int add_gamepad_mappings(const std::string& path_utf8) {
     const int added = SDL_AddGamepadMappingsFromFile(path_utf8.c_str());

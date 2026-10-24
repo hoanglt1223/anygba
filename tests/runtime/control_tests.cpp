@@ -319,7 +319,7 @@ TEST_CASE("control server: loopback only, token handshake, one request at a time
     CHECK_THROWS_AS(net::read_line(c, buf, line, 2000), net::NetError);
 }
 
-TEST_CASE("menu: the Settings page switches AI control, read-only and the journal") {
+TEST_CASE("menu: the AI page switches AI control, read-only and the journal") {
     anygba::cheats::CheatList list;
     anygba::input::Mapping mapping = anygba::input::default_mapping();
     int speed = 100, slot = 1;
@@ -337,9 +337,9 @@ TEST_CASE("menu: the Settings page switches AI control, read-only and the journa
     };
     menu.open();
     menu.update({});
-    for (int i = 0; i < 6; ++i) press(128);  // Down to Settings
-    press(1);
-    CHECK(menu.lines()[0] == "== Settings ==");
+    press(512);  // L: Settings
+    press(512);  // L: AI
+    CHECK(menu.lines()[0] == "== AI ==");
     CHECK(menu.lines()[1] == "> AI control  Off");
     press(1);
     CHECK(settings.ai_control);
@@ -349,7 +349,7 @@ TEST_CASE("menu: the Settings page switches AI control, read-only and the journa
     CHECK(settings.journal);
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::SettingsChanged) == 2);
     press(2);
-    CHECK(menu.lines()[0] == "== AnyGBA ==");
+    CHECK(!menu.is_open());
 }
 
 TEST_CASE("shipped symbol files parse") {

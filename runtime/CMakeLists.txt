@@ -44,6 +44,7 @@ add_library(anygba_runtime STATIC
   src/player/mp2k.cpp
   src/player/script.cpp
   src/player/menu.cpp
+  src/ui/menu_assets.cpp
   src/video/parallel.cpp
   src/video/color.cpp
   src/video/scalers.cpp
@@ -84,6 +85,21 @@ add_library(anygba_runtime STATIC
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
 add_library(anygba::runtime ALIAS anygba_runtime)
+
+# The menu's font and translations, compiled into the library.
+foreach(asset "regular_font;fonts/NotoSans-Regular.ttf" "bold_font;fonts/NotoSans-SemiBold.ttf" "strings;strings.tsv")
+  list(GET asset 0 name)
+  list(GET asset 1 file)
+  set(source "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/${file}")
+  set(generated "${CMAKE_CURRENT_BINARY_DIR}/ui_${name}.cpp")
+  add_custom_command(OUTPUT "${generated}"
+    COMMAND "${CMAKE_COMMAND}" "-DIN=${source}" "-DOUT=${generated}" "-DNAME=anygba_ui_${name}"
+      -P "${PROJECT_SOURCE_DIR}/cmake/embed-file.cmake"
+    DEPENDS "${source}" "${PROJECT_SOURCE_DIR}/cmake/embed-file.cmake"
+    COMMENT "Embedding ui/${file}"
+    VERBATIM)
+  target_sources(anygba_runtime PRIVATE "${generated}")
+endforeach()
 
 target_include_directories(anygba_runtime
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>

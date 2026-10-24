@@ -1,12 +1,12 @@
 # Drives the in-game menu by host frame (see docs/user/USAGE.md "Scripted input").
-# Keyboard defaults: arrows = d-pad, Z = A, X = B, S = R, Escape = menu.
+# Keyboard defaults: arrows = d-pad, Z = A, X = B, S = R, A = L, Escape = menu; Tab = next tab.
 30 key tap Escape
-# Main page: Down x4 to Cheats
-34 key tap Down
-36 key tap Down
-38 key tap Down
-40 key tap Down
-42 key tap Z
+# Game tab, then Tab x5: Save states, Video, Audio, Controls, Cheats
+32 key tap Tab
+34 key tap Tab
+36 key tap Tab
+38 key tap Tab
+40 key tap Tab
 # Cheats: Memory > Write marker on, Deep > Byte marker on
 44 key tap Z
 46 key tap Z
@@ -36,10 +36,8 @@
 114 key tap Return
 116 key tap Return
 118 key tap X
-120 key tap X
-# Controls: A = C on the keyboard (X is then free), B = North on gamepads
-122 key tap Down
-124 key tap Z
+# L: back to the Controls tab. A = C on the keyboard (X is then free), B = North on gamepads
+122 key tap A
 126 key tap Z
 128 key tap C
 130 key tap Down

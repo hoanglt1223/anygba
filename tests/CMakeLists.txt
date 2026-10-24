@@ -43,6 +43,7 @@ add_executable(anygba-tests
   runtime/rtc_tests.cpp
   runtime/cheat_tests.cpp
   runtime/player_tests.cpp
+  runtime/menu_view_tests.cpp
   runtime/video_tests.cpp
   runtime/touch_tests.cpp
   runtime/assist_tests.cpp

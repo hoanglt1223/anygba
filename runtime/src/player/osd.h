@@ -47,6 +47,9 @@ public:
     // The newest messages, bottom-left, above the game picture.
     void draw(Picture picture) const;
     bool empty() const { return messages_.empty(); }
+    // Messages shown so far, and the newest one as given (the menu repeats it).
+    std::uint64_t count() const { return count_; }
+    const std::string& last() const { return last_; }
 
 private:
     struct Message {
@@ -55,6 +58,8 @@ private:
     };
     bool echo_;
     std::deque<Message> messages_;
+    std::uint64_t count_ = 0;
+    std::string last_;
 };
 
 }  // namespace anygba::player

@@ -23,6 +23,7 @@ std::optional<std::string> save_settings(const std::filesystem::path& file, cons
 struct MenuItem {
     std::string label;
     std::string value;
+    bool toggle = false;  // an on/off switch; other values that read "off" are choices
 };
 std::vector<MenuItem> menu_items(const Options& options);
 // Steps setting `item` (an index into menu_items) by dir (+1 or -1), wrapping around.
