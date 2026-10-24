@@ -27,6 +27,11 @@ struct EmitOptions {
 // Emits one C11 function `void f_XXXXXXXX(anygba_cpu* c)` for `fn`.
 std::string emit_function(const analysis::Function& fn, const EmitOptions& options);
 
+// The ROM bytes `fn`'s compiled body depends on: its instructions, the literal-pool words
+// emit_function folds into constants (when `image` is given), and its jump tables. Empty
+// ({0, 0}) for functions outside ROM.
+analysis::AddressRange code_footprint(const analysis::Function& fn, const analysis::Image* image);
+
 struct ProjectInfo {
     std::string title;
     std::string rom_sha256;

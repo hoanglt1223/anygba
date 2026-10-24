@@ -19,6 +19,15 @@ constexpr int kJumpFail = 3;
 }  // namespace
 
 anygba_fn System::lookup(std::uint32_t addr, bool thumb) const {
+    anygba_fn fn = lookup_compiled(addr, thumb);
+    if (fn && cpu_.rom_patched && addr >= 0x08000000 && addr < 0x0E000000 &&
+        bypassed_.contains(0x08000000u + (addr & (Memory::kRomMax - 1)))) {
+        return nullptr;  // a ROM patch covers its code: interpret it
+    }
+    return fn;
+}
+
+anygba_fn System::lookup_compiled(std::uint32_t addr, bool thumb) const {
     if (!game_) {
         return nullptr;
     }
@@ -166,7 +175,7 @@ void System::log_miss(std::uint32_t addr, bool thumb) {
 }
 
 void System::interpret() {
-    if (!resuming_) {
+    if (!resuming_ && !lookup_compiled(cpu_.r[15], cpu_.t != 0)) {
         log_miss(cpu_.r[15], cpu_.t != 0);
     }
     resuming_ = false;
@@ -191,7 +200,7 @@ void System::interpret() {
         // code name function entries the recompiler missed as well; log them so one feedback
         // pass also covers code that only ever ran in here.
         const bool call = cpu_.r[15] != expected_next && (cpu_.r[14] & ~1u) == expected_next;
-        if (call && !lookup(cpu_.r[15], cpu_.t != 0)) {
+        if (call && !lookup_compiled(cpu_.r[15], cpu_.t != 0)) {
             log_miss(cpu_.r[15], cpu_.t != 0);
         }
     }

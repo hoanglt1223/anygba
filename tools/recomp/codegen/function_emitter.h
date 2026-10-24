@@ -3,7 +3,13 @@
 #include "codegen/c_emitter.h"
 
 #include <cstdarg>
+#include <optional>
 #include <string>
+
+namespace anygba::codegen {
+// ROM address of the literal a PC-relative word load reads, when it is folded to a constant.
+std::optional<std::uint32_t> folded_literal(const decode::Insn& in, const analysis::Image* image);
+}  // namespace anygba::codegen
 
 namespace anygba::codegen::detail {
 

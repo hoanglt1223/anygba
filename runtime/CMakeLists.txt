@@ -32,6 +32,9 @@ add_library(anygba_runtime STATIC
   src/save/save_file.cpp
   src/input_map.cpp
   src/state/state.cpp
+  src/rom_patch.cpp
+  src/cheats/codes.cpp
+  src/cheats/engine.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <set>
 #include <span>
@@ -149,6 +150,13 @@ public:
     // SHA-256 of the unpatched ROM image.
     const std::string& rom_sha256();
 
+    // ---- ROM patch cheats (docs/dev/CHEATS.md) ----
+    // Replaces the active ROM patches: cartridge halfword address -> value. Generated
+    // functions whose code covers a patched address run in the interpreter from their next
+    // entry on; a body already running finishes as compiled.
+    void set_rom_patches(const std::map<std::uint32_t, std::uint16_t>& patches);
+    const std::map<std::uint32_t, std::uint16_t>& rom_patches() const { return rom_patches_; }
+    bool rom_bypassed(std::uint32_t entry) const { return bypassed_.contains(entry); }
 
     std::uint16_t io_read16(std::uint32_t offset) const;
     void io_write16(std::uint32_t offset, std::uint16_t value);
@@ -258,6 +266,10 @@ private:
     static constexpr std::uint32_t kNoSwi = 0xFFFFFFFF;
     std::uint32_t swi_pc_ = kNoSwi;  // the SWI being executed, for safe points in its halt
     std::string rom_sha256_;  // computed on first use
+    std::map<std::uint32_t, std::uint16_t> rom_patches_;
+    std::map<std::uint32_t, std::uint16_t> rom_originals_;
+    std::set<std::uint32_t> bypassed_;  // generated function entries covered by a ROM patch
+    anygba_fn lookup_compiled(std::uint32_t addr, bool thumb) const;  // ignores ROM patches
 };
 
 System& system_of(anygba_cpu* c);

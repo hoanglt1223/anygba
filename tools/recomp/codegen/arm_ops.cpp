@@ -220,15 +220,9 @@ void FunctionEmitter::emit_single_transfer(const Insn& in) {
     const bool load = in.op == Op::LDR || in.op == Op::LDRB || in.op == Op::LDRH || in.op == Op::LDRSB ||
                       in.op == Op::LDRSH;
     // A PC-relative word load from ROM reads a constant: fold it.
-    if (in.op == Op::LDR && in.rn == kPC && in.imm && options_.image && in.rd != kPC) {
-        const std::uint32_t base = in.pc_align ? in.pc_value() & ~3u : in.pc_value();
-        const std::uint32_t addr = in.up ? base + in.imm_value : base - in.imm_value;
-        if (analysis::Image::is_rom(addr) && (addr & 3) == 0) {
-            if (const auto value = options_.image->read32(addr)) {
-                line("c->r[%u] = %s;", in.rd, hex(*value).c_str());
-                return;
-            }
-        }
+    if (const auto literal = folded_literal(in, options_.image)) {
+        line("c->r[%u] = %s;", in.rd, hex(*options_.image->read32(*literal)).c_str());
+        return;
     }
     line("{");
     ++indent_;

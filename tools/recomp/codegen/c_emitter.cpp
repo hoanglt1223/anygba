@@ -3,7 +3,9 @@
 #include "codegen/function_emitter.h"
 #include "decode/disasm.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <optional>
 #include <set>
 
 namespace anygba::codegen {
@@ -21,6 +23,42 @@ std::string function_name(std::uint32_t addr) {
 
 std::string emit_function(const analysis::Function& fn, const EmitOptions& options) {
     return detail::FunctionEmitter(fn, options).run();
+}
+
+std::optional<std::uint32_t> folded_literal(const Insn& in, const analysis::Image* image) {
+    if (in.op != Op::LDR || in.rn != kPC || !in.imm || !image || in.rd == kPC) {
+        return std::nullopt;
+    }
+    const std::uint32_t base = in.pc_align ? in.pc_value() & ~3u : in.pc_value();
+    const std::uint32_t addr = in.up ? base + in.imm_value : base - in.imm_value;
+    if (!analysis::Image::is_rom(addr) || (addr & 3) != 0 || !image->read32(addr)) {
+        return std::nullopt;
+    }
+    return addr;
+}
+
+analysis::AddressRange code_footprint(const analysis::Function& fn, const analysis::Image* image) {
+    if (!analysis::Image::is_rom(fn.entry) || fn.insns.empty()) {
+        return {};
+    }
+    std::uint32_t lo = UINT32_MAX;
+    std::uint32_t hi = 0;
+    const auto cover = [&](std::uint32_t begin, std::uint32_t end) {
+        lo = std::min(lo, begin);
+        hi = std::max(hi, end);
+    };
+    for (const auto& [addr, in] : fn.insns) {
+        cover(addr, in.next());
+        if (const auto literal = folded_literal(in, image)) {
+            cover(*literal, *literal + 4);
+        }
+    }
+    for (const auto& table : fn.jump_tables) {
+        if (table.kind == analysis::JumpTable::Kind::LoadPc) {
+            cover(table.table_addr, table.table_addr + 4 * static_cast<std::uint32_t>(table.targets.size()));
+        }
+    }
+    return {lo, hi};
 }
 
 namespace detail {
@@ -134,6 +172,9 @@ std::int32_t FunctionEmitter::extra_cycles(const Insn& in) {
 std::string FunctionEmitter::run() {
     const std::string name = options_.name.empty() ? function_name(fn_.entry) : options_.name;
     out_ += "void " + name + "(anygba_cpu* c) {\n";
+    if (analysis::Image::is_rom(fn_.entry)) {
+        line("AG_ENTER(c, %s);", hex(fn_.entry).c_str());
+    }
     if (!fn_.insns.empty() && fn_.insns.begin()->first != fn_.entry) {
         // Code is emitted in address order; a branch target below the entry comes first.
         line("goto L_%08x;", fn_.entry);

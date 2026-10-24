@@ -58,6 +58,10 @@ struct anygba_cpu {
     uint32_t ret_depth;
     uint32_t ret_stack[ANYGBA_RET_STACK];
 
+    /* Nonzero while ROM patch cheats are active: generated functions then ask the runtime
+     * at entry whether a patch covers their code (AG_ENTER). */
+    uint32_t rom_patched;
+
     void* runtime; /* owned by the runtime */
 };
 
@@ -94,6 +98,9 @@ int anygba_resume(anygba_cpu* c, uint32_t expected);
 void anygba_unwind(anygba_cpu* c);
 /* Undefined instruction reached: reports and stops. */
 void anygba_undefined(anygba_cpu* c, uint32_t addr, uint32_t raw);
+/* Nonzero when a ROM patch covers the code of the generated function at `entry`; that
+ * function must not run its compiled body (the interpreter runs the patched code). */
+int anygba_rom_patched(anygba_cpu* c, uint32_t entry);
 
 /* ---- Inline helpers for generated code ---- */
 
@@ -238,6 +245,16 @@ static inline uint32_t ag_ror_c(uint32_t v, uint32_t n, uint32_t* carry) {
         }                                  \
     } while (0)
 
+/* First statement of every generated ROM function. Returning with r[15] = entry sends the
+   caller's resume path to the dispatcher, which interprets the patched code instead. */
+#define AG_ENTER(cpu, entry)                                                  \
+    do {                                                                      \
+        if ((cpu)->rom_patched && anygba_rom_patched((cpu), (entry))) {       \
+            (cpu)->r[15] = (entry);                                           \
+            return;                                                           \
+        }                                                                     \
+    } while (0)
+
 /* Direct call: `fn` returns with r[15] = where execution continues. `ret` stays on the
    return stack while resuming, so code the interpreter runs for the callee (a veneer's
    target, say) stops at the return address instead of running on past it. */
@@ -268,6 +285,10 @@ typedef struct anygba_function_entry {
     uint32_t addr;
     uint32_t thumb;
     anygba_fn fn;
+    /* ROM bytes the compiled body depends on (instructions, folded literals, jump tables),
+     * as one range; [0, 0) when unknown. ROM patches inside it bypass the function. */
+    uint32_t code_begin;
+    uint32_t code_end;
 } anygba_function_entry;
 
 typedef struct anygba_game {
