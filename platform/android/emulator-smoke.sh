@@ -5,7 +5,9 @@
 set -eu
 apk=$1
 expected=$2
-pkg=$("$ANDROID_HOME"/build-tools/*/aapt2 dump packagename "$apk" | head -n1)
+# The runner image may ship several build-tools versions; use the newest aapt2.
+aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n1)
+pkg=$("$aapt2" dump packagename "$apk" | head -n1)
 adb install -r "$apk"
 adb logcat -c
 adb shell am start -W -n "$pkg/io.anyport.anygba.GameActivity" \
