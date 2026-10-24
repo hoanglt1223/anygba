@@ -17,3 +17,6 @@ CMakeUserPresets.json
 *.sav
 *.srm
 *.elf
+
+# Python caches
+__pycache__/
