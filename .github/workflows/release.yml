@@ -91,8 +91,39 @@ jobs:
           path: dist/${{ env.PKG }}.${{ matrix.archive }}
           if-no-files-found: error
 
+  # The Android runtime (extract into any host package: it adds android/<abi>/) and the
+  # launcher app. Host packages already carry the APK template in share/anygba/android.
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: SDK packages
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: Runtime for arm64-v8a and x86_64, and the launcher
+        run: |
+          cmake -S . -B out/host -G Ninja -DCMAKE_BUILD_TYPE=Release -DANYGBA_BUILD_TESTS=OFF
+          cmake --build out/host
+          cmake --install out/host --prefix "$PWD/out/prefix"
+          cmake -DPREFIX="$PWD/out/prefix" -P platform/android/build-runtime.cmake
+          out/prefix/bin/anygba android-launcher -o dist
+          mv dist/AnyGBA-Launcher.apk "dist/AnyGBA-Launcher-${GITHUB_REF_NAME}.apk"
+          tar -C out/prefix -czf "dist/anygba-${GITHUB_REF_NAME}-android-runtime.tar.gz" android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+          if-no-files-found: error
+
   publish:
-    needs: package
+    needs: [package, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

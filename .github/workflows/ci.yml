@@ -119,3 +119,73 @@ jobs:
 
       - name: Compatibility checkpoints
         run: ctest --test-dir build --build-config Release --output-on-failure -L compat --parallel 4
+
+  # Android: the runtime cross-built for two ABIs, a corpus homebrew game as a signed APK
+  # (artifact), and one headless emulator run whose frame hash must match the desktop build.
+  android:
+    name: android
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install SDL build dependencies and SDK packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build \
+            libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxss-dev libxfixes-dev libxtst-dev libwayland-dev libxkbcommon-dev wayland-protocols \
+            libegl1-mesa-dev libgl1-mesa-dev libgles2-mesa-dev libdrm-dev libgbm-dev libudev-dev libdbus-1-dev
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Fetch and verify test corpus
+        run: sh tests/fetch-corpus.sh
+
+      - name: Host driver and install package
+        run: |
+          cmake -S . -B out/host -G Ninja -DCMAKE_BUILD_TYPE=Release -DANYGBA_BUILD_TESTS=OFF
+          cmake --build out/host
+          cmake --install out/host --prefix "$PWD/out/prefix"
+
+      - name: Cross-compile the Android runtime
+        run: cmake -DPREFIX="$PWD/out/prefix" -P platform/android/build-runtime.cmake
+
+      - name: Test APK, game package, launcher and the desktop reference hash
+        run: |
+          out/prefix/bin/anygba build tests/corpus/tonc/bin/obj_demo.gba --target android -o out/apk --name obj_demo
+          out/prefix/bin/anygba build tests/corpus/tonc/bin/obj_demo.gba --target android-package -o out/apk \
+            --name obj_demo --work out/apk/pkg-work
+          out/prefix/bin/anygba android-launcher -o out/apk
+          out/prefix/bin/anygba build tests/corpus/tonc/bin/obj_demo.gba -o out/desktop --name obj_demo
+          out/desktop/obj_demo --headless --frames 300 --dump-frame-hash --no-save --no-miss-log \
+            | sed -n 's/^frame 300 hash //p' > out/apk/desktop-hash.txt
+          cat out/apk/desktop-hash.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: |
+            out/apk/*.apk
+            out/apk/*.agp
+          if-no-files-found: error
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Emulator smoke test (frame hash matches the desktop build)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          script: sh platform/android/emulator-smoke.sh out/apk/obj_demo.apk "$(cat out/apk/desktop-hash.txt)"

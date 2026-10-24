@@ -117,11 +117,14 @@ Code the static analysis missed runs in the interpreter and is listed in `anygba
 with `--miss-log anygba-miss.log` to turn it into native code. Saves, controls, and the separate
 recompile/configure/build steps: [docs/user/USAGE.md](docs/user/USAGE.md).
 
+For Android, `--target android` writes a signed APK and `--target android-package` a game package for
+the AnyGBA launcher app: [docs/user/ANDROID.md](docs/user/ANDROID.md).
+
 ## Releases
 
 Pushing a tag `v*` runs `.github/workflows/release.yml`, which builds the package on Windows x64, Linux
 x64 and macOS arm64, checks that each one can build a generated project, and attaches the archives to a
-GitHub Release.
+GitHub Release, together with the Android runtime archive and the launcher APK.
 
 ## Programs
 

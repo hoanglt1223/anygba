@@ -50,6 +50,20 @@ struct Image {
     std::vector<std::uint8_t> rgba;
 };
 
+struct FRect {
+    float x = 0, y = 0, w = 0, h = 0;
+};
+
+// Draws on top of the picture and decides where the picture goes (touch controls). All
+// coordinates are output pixels; `safe` is the part of the output not covered by notches,
+// rounded corners or system bars.
+class ScreenOverlay {
+public:
+    virtual ~ScreenOverlay() = default;
+    virtual FRect picture_rect(float width, float height, FRect safe) = 0;
+    virtual void draw(SDL_Renderer* renderer, float width, float height) = 0;
+};
+
 // A resizable window showing one framebuffer, scaled by the largest integer factor that
 // fits and letterboxed with black.
 class Window {
@@ -80,11 +94,18 @@ public:
     bool accelerated() const;
     // The primary display's desktop mode, or (0, 0) when unknown.
     static std::pair<int, int> desktop_size();
+    // While an overlay is set it places the picture instead of the integer-scale letterbox.
+    // The overlay must outlive the window or be reset with nullptr first.
+    void set_overlay(ScreenOverlay* overlay);
 
     int width() const noexcept { return width_; }
     int height() const noexcept { return height_; }
 
 private:
+    std::pair<float, float> output_size() const;
+    // Where the screen overlay puts the picture in an output of w x h pixels.
+    FRect screen_picture_rect(float w, float h) const;
+
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
     SDL_Texture* texture_ = nullptr;
@@ -95,6 +116,7 @@ private:
     int overlay_width_ = 0, overlay_height_ = 0;
     std::uint64_t overlay_version_ = 0;
     bool logical_ = true;            // logical presentation is on (present())
+    ScreenOverlay* screen_overlay_ = nullptr;
     int width_;
     int height_;
 };

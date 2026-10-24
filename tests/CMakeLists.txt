@@ -42,7 +42,10 @@ add_executable(anygba-tests
   runtime/cheat_tests.cpp
   runtime/player_tests.cpp
   runtime/video_tests.cpp
-  driver/driver_tests.cpp)
+  
+  runtime/touch_tests.cpp
+  driver/driver_tests.cpp
+  driver/android_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
