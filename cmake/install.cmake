@@ -4,7 +4,7 @@
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
-install(TARGETS anygba-recomp anygba RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS anygba-recomp anygba anygba-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Exported as anygba::runtime, anygba::game_main, ... to match the in-tree aliases.
 set_target_properties(anygba_runtime PROPERTIES EXPORT_NAME runtime)

@@ -40,6 +40,7 @@ add_executable(anygba-tests
   runtime/state_tests.cpp
   runtime/cheat_tests.cpp
   runtime/player_tests.cpp
+  runtime/control_tests.cpp
   driver/driver_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
@@ -135,6 +136,15 @@ if(Python3_FOUND)
   add_test(NAME compat-site
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tools/compat-site/generate.py"
       --out "${CMAKE_CURRENT_BINARY_DIR}/compat-site")
+endif()
+
+# Agent control end to end: anygba-mcp over stdio drives a recompiled game.
+if(Python3_FOUND AND TARGET player-swi-vsync)
+  add_test(NAME mcp-e2e
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/mcp/mcp-e2e.py" --mcp "$<TARGET_FILE:anygba-mcp>"
+      --game "$<TARGET_FILE:player-swi-vsync>" --rom "${corpus}/tonc/bin/swi_vsync.gba"
+      --work "${CMAKE_CURRENT_BINARY_DIR}/mcp-e2e")
+  set_tests_properties(mcp-e2e PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE)
 endif()
 
 # Compatibility checkpoints: every compat/*.toml entry with a corpus ROM is recompiled and run

@@ -20,6 +20,7 @@ add_subdirectory(platform)
 add_subdirectory(runtime)
 add_subdirectory(tools/recomp)
 add_subdirectory(tools/anygba)
+add_subdirectory(tools/mcp)
 
 if(ANYGBA_BUILD_TESTS)
   enable_testing()
