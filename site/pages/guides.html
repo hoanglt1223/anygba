@@ -1,0 +1,151 @@
+<!-- title: Guides | description: Install AnyGBA, convert a GBA ROM you own into a native program, and set up saves, controls and per-game config. -->
+<h1>Guides</h1>
+<nav class="toc" aria-label="On this page"><ul>
+<li><a href="#install">Install</a></li>
+<li><a href="#convert">Convert a game</a></li>
+<li><a href="#run">Run a game</a></li>
+<li><a href="#saves">Saves</a></li>
+<li><a href="#controls">Controls and remapping</a></li>
+<li><a href="#config">Per-game config</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#faq">FAQ</a></li>
+</ul></nav>
+
+<h2 id="install">Install</h2>
+<p>AnyGBA produces C code and compiles it on your machine, so you need a C/C++ toolchain as well as the AnyGBA package:</p>
+<table>
+<thead><tr><th scope="col">System</th><th scope="col">Package</th><th scope="col">Also install</th></tr></thead>
+<tbody>
+<tr><td>Windows x64</td><td><a href="{{repo}}/releases/latest/download/anygba-v{{version}}-windows-x64.zip">anygba-v{{version}}-windows-x64.zip</a></td><td>Visual Studio 2022 (Desktop development with C++), CMake 3.28+</td></tr>
+<tr><td>Linux x64</td><td><a href="{{repo}}/releases/latest/download/anygba-v{{version}}-linux-x64.tar.gz">anygba-v{{version}}-linux-x64.tar.gz</a></td><td>GCC 13+ or Clang 16+, CMake 3.28+, SDL development packages</td></tr>
+<tr><td>macOS arm64</td><td><a href="{{repo}}/releases/latest/download/anygba-v{{version}}-macos-arm64.tar.gz">anygba-v{{version}}-macos-arm64.tar.gz</a></td><td>Xcode command-line tools, CMake 3.28+</td></tr>
+</tbody>
+</table>
+<p>Extract the archive anywhere; the folder you extract to is the <em>prefix</em>, and the tools are in its
+<code>bin/</code> folder. To build AnyGBA from source instead, see <a href="{{repo}}#build">Build in the README</a>.</p>
+
+<h2 id="convert">Convert a game</h2>
+<p>Dump the ROM from a cartridge you own (see the <a href="#faq">FAQ</a>), then run one command:</p>
+<pre><code>&lt;prefix&gt;/bin/anygba build game.gba -o dist</code></pre>
+<p>This recompiles the ROM to C, compiles it against the runtime, and writes:</p>
+<table>
+<thead><tr><th scope="col">System</th><th scope="col">Output</th></tr></thead>
+<tbody>
+<tr><td>Windows</td><td><code>dist/&lt;Title&gt;.exe</code></td></tr>
+<tr><td>Linux</td><td><code>dist/&lt;Title&gt;</code></td></tr>
+<tr><td>macOS</td><td><code>dist/&lt;Title&gt;.app</code> (ad-hoc signed)</td></tr>
+</tbody>
+</table>
+<p>The ROM is embedded in the program, and the program checks the ROM's SHA-256, so it only ever runs that one
+game. Because it contains the ROM, share it only with people who own the game. All build options are on the
+<a href="tools.html#anygba">Tools page</a>.</p>
+
+<h2 id="run">Run a game</h2>
+<pre><code>&lt;Title&gt; [--scale N] [--fast] [--save-dir DIR] [--input FILE]</code></pre>
+<ul>
+<li><code>--scale N</code> sets the window size as a multiple of 240&times;160 (default 3).</li>
+<li>Hold <kbd>Tab</kbd> to fast-forward.</li>
+<li><code>&lt;Title&gt; --help</code> lists every option; see also <a href="tools.html#game">the game options</a>.</li>
+</ul>
+
+<h2 id="saves">Saves</h2>
+<p>The save chip (SRAM, Flash 64/128 KB, EEPROM 512 B/8 KB) is detected from the ROM. Saves go to:</p>
+<table>
+<thead><tr><th scope="col">System</th><th scope="col">Folder</th></tr></thead>
+<tbody>
+<tr><td>Windows</td><td><code>%APPDATA%\anyport\anygba\saves\</code></td></tr>
+<tr><td>Linux</td><td><code>~/.local/share/anyport/anygba/saves/</code></td></tr>
+<tr><td>macOS</td><td><code>~/Library/Application Support/anyport/anygba/saves/</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>Files are named <code>&lt;title&gt;-&lt;hash&gt;.sav</code> and hold the raw chip contents, the layout mGBA and most emulators use, so
+you can bring an existing save across.</li>
+<li>A save is written about half a second after the game stops changing it, and on exit. The previous file is kept as
+<code>.sav.bak</code>.</li>
+<li><code>--save-dir DIR</code> uses another folder, <code>--no-save</code> turns saving off, and <code>--save-type T</code> overrides
+detection.</li>
+</ul>
+
+<h2 id="controls">Controls and remapping</h2>
+<table>
+<thead><tr><th scope="col">GBA</th><th scope="col">Keyboard</th><th scope="col">Gamepad</th></tr></thead>
+<tbody>
+<tr><td>D-pad</td><td>Arrow keys</td><td>D-pad</td></tr>
+<tr><td>A</td><td><kbd>X</kbd></td><td>South face button</td></tr>
+<tr><td>B</td><td><kbd>Z</kbd></td><td>East face button</td></tr>
+<tr><td>L / R</td><td><kbd>Q</kbd> / <kbd>W</kbd></td><td>Left / right shoulder</td></tr>
+<tr><td>Start</td><td><kbd>Return</kbd></td><td>Start</td></tr>
+<tr><td>Select</td><td><kbd>Backspace</kbd></td><td>Back</td></tr>
+<tr><td>Fast-forward</td><td><kbd>Tab</kbd></td><td>&ndash;</td></tr>
+</tbody>
+</table>
+<p>To remap, write the current mapping to a file and edit it:</p>
+<pre><code>&lt;Title&gt; --write-input anygba-input.ini</code></pre>
+<pre><code>[keyboard]
+A = X, Space
+FastForward = Tab
+
+[gamepad]
+A = South
+B = East</code></pre>
+<p>The game reads <code>anygba-input.ini</code> next to the program, then in the data folder above (one level up from
+<code>saves</code>), or the file named by <code>--input</code>. Buttons you leave out keep their default; a misspelled
+name stops the program with the file and line. Full reference:
+<a href="{{repo}}/blob/main/docs/user/INPUT_MAPPING.md">INPUT_MAPPING.md</a>.</p>
+
+<h2 id="config">Per-game config</h2>
+<p>Some games need help the static analysis cannot work out alone. Pass a TOML file with <code>--config game.toml</code>:</p>
+<pre><code>[game]
+title = "My game"
+save = "flash128"       # none, sram, flash64, flash128, eeprom, eeprom512, eeprom8k
+
+[[entry]]               # a function the analysis cannot see
+addr = 0x08000100
+mode = "thumb"
+
+[[skip]]                # data inside a code area
+start = 0x08001000
+end = 0x08001200</code></pre>
+<p>Also available: code copied into RAM (<code>[[ram_region]]</code>), byte patches (<code>[[patch]]</code>) and replacing a
+function with your own C (<code>[[replace]]</code>). Unknown keys are errors. Full schema:
+<a href="{{repo}}/blob/main/docs/dev/GAME-CONFIG.md">GAME-CONFIG.md</a>.</p>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<details><summary>The game runs slowly in places, and <code>anygba-miss.log</code> appeared</summary>
+<p>That code was not found by the static analysis and ran in the interpreter. Rebuild with the log to make it native:</p>
+<pre><code>anygba build game.gba --miss-log anygba-miss.log</code></pre>
+<p>Repeat after playing further if new addresses show up.</p></details>
+<details><summary>The program stops with an error naming an address</summary>
+<p>An unknown BIOS call, undefined instruction or unsupported hardware access stops the game on purpose rather than guessing.
+Some cases can be worked around with a <a href="#config">per-game config</a>. Please
+<a href="{{repo}}/issues">open an issue</a> with the message (never attach the ROM).</p></details>
+<details><summary>The build fails because CMake or the compiler is missing</summary>
+<p>Check <code>cmake --version</code> (3.28 or newer) and that a compiler is installed (see <a href="#install">Install</a>). Use
+<code>--cmake PATH</code> or <code>--generator NAME</code> to point <code>anygba build</code> at a specific one.</p></details>
+<details><summary>The program says the ROM does not match</summary>
+<p>Each program accepts only the exact ROM it was built from (by SHA-256). Rebuild from the ROM you want to play.</p></details>
+<details><summary>A save file is rejected</summary>
+<p>A save whose size does not fit the game's chip stops the program instead of being overwritten. Check you copied the right
+file, or set <code>--save-type</code>.</p></details>
+<details><summary>A button does nothing</summary>
+<p>Check <code>anygba-input.ini</code> next to the program and in the data folder; an empty value unbinds a button.</p></details>
+
+<h2 id="faq">FAQ</h2>
+<details><summary>Where do I get games?</summary>
+<p>From your own cartridges. AnyGBA provides no ROMs, BIOS images or game assets and never will. Dump cartridges you own with
+a cartridge-dumping device, or use the many free homebrew games made for the GBA. Downloading commercial ROMs you do not own
+is copyright infringement in most countries.</p></details>
+<details><summary>Do I need a GBA BIOS file?</summary>
+<p>No. The BIOS is reimplemented in the runtime.</p></details>
+<details><summary>Can I share the program I built?</summary>
+<p>Only with people who own the game, because the ROM is embedded in it. Build with <code>--no-embed</code> to leave the ROM out;
+the program then takes it as its first argument.</p></details>
+<details><summary>Is this an emulator?</summary>
+<p>No. The game's code is translated to C and compiled before it runs. A small interpreter exists only as a fallback for code the
+analysis missed. See <a href="index.html#how">how it differs</a>.</p></details>
+<details><summary>Should I use this instead of mGBA or VisualBoyAdvance?</summary>
+<p>For playing a large library today, a mature emulator is the safer choice. AnyGBA is for running a game as its own native
+program and for people interested in recompilation; it is young, and few games are verified.</p></details>
+<details><summary>Does it support save states, cheats or filters?</summary>
+<p>Not in {{version}}. They are <a href="features.html#next">coming in 0.2</a>.</p></details>

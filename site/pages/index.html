@@ -1,0 +1,73 @@
+<!-- title: Home | description: AnyGBA turns a Game Boy Advance ROM you own into a native Windows, Linux or macOS program. A static recompiler, not an emulator. -->
+<section class="hero">
+<div>
+<h1>Your GBA games, as native programs.</h1>
+<p class="lead">AnyGBA is a static recompiler. It reads a Game Boy Advance ROM that you dumped from your
+own cartridge, translates its ARM and Thumb code to C ahead of time, and builds a real Windows, Linux or
+macOS program from it. No emulator loop runs underneath.</p>
+<div class="buttons">
+<a class="btn primary" href="{{repo}}/releases/latest/download/anygba-v{{version}}-windows-x64.zip">Windows x64<small>anygba-v{{version}}-windows-x64.zip</small></a>
+<a class="btn" href="{{repo}}/releases/latest/download/anygba-v{{version}}-linux-x64.tar.gz">Linux x64<small>.tar.gz</small></a>
+<a class="btn" href="{{repo}}/releases/latest/download/anygba-v{{version}}-macos-arm64.tar.gz">macOS arm64<small>.tar.gz</small></a>
+</div>
+<p class="small">Version {{version}} &middot; <a href="{{repo}}/releases/tag/v{{version}}">release notes</a> &middot;
+<a href="guides.html#install">how to install</a> &middot; MIT licence</p>
+</div>
+<figure class="screen">
+<img src="assets/shots/varooom-3d-menu.png" width="240" height="160"
+ alt="Varooom 3D, an open-source racing game made with Butano, showing its brightness menu over a race track.">
+<figcaption>Varooom 3D (open-source, made with Butano) running as recompiled native code.</figcaption>
+</figure>
+</section>
+
+<h2 id="how">How it differs from an emulator</h2>
+<div class="cards">
+<div class="card">
+<h3>An emulator (VisualBoyAdvance, mGBA)</h3>
+<p>Loads the ROM at run time and interprets or JIT-compiles every instruction while you play, inside one
+general-purpose program that runs any game. Mature, accurate, and the right choice for most people.</p>
+</div>
+<div class="card">
+<h3>AnyGBA</h3>
+<p>Translates the whole game to C <em>once</em>, before it runs, and compiles it with your system's C
+compiler. The result is one program per game, with the BIOS, video, audio and input provided by a native
+runtime library. Code the analysis missed falls back to an interpreter and can be fed back in to become
+native on the next build.</p>
+</div>
+</div>
+<p>The approach follows static recompilation projects for other consoles: the game becomes ordinary native
+code you can profile, patch in C, and run without any emulation core. <a href="about.html#approach">More
+on the approach</a>.</p>
+
+<h2 id="why">Why this exists</h2>
+<p>I grew up with the Game Boy Advance, and with VisualBoyAdvance on a family PC in primary school. AnyGBA
+is my way of giving something back to that childhood: bringing those games back to life, making them run
+better than they ever did on that old PC, and carrying the feeling forward.</p>
+<blockquote lang="vi">Mình làm AnyGBA vì tuổi thơ, vì tình yêu với GBA và VBA từ những ngày tiểu học: để hồi sinh,
+cải thiện, bù đắp và tiếp nối tuổi thơ ấy.</blockquote>
+<p><a href="about.html#story">The full story</a></p>
+
+<h2 id="screenshots">Screenshots</h2>
+<p class="small">Every picture is rendered headless from open-source homebrew in AnyGBA's test corpus.
+The site never shows commercial games.</p>
+<div class="gallery">
+<figure><img src="assets/shots/varooom-3d-splash.png" width="240" height="160" loading="lazy"
+ alt="The Made with Butano 7.3.0 splash screen of Varooom 3D."><figcaption>Varooom 3D splash (Butano, open source)</figcaption></figure>
+<figure><img src="assets/shots/tonc-m7_demo.png" width="240" height="160" loading="lazy"
+ alt="A mode 7 perspective floor of repeating tiles from the tonc m7_demo."><figcaption>tonc <code>m7_demo</code>: mode 7 with HBlank effects</figcaption></figure>
+<figure><img src="assets/shots/tonc-tte_demo.png" width="240" height="160" loading="lazy"
+ alt="The tonc text engine demo menu listing tilemap, bitmap and sprite text modes."><figcaption>tonc <code>tte_demo</code>: text engine</figcaption></figure>
+<figure><img src="assets/shots/armwrestler.png" width="240" height="160" loading="lazy"
+ alt="ARMWrestler CPU test menu listing ARM and Thumb instruction test groups."><figcaption>ARMWrestler CPU test suite</figcaption></figure>
+</div>
+
+<h2 id="status">Where it stands</h2>
+<ul>
+<li>{{compat_total}} open-source titles tracked, {{compat_playable}} at <em>playable</em> or better, all with
+frame-hash checkpoints in CI. <a href="compatibility.html">Compatibility list</a>.</li>
+<li>Every GBA BIOS call from 0x00 to 0x2A is reimplemented; no BIOS image is needed.</li>
+<li>The video output matches mGBA pixel for pixel on 48 test pictures.</li>
+<li>Windowed play, audio, and real controllers are still untested on hardware: see
+<a href="features.html#limits">known limits</a>.</li>
+</ul>
+<p><a class="btn" href="guides.html#convert">Convert your first game</a></p>

@@ -1,0 +1,51 @@
+<!-- title: About | description: Why AnyGBA exists, how it works, how to contribute, and its licence. -->
+<h1>About AnyGBA</h1>
+
+<h2 id="story">Why this exists</h2>
+<p>I grew up with the Game Boy Advance. In primary school, the games I couldn't afford I played on a family PC through
+VisualBoyAdvance: Pokémon, a cheat code scribbled in a notebook, a save state before every hard fight. Those evenings are a
+big part of why I write software today.</p>
+<p>AnyGBA is my way of giving something back to that childhood. I want to bring those games back to life, make them run
+better than they ever did on that old PC (native code, sharp at 4K, instant saves), make up for what that kid couldn't have,
+and carry the feeling forward for the next person who opens their old cartridges. VBA kept these games alive for a
+generation; this project hopes to carry them a little further.</p>
+<blockquote lang="vi">Mình làm AnyGBA vì tuổi thơ, vì tình yêu với GBA và VBA từ những ngày tiểu học: để hồi sinh, cải thiện,
+bù đắp và tiếp nối tuổi thơ ấy.</blockquote>
+<p class="small">In English: "I make AnyGBA for my childhood, for the love of the GBA and VBA since primary school days: to
+revive, improve, make up for and carry on that childhood."</p>
+
+<h2 id="approach">How it works</h2>
+<ol>
+<li><strong>Analyse.</strong> <code>anygba-recomp</code> decodes the ROM's ARM and Thumb code and follows branches and calls
+to find every function it can.</li>
+<li><strong>Translate.</strong> Each function becomes C that operates on a CPU state and calls the runtime for memory and
+hardware access.</li>
+<li><strong>Compile.</strong> Your C compiler builds the generated code and links it with <code>libanygba</code>, the runtime
+that provides the BIOS, video, audio, saves, input and timing on top of SDL 3.</li>
+<li><strong>Feed back.</strong> Anything the analysis missed runs in a fallback interpreter and is logged, so the next build can
+make it native.</li>
+</ol>
+<p>It is part of <em>anyport</em>, a set of native-port projects built on static recompilation and high-level emulation of the
+system's software. Design details: <a href="{{repo}}/blob/main/docs/dev/ARCHITECTURE.md">ARCHITECTURE.md</a>.</p>
+
+<h2 id="contribute">Contribute</h2>
+<ul>
+<li><strong>Test games you own</strong> and report what happens in an <a href="{{repo}}/issues">issue</a>: title, stage reached,
+and any error. Never attach or link a ROM.</li>
+<li><strong>Homebrew authors:</strong> open-source GBA games make great test cases for the <a href="compatibility.html">compatibility list</a>.</li>
+<li><strong>Code:</strong> build from source as described in the <a href="{{repo}}#build">README</a>, run the tests with
+<code>ctest</code>, and open a pull request. Keep commits focused, with conventional commit messages.</li>
+</ul>
+
+<h2 id="license">Licence and legal</h2>
+<p>AnyGBA is released under the <a href="{{repo}}/blob/main/LICENSE">MIT licence</a>. It ships only the recompiler and runtime;
+no ROM, BIOS image or copyrighted game asset is part of the project or needed to use it. You supply dumps of games you own.</p>
+<p>AnyGBA is independent and not affiliated with or endorsed by any console maker. Game Boy Advance is a trademark of its
+owner, used here only to describe compatibility.</p>
+
+<h2 id="thanks">Thanks</h2>
+<p>To VisualBoyAdvance and <a href="https://mgba.io/">mGBA</a>, for keeping these games alive and for the reference behaviour this
+project tests against; to <a href="https://problemkaputt.de/gbatek.htm">GBATEK</a>; and to the open-source test ROMs and homebrew used
+here: <a href="https://github.com/jsmolka/gba-tests">jsmolka's gba-tests</a>,
+<a href="https://github.com/destoer/armwrestler-gba-fixed">ARMWrestler</a>,
+<a href="https://www.coranac.com/tonc/text/">Tonc</a>, and <a href="https://github.com/GValiente/butano">Butano</a>'s Varooom 3D.</p>

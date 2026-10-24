@@ -1,11 +1,11 @@
 name: pages
 
-# Renders compat/*.toml into the compatibility page and badges and publishes them with
-# GitHub Pages. The checkpoints themselves are checked by the compat job in ci.yml.
+# Builds the website (site/), including the compatibility page rendered from compat/*.toml,
+# and publishes it with GitHub Pages. The checkpoints themselves are checked by the compat job in ci.yml.
 on:
   push:
     branches: [main]
-    paths: [compat/**, tools/compat-site/**, .github/workflows/pages.yml]
+    paths: [site/**, compat/**, tools/compat-site/**, .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
@@ -25,11 +25,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Render the compatibility site
-        run: python tools/compat-site/generate.py --out site
+      - name: Build the website and check its links
+        run: python site/build.py --out _site --check
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
 
   deploy:
     needs: build

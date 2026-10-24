@@ -80,7 +80,8 @@ def badge(label: str, value: str, color: str) -> str:
 """
 
 
-def page(project: str, entries: list[dict], generated: str) -> str:
+def body(project: str, entries: list[dict], generated: str) -> str:
+    """The page content without the document shell, so the website can embed it in its own layout."""
     counts = {s: sum(1 for e in entries if e["stage"] == s) for s in STAGES}
     total = len(entries)
     bar = "".join(
@@ -104,6 +105,23 @@ def page(project: str, entries: list[dict], generated: str) -> str:
             f'<td class="num">{"" if misses is None else misses}</td>'
             f'<td>{html.escape(str(e.get("updated", "")))}</td>'
             "</tr>")
+    return f"""<h1>{html.escape(project)} compatibility</h1>
+<p>{total} titles. Stages and evidence rules: <code>compat/schema.md</code>. Generated {html.escape(generated)}.</p>
+<div class="bar" role="img" aria-label="titles by stage">{bar}</div>
+<p>{legend}</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Title</th><th scope="col">Kind</th><th scope="col">Stage</th><th scope="col">Evidence</th>
+<th scope="col">Blockers</th><th scope="col">Misses</th><th scope="col">Updated</th></tr></thead>
+<tbody>
+{chr(10).join(rows)}
+</tbody>
+</table>
+</div>
+"""
+
+
+def page(project: str, entries: list[dict], generated: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -118,21 +136,11 @@ table {{ border-collapse: collapse; width: 100%; font-size: .92rem; }}
 th, td {{ text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #ddd; vertical-align: top; }}
 th {{ background: #f4f4f4; position: sticky; top: 0; }}
 .num {{ text-align: right; }}
+.table-wrap {{ overflow-x: auto; }}
 </style>
 </head>
 <body>
-<h1>{html.escape(project)} compatibility</h1>
-<p>{total} titles. Stages and evidence rules: <code>compat/schema.md</code>. Generated {html.escape(generated)}.</p>
-<div class="bar" role="img" aria-label="titles by stage">{bar}</div>
-<p>{legend}</p>
-<table>
-<thead><tr><th scope="col">Title</th><th scope="col">Kind</th><th scope="col">Stage</th><th scope="col">Evidence</th>
-<th scope="col">Blockers</th><th scope="col">Misses</th><th scope="col">Updated</th></tr></thead>
-<tbody>
-{chr(10).join(rows)}
-</tbody>
-</table>
-</body>
+{body(project, entries, generated)}</body>
 </html>
 """
 

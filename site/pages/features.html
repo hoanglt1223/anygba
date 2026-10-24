@@ -1,0 +1,49 @@
+<!-- title: Features | description: What AnyGBA {{version}} does today, what is coming in 0.2, and its known limits. -->
+<h1>Features</h1>
+<p>What works in AnyGBA {{version}}, what is being built for 0.2, and what is not done yet. Details live in the
+<a href="{{repo}}#readme">README</a>.</p>
+
+<h2 id="now">In {{version}}</h2>
+<div class="cards">
+<div class="card"><h3>Static recompiler</h3><p>ARM/Thumb decoder, function discovery, and a C code generator.
+jsmolka's ARM, Thumb, memory and BIOS test ROMs pass as recompiled native code.</p></div>
+<div class="card"><h3>Trace feedback</h3><p>Code the analysis missed runs in a fallback interpreter and is logged to
+<code>anygba-miss.log</code>. Rebuild with <code>--miss-log</code> and it becomes native.</p></div>
+<div class="card"><h3>HLE BIOS</h3><p>Every SWI from 0x00 to 0x2A. Div, Sqrt and ArcTan match mGBA's HLE BIOS bit for bit;
+the decompressors reproduce data packed by grit. No BIOS image needed.</p></div>
+<div class="card"><h3>Video</h3><p>Scanline renderer for all six video modes, 128 regular and affine sprites, windows,
+alpha blending, brightness, mosaic. 48 test pictures match mGBA pixel for pixel.</p></div>
+<div class="card"><h3>Audio</h3><p>All four PSG channels and both DirectSound FIFOs, mixed at 32768 Hz. Test tones
+correlate with mGBA's output above 0.99.</p></div>
+<div class="card"><h3>Saves</h3><p>SRAM, Flash 64/128 KB and EEPROM 512 B/8 KB, auto-detected, written safely with a
+backup of the previous file. Raw <code>.sav</code> files, compatible with most emulators.</p></div>
+<div class="card"><h3>One-command builds</h3><p><code>anygba build game.gba</code> produces a single program with the ROM
+embedded: <code>.exe</code> on Windows, a binary on Linux, an <code>.app</code> on macOS.</p></div>
+<div class="card"><h3>Controls</h3><p>Keyboard and any SDL gamepad, remappable in <code>anygba-input.ini</code>.
+Hold Tab to fast-forward.</p></div>
+<div class="card"><h3>Per-game config</h3><p>TOML files for extra entry points, RAM code, data to skip, byte patches,
+and whole functions replaced by your own C.</p></div>
+</div>
+
+<h2 id="next">Coming in 0.2 <span class="badge">in development</span></h2>
+<p>These features are being built now and are <strong>not</strong> in {{version}}. Names and details may change before
+release.</p>
+<div class="cards">
+<div class="card soon"><h3>Speed-up</h3><p>Fast-forward at fixed rates of 200%, 300% and 400%, on top of the
+unlimited Tab fast-forward.</p></div>
+<div class="card soon"><h3>Save states</h3><p>Nine save-state slots per game, alongside the normal in-game saves.</p></div>
+<div class="card soon"><h3>Cheats</h3><p>GameShark, Action Replay and CodeBreaker codes, with a browsable cheat menu:
+categories and pick-lists (for example, choosing a creature species from a list instead of typing a value).</p></div>
+<div class="card soon"><h3>Graphics filters and upscaling</h3><p>xBRZ, hqx, Scale2x, CRT and LCD effects, GBA colour
+correction, and output from 720p up to 4K.</p></div>
+</div>
+
+<h2 id="limits">Known limits in {{version}}</h2>
+<ul>
+<li>Windowed play, real audio devices, keyboard/gamepad input and audio-led pacing have only been tested headless on the
+development PC.</li>
+<li>Linux and macOS packages are built and checked in CI, but the macOS <code>.app</code> has not been run on a Mac.</li>
+<li>EEPROM saves are covered by unit tests only.</li>
+<li>The BIOS sound driver calls and MultiBoot are stubs; most games use their own sound engine and do not call them.</li>
+<li>No commercial game has been verified yet. Progress is on the <a href="compatibility.html">compatibility page</a>.</li>
+</ul>

@@ -1,0 +1,81 @@
+<!-- title: Tools | description: Usage of the AnyGBA command-line tools: anygba, anygba-recomp, anygba-shot, and the options of a generated game. -->
+<h1>Tools</h1>
+<p>The AnyGBA package contains command-line tools in its <code>bin/</code> folder. The text below is their
+<code>--help</code> output from {{version}}.</p>
+<nav class="toc" aria-label="On this page"><ul>
+<li><a href="#anygba"><code>anygba</code>: ROM to program</a></li>
+<li><a href="#anygba-recomp"><code>anygba-recomp</code>: the recompiler</a></li>
+<li><a href="#game">A generated game</a></li>
+<li><a href="#anygba-shot"><code>anygba-shot</code>: headless screenshots</a></li>
+</ul></nav>
+
+<h2 id="anygba"><code>anygba</code></h2>
+<p>Recompile, compile and package a ROM in one step. This is the tool most people need.</p>
+<pre><code>usage: anygba build &lt;game.gba&gt; [options]
+
+Recompiles the ROM, compiles the result against the installed runtime, and writes
+&lt;Title&gt;.exe (Windows), &lt;Title&gt; (Linux) or &lt;Title&gt;.app (macOS) with the ROM embedded.
+
+  --config FILE      per-game config (docs/dev/GAME-CONFIG.md)
+  --miss-log FILE    trace-feedback log from an earlier run (repeatable)
+  -o, --output DIR   where the program goes (default: current folder)
+  --work DIR         generated C and build files (default: &lt;output&gt;/&lt;rom name&gt;-build)
+  --name NAME        program name (default: the game title)
+  --prefix DIR       anygba install prefix (default: the folder above this program's bin/)
+  --cmake PATH       cmake executable (default: cmake on PATH)
+  --generator NAME   CMake generator (default: CMake's choice)
+  --build-type TYPE  CMake configuration (default: Release)
+  --no-embed         do not embed the ROM; the program then takes it as its first argument</code></pre>
+
+<h2 id="anygba-recomp"><code>anygba-recomp</code></h2>
+<p>The recompiler on its own: writes a C project you can inspect, edit, and build with CMake.</p>
+<pre><code>usage: anygba-recomp &lt;rom.gba&gt; [--config game.toml] [--miss-log FILE]... [--output dir] [--list]
+
+  --config FILE   per-game TOML configuration
+  --miss-log FILE runtime miss log; its addresses become entry points (repeatable)
+  -o, --output    directory for the generated C project (default: recomp-out)
+  --list          print discovered functions with disassembly instead of generating C
+  --shards N      split the functions over exactly N funcs_NNN.c files
+  -h, --help      show this help
+  --version       show the version</code></pre>
+<p>The steps <code>anygba build</code> runs for you:</p>
+<pre><code>anygba-recomp game.gba --output game-src [--config game.toml]
+cmake -S game-src -B game-src/out -DCMAKE_PREFIX_PATH=&lt;prefix&gt;
+cmake --build game-src/out --config Release
+game-src/out/Release/game game.gba</code></pre>
+
+<h2 id="game">A generated game</h2>
+<p>Every program AnyGBA builds accepts these options.</p>
+<pre><code>usage: game [rom.gba] [options]
+
+  rom.gba             the ROM this program was generated from; omit it when the ROM is embedded
+  --headless          no window and no audio (SDL dummy drivers); runs unpaced unless --pace
+  --pace              pace to real time (default with a window)
+  --fast              do not pace
+  --scale N           initial window size as a multiple of 240x160 (default 3)
+  --frames N          stop after N frames
+  --seconds S         stop after S seconds of wall-clock time
+  --exit-on-idle      stop at the first branch-to-self and print the registers
+  --dump-frame-hash   print the SHA-256 of the last frame (RGB555, little-endian) on exit
+  --save-dir DIR      where the save file lives (default: the per-user data folder)
+  --save-type T       none, sram, flash64, flash128, eeprom, eeprom512 or eeprom8k (default: config, else detect)
+  --no-save           do not read or write a save file
+  --input FILE        input mapping (default: anygba-input.ini next to the program, else in the data folder)
+  --write-input FILE  write the current input mapping to FILE and exit
+  --miss-log FILE     where to append addresses the recompiled code missed (default anygba-miss.log)
+  --no-miss-log       do not write the miss log</code></pre>
+
+<h2 id="anygba-shot"><code>anygba-shot</code></h2>
+<p>Runs a ROM in the interpreter without a window and writes screenshots, frame hashes, memory dumps or audio.
+It is built with the test suite; the screenshots on this site were made with it.</p>
+<pre><code>usage: anygba-shot ROM --frames N [--shot F:out.png] [--hash F] [--keys KEY:A-B] [--dump REGION:out.bin]
+                   [--wav out.wav]
+  REGION is ewram, iwram, io, palette, vram or oam, written after the last frame
+  --wav writes all sound (32768 Hz stereo 16-bit)</code></pre>
+<pre><code>anygba-shot homebrew.gba --frames 300 --shot 300:title.png --keys a:120-130</code></pre>
+
+<h2 id="more">More</h2>
+<p>Architecture, file formats and the miss-log format are documented in the repository:
+<a href="{{repo}}/blob/main/docs/dev/ARCHITECTURE.md">ARCHITECTURE.md</a>,
+<a href="{{repo}}/blob/main/docs/dev/GAME-CONFIG.md">GAME-CONFIG.md</a>,
+<a href="{{repo}}/blob/main/docs/user/USAGE.md">USAGE.md</a>.</p>
