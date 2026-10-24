@@ -7,5 +7,5 @@ evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run
 blockers = []
 misses = 31
 checkpoint_frames = 3600
-checkpoint_hash = "4f562bfd31641b615a3bae30bb8ca410b645b84af7752452b7f144227a21b744"
+checkpoint_hash = "20c38dee2a8eb41e5ecc4a711b044d174f2c004cdae4a4d48ebb8bc567e19f02"
 updated = 2026-10-24

@@ -7,5 +7,5 @@ evidence = "60 s recompiled headless run without errors, 1194+ frames/s unpaced;
 blockers = ["no reference picture from mGBA yet"]
 misses = 5
 checkpoint_frames = 3600
-checkpoint_hash = "92bda8f96fc2bb109cbfe2d96d6025684c585a4e8fc79912b9ed5f0d80cbc630"
+checkpoint_hash = "df69d8097081be88402adc9fdf4664657dbd57fe3b7536479dc450450f6e9eec"
 updated = 2026-10-24

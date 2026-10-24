@@ -39,6 +39,7 @@ void System::reset() {
     std::memset(&cpu_, 0, sizeof cpu_);
     cpu_.runtime = runtime;
     map_pages();
+    update_wait_states();  // WAITCNT is 0 at power-on; games that never write it still pay
 
     std::fill(mem_.ewram.begin(), mem_.ewram.end(), 0);
     std::fill(mem_.iwram.begin(), mem_.iwram.end(), 0);

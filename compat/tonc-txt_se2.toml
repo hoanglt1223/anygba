@@ -7,5 +7,5 @@ evidence = "60 s recompiled headless run without errors, 1145+ frames/s unpaced;
 blockers = ["no reference picture from mGBA yet", "shows timing measurements, which differ from the interpreter and from hardware"]
 misses = 17
 checkpoint_frames = 3600
-checkpoint_hash = "f215235812e19671473f39d82970548c6b24f949efe8a19a8beae6c84733e64d"
+checkpoint_hash = "6dd9231c94d8360be7a4caffd3415bcb2695425e6da8bc9465074bf283ead941"
 updated = 2026-10-24
