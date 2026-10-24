@@ -37,6 +37,7 @@ add_executable(anygba-tests
   runtime/ppu_tests.cpp
   runtime/apu_tests.cpp
   runtime/save_tests.cpp
+  runtime/state_tests.cpp
   driver/driver_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform

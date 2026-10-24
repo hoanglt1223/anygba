@@ -43,6 +43,7 @@ anygba_fn System::lookup(std::uint32_t addr, bool thumb) const {
 
 void System::run_once() {
     if (anygba_fn fn = lookup(cpu_.r[15], cpu_.t != 0)) {
+        resuming_ = false;
         fn(&cpu_);
     } else {
         interpret();
@@ -97,6 +98,7 @@ int System::run_guarded() {
     }
     cpu_.ret_depth = 0;
     resume_depth_ = 0;
+    swi_pc_ = kNoSwi;
     for (;;) {
         run_once();
     }
@@ -164,7 +166,10 @@ void System::log_miss(std::uint32_t addr, bool thumb) {
 }
 
 void System::interpret() {
-    log_miss(cpu_.r[15], cpu_.t != 0);
+    if (!resuming_) {
+        log_miss(cpu_.r[15], cpu_.t != 0);
+    }
+    resuming_ = false;
     std::uint32_t expected_next = cpu_.r[15];
     for (;;) {
         const std::uint32_t pc = cpu_.r[15];

@@ -12,6 +12,10 @@
 // they happen at, so sample timing does not depend on when the CPU happens to tick.
 namespace anygba {
 
+namespace state {
+class Archive;
+}
+
 class Apu {
 public:
     static constexpr int kSampleRate = 32768;
@@ -32,6 +36,8 @@ public:
     void drain(std::vector<std::int16_t>& out);
     // Timer overflows that found a FIFO empty after it had started playing.
     std::uint64_t fifo_underruns() const { return underruns_; }
+    // Channel and FIFO state for save states. Undrained output is dropped on load.
+    void serialize(state::Archive& ar);
 
 private:
     struct Envelope {

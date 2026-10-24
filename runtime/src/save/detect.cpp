@@ -1,4 +1,5 @@
 #include "save/save.h"
+#include "state/archive.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -71,6 +72,13 @@ std::unique_ptr<Backup> make(Type type) {
     case Type::Eeprom8k: return make_eeprom(8192);
     }
     throw std::invalid_argument("unknown save type");
+}
+
+void Backup::serialize(state::Archive& ar) {
+    ar.fixed(data_, "backup memory");
+    if (ar.loading()) {
+        changed();
+    }
 }
 
 }  // namespace anygba::save

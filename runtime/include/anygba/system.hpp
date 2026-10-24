@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -19,6 +20,9 @@ class Ppu;
 class Apu;
 namespace save {
 class Backup;
+}
+namespace state {
+class Archive;
 }
 
 // Raised for conditions the runtime refuses to guess about: unknown SWIs, undefined
@@ -127,6 +131,25 @@ public:
     // Buttons held, in KEYINPUT bit order (bit 0 A ... bit 9 L), 1 = pressed.
     void set_keys(std::uint16_t pressed_mask);
 
+    // ---- save states (docs/dev/SAVE-STATES.md) ----
+    // A complete snapshot: CPU, memory, scheduler, video, sound, DMA, timers, backup chip.
+    // Tied to the ROM by its SHA-256.
+    std::vector<std::uint8_t> save_state();
+    // Replaces the machine state with `image`. Throws anygba::Error for a damaged file, another
+    // ROM, or another format version, and then leaves the state unchanged. While run() is
+    // active, call it only from a safe-point action.
+    void load_state(std::span<const std::uint8_t> image);
+    // Runs `action` at the next safe point, then restarts dispatch at r[15]. Safe points are
+    // the ends of scheduler ticks outside interrupt handlers, where every guest register is in
+    // cpu() and r[15] names the next instruction, so a snapshot taken there can be resumed
+    // without the host call frames of generated code. Exceptions from `action` stop run().
+    void request_safe_point(std::function<void(System&)> action);
+    bool safe_point_pending() const { return static_cast<bool>(safe_point_); }
+    static constexpr std::uint32_t kStateVersion = 1;
+    // SHA-256 of the unpatched ROM image.
+    const std::string& rom_sha256();
+
+
     std::uint16_t io_read16(std::uint32_t offset) const;
     void io_write16(std::uint32_t offset, std::uint16_t value);
 
@@ -186,6 +209,8 @@ private:
     void on_timer_overflow(int timer);
     void schedule_timer(int timer);
     void log_miss(std::uint32_t addr, bool thumb);
+    void serialize(state::Archive& ar);
+    void run_safe_point();
     std::uint32_t open_bus() const;
     bool in_irq_handler() const;
     bool eeprom_at(std::uint32_t addr) const;
@@ -227,6 +252,12 @@ private:
     std::uint32_t resume_depth_ = 0;  // nested resume() calls on the host stack
     std::uint32_t last_bios_opcode_ = 0xE129F000;
     std::uint64_t stubs_logged_ = 0;  // stubbed SWI numbers already reported
+    std::function<void(System&)> safe_point_;
+    // Dispatch after a safe point restarts mid-function; that address is not a miss.
+    bool resuming_ = false;
+    static constexpr std::uint32_t kNoSwi = 0xFFFFFFFF;
+    std::uint32_t swi_pc_ = kNoSwi;  // the SWI being executed, for safe points in its halt
+    std::string rom_sha256_;  // computed on first use
 };
 
 System& system_of(anygba_cpu* c);

@@ -103,6 +103,30 @@ void System::tick() {
     if (stop_requested_ && top_jmp_) {
         std::longjmp(*static_cast<std::jmp_buf*>(top_jmp_), 2);
     }
+    if (safe_point_ && top_jmp_ && !in_irq_handler()) {
+        run_safe_point();
+    }
+}
+
+void System::run_safe_point() {
+    bool failed = false;
+    {
+        auto action = std::move(safe_point_);
+        safe_point_ = nullptr;
+        try {
+            action(*this);
+        } catch (const std::exception& e) {
+            error_ = e.what();
+            failed = true;
+        }
+    }
+    if (failed) {
+        fail(error_);
+    }
+    // Both saving and loading continue from the same place, through the same path, so a run
+    // that saved and a run that loaded that state stay identical.
+    resuming_ = true;
+    unwind();
 }
 
 void System::idle_loop() {
@@ -120,6 +144,13 @@ void System::halt_until_irq(std::uint16_t wake_mask) {
         run_events();
         if (stop_requested_ && top_jmp_) {
             std::longjmp(*static_cast<std::jmp_buf*>(top_jmp_), 2);
+        }
+        // Waiting in a BIOS Halt, Stop or IntrWait with no interrupt yet: running the SWI
+        // again from the start waits the same way. Games that sleep between frames would
+        // otherwise rarely reach a tick outside their VBlank handler.
+        if (safe_point_ && top_jmp_ && swi_pc_ != kNoSwi && !in_irq_handler()) {
+            cpu_.r[15] = swi_pc_;
+            run_safe_point();
         }
     }
     request_tick();

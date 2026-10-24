@@ -1,4 +1,5 @@
 #include "save/save.h"
+#include "state/archive.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -85,6 +86,18 @@ public:
                                      " bytes, got " + std::to_string(bytes.size()));
         }
         data_ = std::move(bytes);
+    }
+
+    void serialize(state::Archive& ar) override {
+        Backup::serialize(ar);
+        ar.pod(bank_);
+        ar.pod(step_);
+        ar.pod(id_mode_);
+        ar.pod(erase_armed_);
+        ar.pod(mode_);
+        if (ar.loading() && (bank_ > (banks2_ ? 1u : 0u) || mode_ > Mode::Bank)) {
+            throw Error("state file has an invalid Flash chip state");
+        }
     }
 
 private:

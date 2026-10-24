@@ -12,6 +12,10 @@
 // Cartridge backup memory (GBATEK "GBA Cart Backup IDs" and the SRAM, Flash and EEPROM
 // sections). One object per cartridge; the bus forwards 0x0E/0x0F accesses and, for EEPROM,
 // halfword accesses in the 0x0D region.
+namespace anygba::state {
+class Archive;
+}
+
 namespace anygba::save {
 
 enum class Type : std::uint8_t {
@@ -56,6 +60,9 @@ public:
     virtual void load(std::vector<std::uint8_t> bytes) = 0;
     // Increments on every change of data(); persistence compares it to decide when to write.
     std::uint64_t generation() const { return generation_; }
+
+    // Contents and chip state for save states. Loading counts as a change.
+    virtual void serialize(state::Archive& ar);
 
 protected:
     void changed() { ++generation_; }

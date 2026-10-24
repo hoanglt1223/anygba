@@ -10,6 +10,10 @@
 // changes (HBlank DMA, VCOUNT IRQs) take effect on the next line.
 namespace anygba {
 
+namespace state {
+class Archive;
+}
+
 class Ppu {
 public:
     explicit Ppu(const Memory& mem) : mem_(mem) {}
@@ -22,6 +26,8 @@ public:
     void latch_reference_points();
     // A BG2X/BG2Y/BG3X/BG3Y register was written: it applies from the current line on.
     void reference_written(unsigned io_offset);
+    // Internal affine reference points for save states (line buffers are rebuilt every line).
+    void serialize(state::Archive& ar);
 
     static constexpr std::uint16_t kTransparent = 0x8000;
 

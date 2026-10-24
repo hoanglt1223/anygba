@@ -26,6 +26,8 @@ constexpr std::uint16_t kStopWakeIrqs = 0x3080;  // keypad, game pak, serial
 void System::swi(std::uint32_t number) {
     anygba_cpu& c = cpu_;
     const std::uint32_t call_pc = c.r[15] - (c.t ? 2u : 4u);
+    const std::uint32_t outer_swi_pc = swi_pc_;
+    swi_pc_ = call_pc;  // a halt in here can be resumed by running this SWI again
     last_bios_opcode_ = bios::kOpcodeAfterSwi;
     bios::spend(*this, 50);
     switch (number) {
@@ -103,6 +105,7 @@ void System::swi(std::uint32_t number) {
         fail(msg);
     }
     }
+    swi_pc_ = outer_swi_pc;
     last_bios_opcode_ = bios::kOpcodeAfterSwi;
 }
 

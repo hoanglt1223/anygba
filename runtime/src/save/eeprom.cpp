@@ -1,4 +1,5 @@
 #include "save/save.h"
+#include "state/archive.h"
 
 #include <stdexcept>
 
@@ -100,6 +101,24 @@ public:
         }
         set_size(bytes.size());
         data_ = std::move(bytes);
+    }
+
+    void serialize(state::Archive& ar) override {
+        // The size is part of the state: the first transfer may have fixed it.
+        ar.sized(data_, 8192, "EEPROM contents");
+        if (ar.loading()) {
+            if (!data_.empty() && data_.size() != 512 && data_.size() != 8192) {
+                throw Error("state file has an invalid EEPROM size");
+            }
+            width_ = data_.empty() ? 0 : data_.size() == 512 ? 6 : 14;
+            changed();
+        }
+        ar.sized(bits_, 2 + 14 + 64 + 1, "EEPROM request");
+        ar.pod(read_block_);
+        ar.pod(read_pos_);
+        if (ar.loading() && (read_pos_ > 68 || (!data_.empty() && read_block_ >= data_.size() / 8))) {
+            throw Error("state file has an invalid EEPROM read position");
+        }
     }
 
 private:
