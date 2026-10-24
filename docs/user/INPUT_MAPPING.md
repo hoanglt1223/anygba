@@ -19,8 +19,8 @@ Write the current mapping to a file to start from:
 ```ini
 # Lines starting with # or ; are comments.
 [keyboard]
-A = X
-B = Z
+A = Z
+B = X
 Select = Backspace
 Start = Return
 Right = Right

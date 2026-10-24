@@ -164,7 +164,7 @@ const char* pad_button_name(Button b) {
 
 Mapping default_mapping() {
     Mapping m;
-    m.keys = {{{"X"}, {"Z"}, {"Backspace"}, {"Return"}, {"Right"}, {"Left"}, {"Up"}, {"Down"}, {"S"}, {"A"}}};
+    m.keys = {{{"Z"}, {"X"}, {"Backspace"}, {"Return"}, {"Right"}, {"Left"}, {"Up"}, {"Down"}, {"S"}, {"A"}}};
     m.pad = {{{Button::South},
               {Button::East},
               {Button::Back},

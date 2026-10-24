@@ -162,7 +162,7 @@ and most emulators use.
 
 ## Controls
 
-Defaults: arrows = d-pad, X = A, Z = B, Return = Start, Backspace = Select, A = L, S = R, Space =
+Defaults: arrows = d-pad, Z = A, X = B (as in VisualBoyAdvance), Return = Start, Backspace = Select, A = L, S = R, Space =
 fast-forward; on a gamepad, the face buttons by position (South = A, East = B), Back = Select, Start,
 shoulders, the d-pad and the left stick. Hotkeys are listed above. To change them, use the menu's
 Controls page or see [INPUT_MAPPING.md](INPUT_MAPPING.md).

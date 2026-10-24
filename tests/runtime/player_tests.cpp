@@ -183,12 +183,12 @@ TEST_CASE("scripts: key taps, typing and anygba-shot --keys ranges") {
 TEST_CASE("rebinding swaps conflicting bindings") {
     using namespace anygba::input;
     Mapping m = default_mapping();
-    // B = Z by default; binding A to Z gives B the old key of A (X).
-    const auto swapped = rebind(m, {false, 0}, Device::Keyboard, "Z");
+    // B = X by default; binding A to X gives B the old key of A (Z).
+    const auto swapped = rebind(m, {false, 0}, Device::Keyboard, "X");
     REQUIRE(swapped);
     CHECK(*swapped == "B");
-    CHECK(m.keys[0] == std::vector<std::string>{"Z"});
-    CHECK(m.keys[1] == std::vector<std::string>{"X"});
+    CHECK(m.keys[0] == std::vector<std::string>{"X"});
+    CHECK(m.keys[1] == std::vector<std::string>{"Z"});
     // A GBA button takes a key, not a chord; a hotkey keeps the chord.
     rebind(m, {false, 2}, Device::Keyboard, "Shift+Q");
     CHECK(m.keys[2] == std::vector<std::string>{"Q"});

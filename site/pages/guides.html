@@ -73,19 +73,19 @@ detection.</li>
 <thead><tr><th scope="col">GBA</th><th scope="col">Keyboard</th><th scope="col">Gamepad</th></tr></thead>
 <tbody>
 <tr><td>D-pad</td><td>Arrow keys</td><td>D-pad</td></tr>
-<tr><td>A</td><td><kbd>X</kbd></td><td>South face button</td></tr>
-<tr><td>B</td><td><kbd>Z</kbd></td><td>East face button</td></tr>
-<tr><td>L / R</td><td><kbd>Q</kbd> / <kbd>W</kbd></td><td>Left / right shoulder</td></tr>
+<tr><td>A</td><td><kbd>Z</kbd></td><td>South face button</td></tr>
+<tr><td>B</td><td><kbd>X</kbd></td><td>East face button</td></tr>
+<tr><td>L / R</td><td><kbd>A</kbd> / <kbd>S</kbd></td><td>Left / right shoulder</td></tr>
 <tr><td>Start</td><td><kbd>Return</kbd></td><td>Start</td></tr>
 <tr><td>Select</td><td><kbd>Backspace</kbd></td><td>Back</td></tr>
-<tr><td>Fast-forward</td><td><kbd>Tab</kbd></td><td>&ndash;</td></tr>
+<tr><td>Fast-forward</td><td><kbd>Space</kbd></td><td>&ndash;</td></tr>
 </tbody>
 </table>
 <p>To remap, write the current mapping to a file and edit it:</p>
 <pre><code>&lt;Title&gt; --write-input anygba-input.ini</code></pre>
 <pre><code>[keyboard]
-A = X, Space
-FastForward = Tab
+A = Z, Space
+FastForward = Space, Tab
 
 [gamepad]
 A = South
