@@ -70,6 +70,6 @@ the game's own map drawing would.
 
 | Game | Code | Status |
 |---|---|---|
-| Pokemon Emerald (USA, Europe) | BPEE | Overworld widened (16:9 and 16:10) with the map rebuilt beyond the game's buffer; text boxes and menus stay in the middle. Battles widened: background and sprites from VRAM, the text box and battle menus with their frame colour repeated outwards. Every other scene (title, intro, transitions into battle, bag, party, Pokedex) is pillarboxed. The game hides people and objects once they are off its own screen, so they can appear late near the 16:9 edges (no culling patch yet). |
+| Pokemon Emerald (USA, Europe) | BPEE | Overworld widened (16:9 and 16:10) with the map rebuilt beyond the game's buffer; text boxes and menus stay in the middle. Battles widened: background and sprites from VRAM, the text box and battle menus with their frame colour repeated outwards. Every other scene (title, intro, transitions into battle, bag, party, Pokedex) is pillarboxed. The game hides people and objects once they are off its own screen, so they can appear late near the 16:9 edges: its culling (UpdateObjectEventOffscreen) hides an object once it is more than 16 pixels past the screen edge, while 16:9 shows 22. A ROM patch widening it to 32 pixels applies, but headless walks in Littleroot showed no frame where it changed the picture, so it is not shipped. |
 
 Per-game results are also recorded in `compat/<title>.toml` (`widescreen`, `widescreen_notes`).
