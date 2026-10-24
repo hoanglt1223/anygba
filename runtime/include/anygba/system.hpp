@@ -9,6 +9,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <span>
 #include <stdexcept>
@@ -19,6 +20,7 @@ namespace anygba {
 
 class Ppu;
 class Apu;
+class Rtc;
 namespace save {
 class Backup;
 }
@@ -86,6 +88,12 @@ struct Options {
     // Backup memory type ("sram", "flash64", ...; see save/save.h). Empty: the generated
     // game's config value, else detection from the ROM's library ID strings.
     std::string save_type;
+    // Cartridge real-time clock: "on", "off", or empty for the generated game's config value,
+    // else the built-in list of games that shipped with one.
+    std::string rtc;
+    // Unix time the clock starts at; it then advances with emulated time, so runs repeat.
+    // Unset: the host's local time.
+    std::optional<std::int64_t> rtc_start;
 };
 
 class System {
@@ -100,6 +108,7 @@ public:
     Memory& memory() { return mem_; }
     const Options& options() const { return options_; }
     save::Backup& backup() { return *backup_; }
+    bool has_rtc() const { return rtc_ != nullptr; }
 
     // The state the BIOS leaves before jumping to the cartridge: SYS mode, stacks set,
     // PC at 0x08000000 in ARM state.
@@ -146,7 +155,7 @@ public:
     // without the host call frames of generated code. Exceptions from `action` stop run().
     void request_safe_point(std::function<void(System&)> action);
     bool safe_point_pending() const { return static_cast<bool>(safe_point_); }
-    static constexpr std::uint32_t kStateVersion = 1;
+    static constexpr std::uint32_t kStateVersion = 2;
     // SHA-256 of the unpatched ROM image.
     const std::string& rom_sha256();
 
@@ -224,6 +233,8 @@ private:
     bool eeprom_at(std::uint32_t addr) const;
     std::uint16_t eeprom_read();
     void eeprom_write(std::uint32_t value);
+    void gpio_write(std::uint32_t addr, std::uint16_t value);
+    void show_gpio();
 
     anygba_cpu cpu_{};
     Memory mem_;
@@ -250,6 +261,8 @@ private:
     std::unique_ptr<save::Backup> backup_;
     bool eeprom_ = false;
     std::uint32_t eeprom_dma_count_ = 0;  // length of the DMA 3 transfer in progress, else 0
+    std::unique_ptr<Rtc> rtc_;
+    std::array<std::uint8_t, 6> gpio_rom_{};  // ROM bytes at 0xC4-0xC9 under the GPIO registers
 
     bool stop_requested_ = false;
     std::string error_;

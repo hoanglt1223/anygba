@@ -129,6 +129,10 @@ The backup memory type is read from the ROM's library ID string (`SRAM_V`, `FLAS
 EEPROM size (512 bytes or 8 KB) is taken from the game's first EEPROM transfer, or from an existing save
 file.
 
+Games that had a real-time clock on the cartridge (Pokemon Ruby, Sapphire and Emerald, Boktai) get one that
+reads the computer's clock. `--rtc off` removes it, `--rtc on` adds it to any game, and `--rtc-start T`
+starts it at Unix time T and advances it with game time, so scripted runs repeat exactly.
+
 Save files live in the per-user data folder, under `saves/<title>-<hash>.sav`:
 
 | Host | Folder |

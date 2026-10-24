@@ -38,6 +38,7 @@ add_executable(anygba-tests
   runtime/apu_tests.cpp
   runtime/save_tests.cpp
   runtime/state_tests.cpp
+  runtime/rtc_tests.cpp
   runtime/cheat_tests.cpp
   runtime/player_tests.cpp
   driver/driver_tests.cpp)

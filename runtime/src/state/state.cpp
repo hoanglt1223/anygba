@@ -3,6 +3,7 @@
 #include "anygba/system.hpp"
 #include "apu/apu.h"
 #include "ppu/ppu.h"
+#include "rtc.h"
 #include "save/save.h"
 #include "state/archive.h"
 
@@ -84,6 +85,10 @@ void System::serialize(state::Archive& ar) {
     ppu_->serialize(ar);
     apu_->serialize(ar);
     backup_->serialize(ar);
+    // A cartridge clock changes the layout; the ROM hash already ties a state to its cartridge.
+    if (rtc_) {
+        rtc_->serialize(ar);
+    }
 }
 
 std::vector<std::uint8_t> System::save_state() {
@@ -144,6 +149,7 @@ void System::load_state(std::span<const std::uint8_t> image) {
     resume_depth_ = 0;
     map_pages();
     update_wait_states();
+    show_gpio();
 }
 
 void System::request_safe_point(std::function<void(System&)> action) { safe_point_ = std::move(action); }

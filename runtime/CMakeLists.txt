@@ -33,6 +33,7 @@ add_library(anygba_runtime STATIC
   src/input_map.cpp
   src/state/state.cpp
   src/rom_patch.cpp
+  src/rtc.cpp
   src/cheats/codes.cpp
   src/cheats/engine.cpp
   src/cheats/cheat_list.cpp

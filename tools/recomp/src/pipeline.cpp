@@ -46,6 +46,7 @@ Analysis analyze(const Options& options) {
             result.title = game.title;
         }
         result.save_type = game.save_type;
+        result.rtc = game.rtc;
         result.sources = game.sources;
         for (const auto& rep : game.replacements) {
             if (!result.replacements.emplace(rep.addr, rep.function).second) {
@@ -70,6 +71,7 @@ std::size_t generate(const Options& options, const Analysis& analysis) {
     info.rom_size = analysis.rom_size;
     info.shards = options.shards;
     info.save_type = analysis.save_type;
+    info.rtc = analysis.rtc;
     info.replacements = analysis.replacements;
     info.sources = analysis.sources;
     codegen::write_project(options.output_dir, *analysis.image, analysis.discovery, info);

@@ -1,6 +1,7 @@
 #include "bios/bios.h"
 #include "apu/apu.h"
 #include "ppu/ppu.h"
+#include "rtc.h"
 
 #include <algorithm>
 #include <cstring>
@@ -67,6 +68,10 @@ void System::reset() {
     bios::boot_state(*this);
     ppu_->reset();
     last_bios_opcode_ = bios::kOpcodeAfterBoot;
+    if (rtc_) {
+        rtc_->reset();
+        show_gpio();
+    }
 }
 
 namespace bios {

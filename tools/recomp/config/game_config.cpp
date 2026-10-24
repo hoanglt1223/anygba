@@ -125,7 +125,7 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
         if (!table) {
             r.fail(*game, "[game] must be a table");
         }
-        r.only_keys(*table, "[game]", {"title", "save", "sources"});
+        r.only_keys(*table, "[game]", {"title", "save", "rtc", "sources"});
         if (const toml::node* title = table->get("title")) {
             if (!title->is_string()) {
                 r.fail(*title, "game.title must be a string");
@@ -140,6 +140,12 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
                 r.fail(*save, "game.save must be one of none, sram, flash64, flash128, eeprom, eeprom512, eeprom8k");
             }
             config.save_type = value->get();
+        }
+        if (const toml::node* rtc = table->get("rtc")) {
+            if (!rtc->is_boolean()) {
+                r.fail(*rtc, "game.rtc must be true or false");
+            }
+            config.rtc = rtc->as_boolean()->get() ? 1 : 0;
         }
         if (const toml::node* sources = table->get("sources")) {
             const auto* array = sources->as_array();

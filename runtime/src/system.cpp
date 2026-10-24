@@ -1,14 +1,38 @@
 #include "anygba/system.hpp"
 #include "apu/apu.h"
 #include "ppu/ppu.h"
+#include "rtc.h"
 #include "save/save.h"
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
+#include <string_view>
 
 namespace anygba {
 
 System& system_of(anygba_cpu* c) { return *static_cast<System*>(c->runtime); }
+
+namespace {
+
+// Games that shipped on cartridges with the S-3511 clock, by the first three letters of the
+// game code (the fourth is the region).
+bool rtc_cartridge(std::span<const std::uint8_t> rom) {
+    static constexpr std::string_view kCodes[] = {
+        "AXV", "AXP", "BPE",  // Pokemon Ruby, Sapphire, Emerald
+        "U3I", "U32", "U33",  // Boktai 1-3
+        "BR4",                // Rockman EXE 4.5
+        "BKA",                // Sennen Kazoku
+    };
+    const std::string_view code(reinterpret_cast<const char*>(rom.data()) + 0xAC, 3);
+    return std::find(std::begin(kCodes), std::end(kCodes), code) != std::end(kCodes);
+}
+
+Rtc::Clock to_clock(const std::tm& tm) {
+    return {tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_wday, tm.tm_hour, tm.tm_min, tm.tm_sec};
+}
+
+}  // namespace
 
 System::System(std::vector<std::uint8_t> rom, const anygba_game* game, Options options)
     : options_(std::move(options)), game_(game), ppu_(std::make_unique<Ppu>(mem_)), apu_(std::make_unique<Apu>(*this)) {
@@ -40,6 +64,39 @@ System::System(std::vector<std::uint8_t> rom, const anygba_game* game, Options o
     backup_ = save::make(save_type);
     eeprom_ = backup_->is_eeprom();
 
+    bool rtc = rtc_cartridge({mem_.rom.data(), mem_.rom_size});
+    if (game_ && game_->rtc >= 0) {
+        rtc = game_->rtc != 0;
+    }
+    if (!options_.rtc.empty()) {
+        if (options_.rtc != "on" && options_.rtc != "off") {
+            throw Error("unknown real-time clock setting '" + options_.rtc + "' (expected on or off)");
+        }
+        rtc = options_.rtc == "on";
+    }
+    if (rtc) {
+        std::memcpy(gpio_rom_.data(), mem_.rom.data() + 0xC4, gpio_rom_.size());
+        rtc_ = std::make_unique<Rtc>([this]() {
+            std::tm tm{};
+            if (options_.rtc_start) {
+                const auto t = static_cast<std::time_t>(*options_.rtc_start + static_cast<std::int64_t>(now() / 16777216));
+#ifdef _WIN32
+                gmtime_s(&tm, &t);
+#else
+                gmtime_r(&t, &tm);
+#endif
+            } else {
+                const std::time_t t = std::time(nullptr);
+#ifdef _WIN32
+                localtime_s(&tm, &t);
+#else
+                localtime_r(&t, &tm);
+#endif
+            }
+            return to_clock(tm);
+        });
+    }
+
     if (game_) {
         rom_direct_.assign(mem_.rom_size / 2 + 1, nullptr);
         for (std::uint32_t i = 0; i < game_->function_count; ++i) {
@@ -62,6 +119,29 @@ void System::drain_audio(std::vector<std::int16_t>& out) {
 }
 
 std::uint64_t System::fifo_underruns() const { return apu_->fifo_underruns(); }
+
+void System::gpio_write(std::uint32_t addr, std::uint16_t value) {
+    const std::uint32_t off = addr & (Memory::kRomMax - 2);
+    if (rtc_ && off >= 0xC4 && off <= 0xC8) {
+        rtc_->write(off, value);
+        show_gpio();
+    }
+}
+
+// The port registers are mirrored into the ROM image, so every read path (page tables,
+// generated code, the interpreter) sees them without a check on each ROM access.
+void System::show_gpio() {
+    if (!rtc_) {
+        return;
+    }
+    rom_sha256();  // the state-file identity is the image without the port registers
+    if (rtc_->readable()) {
+        const auto regs = rtc_->registers();
+        std::memcpy(mem_.rom.data() + 0xC4, regs.data(), 6);
+    } else {
+        std::memcpy(mem_.rom.data() + 0xC4, gpio_rom_.data(), gpio_rom_.size());
+    }
+}
 
 System::~System() {
     if (miss_file_) {

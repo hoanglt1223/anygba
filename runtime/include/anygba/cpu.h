@@ -298,6 +298,7 @@ typedef struct anygba_game {
     const anygba_function_entry* functions; /* sorted by addr */
     uint32_t function_count;
     const char* save_type; /* per-game config override, or "" to detect from the ROM */
+    int32_t rtc;           /* real-time clock: 1 on, 0 off, -1 decided by the runtime */
 } anygba_game;
 
 #ifdef __cplusplus

@@ -54,6 +54,7 @@ An exception in the action stops `run()` with `anygba::Error`; the player catche
 | Video | the last picture and the BG2/BG3 internal reference points |
 | Sound | every PSG channel, both FIFOs, the frame sequencer, the next sample time; produced but not yet drained samples are dropped |
 | Backup chip | contents plus the Flash command state or EEPROM serial state and size |
+| Real-time clock | only on cartridges with one: GPIO pins, direction and control, the serial transfer in progress, the status register and the latched time |
 
 Derived state is recomputed on load: the memory page tables (`map_pages`) and fetch costs
 (`update_wait_states`). Host-side state is deliberately not saved: the return stack (empty after the
@@ -64,7 +65,7 @@ write stores the loaded contents.
 
 ## File format
 
-Little-endian, version 1:
+Little-endian, version 2:
 
 | Offset | Size | Field |
 |---|---|---|

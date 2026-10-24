@@ -96,6 +96,8 @@ const char* const kUsage =
     "  --save-dir DIR      where the save file, save states and cheat file live (default: the per-user data folder)\n"
     "  --save-type T       none, sram, flash64, flash128, eeprom, eeprom512 or eeprom8k (default: config, else detect)\n"
     "  --no-save           do not read or write a save file\n"
+    "  --rtc on|off        cartridge real-time clock (default: config, else on for games that had one)\n"
+    "  --rtc-start T       start the clock at Unix time T, advancing with emulated time (default: host clock)\n"
     "  --load-state FILE   start from a save state\n"
     "  --cheat CODE        enable a cheat for this run: [FORMAT:]LINE;LINE... (FORMAT: auto, raw, gsv1, gsv1raw,\n"
     "                      arv3, arv3raw, cb); repeatable\n"
@@ -170,6 +172,13 @@ std::optional<Args> parse(int argc, char** argv) {
         } else if (arg == "--save-type" && has_value) {
             a.runtime.save_type = argv[++i];
             if (!anygba::save::parse(a.runtime.save_type)) return std::nullopt;
+        } else if (arg == "--rtc" && has_value) {
+            a.runtime.rtc = argv[++i];
+            if (a.runtime.rtc != "on" && a.runtime.rtc != "off") return std::nullopt;
+        } else if (arg == "--rtc-start" && has_value) {
+            const long long t = std::strtoll(argv[++i], &end, 10);
+            if (*end != '\0' || t < 946684800 || t > 4102444799) return std::nullopt;  // 2000-2099
+            a.runtime.rtc_start = t;
         } else if (arg == "--load-state" && has_value) {
             a.load_state = fs::path(argv[++i]);
         } else if (arg == "--cheat" && has_value) {

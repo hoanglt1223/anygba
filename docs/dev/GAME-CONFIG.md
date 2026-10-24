@@ -7,6 +7,7 @@ are errors, so a typo cannot silently disable a setting. Addresses are integers;
 [game]
 title = "tonc irq_demo"
 save = "flash128"       # none, sram, flash64, flash128, eeprom, eeprom512, eeprom8k (default: detect)
+rtc = true              # cartridge real-time clock (default: on for the games that shipped with one)
 sources = ["hacks.c"]   # C files compiled into the game, relative to this file
 
 # Extra function entry points the static analysis cannot see.
@@ -69,6 +70,14 @@ Without `save`, the runtime picks the type from the library ID string in the ROM
 `FLASH512_V`, `FLASH1M_V`, `EEPROM_V`). Set it when a ROM has no ID or the wrong one. Plain `eeprom`
 decides between 512 bytes and 8 KB from the length of the first EEPROM DMA transfer; set `eeprom512` or
 `eeprom8k` for games that access the EEPROM without DMA. A generated game's `--save-type` overrides both.
+
+## Real-time clock
+
+The S-3511 clock on the cartridge GPIO port (0x080000C4-0x080000C9) is on by default for the games that
+shipped with it: Pokemon Ruby, Sapphire and Emerald, Boktai 1-3, Rockman EXE 4.5 and Sennen Kazoku
+(by game code, `runtime/src/system.cpp`). `rtc = true` or `false` overrides that list, and a generated
+game's `--rtc on|off` overrides both. The clock reads the host's local time; date and time writes from
+the game are ignored.
 
 ## Trace feedback
 
