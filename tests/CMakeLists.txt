@@ -39,6 +39,7 @@ add_executable(anygba-tests
   runtime/save_tests.cpp
   runtime/state_tests.cpp
   runtime/cheat_tests.cpp
+  runtime/player_tests.cpp
   driver/driver_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
@@ -109,6 +110,24 @@ foreach(save sram:32768 flash64:65536 flash128:131072 none:0)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/save-restart.cmake")
   endif()
 endforeach()
+
+# Player features through recompiled games: save states, cheats, the menu, speed.
+if(EXISTS "${corpus}/tonc/bin/irq_demo.gba" AND EXISTS "${corpus}/tonc/bin/first.gba"
+   AND EXISTS "${corpus}/tonc/bin/swi_vsync.gba")
+  anygba_add_game(player-irq-demo ROM "${corpus}/tonc/bin/irq_demo.gba" SHARDS 2)
+  # Animates on its own and sleeps in VBlankIntrWait: the save-state round trip runs on it.
+  anygba_add_game(player-swi-vsync ROM "${corpus}/tonc/bin/swi_vsync.gba" SHARDS 1)
+  anygba_add_game(player-first ROM "${corpus}/tonc/bin/first.gba" SHARDS 1)
+  foreach(feature states cheats menu speed)
+    add_test(NAME player-${feature}
+      COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:player-irq-demo>" "-DROM=${corpus}/tonc/bin/irq_demo.gba"
+        "-DVSYNC_GAME=$<TARGET_FILE:player-swi-vsync>" "-DVSYNC_ROM=${corpus}/tonc/bin/swi_vsync.gba"
+        "-DFIRST_GAME=$<TARGET_FILE:player-first>" "-DFIRST_ROM=${corpus}/tonc/bin/first.gba"
+        "-DDATA=${CMAKE_CURRENT_SOURCE_DIR}/player" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/player-${feature}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/player-${feature}.cmake")
+  endforeach()
+  set_tests_properties(player-speed PROPERTIES RUN_SERIAL TRUE)  # timing
+endif()
 
 # The committed compat data must render (schema checks included).
 find_package(Python3 3.11 COMPONENTS Interpreter)

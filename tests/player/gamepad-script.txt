@@ -1,0 +1,9 @@
+# A gamepad arrives, opens the menu with Back+Start, moves with the left stick, closes with B.
+20 connect Test Pad
+30 pad down Back
+31 pad down Start
+33 pad up Start
+33 pad up Back
+36 stick 0 30000
+38 stick 0 0
+42 pad tap East

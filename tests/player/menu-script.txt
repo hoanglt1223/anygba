@@ -1,0 +1,48 @@
+# Drives the in-game menu by host frame (see docs/user/USAGE.md "Scripted input").
+# Keyboard defaults: arrows = d-pad, X = A, Z = B, S = R, Escape = menu.
+30 key tap Escape
+# Main page: Down x4 to Cheats
+34 key tap Down
+36 key tap Down
+38 key tap Down
+40 key tap Down
+42 key tap X
+# Cheats: Memory > Write marker on, Deep > Byte marker on
+44 key tap X
+46 key tap X
+48 key tap Down
+50 key tap X
+52 key tap X
+54 key tap Z
+56 key tap Z
+# Items > Pick an item = Elixir (third choice), Quantity = 1 + 10 + 1 = 12
+58 key tap Down
+60 key tap X
+62 key tap X
+64 key tap Down
+66 key tap Down
+68 key tap X
+70 key tap Down
+72 key tap Right
+74 key tap S
+76 key tap Up
+78 key tap X
+80 key tap Z
+# My codes > Add code...: CodeBreaker 8-bit write of 77 to 0203F030
+82 key tap Down
+84 key tap X
+86 key tap X
+88 type 3203F0300077
+114 key tap Return
+116 key tap Return
+118 key tap Z
+120 key tap Z
+# Controls: A = C on the keyboard (X is then free), B = North on gamepads
+122 key tap Down
+124 key tap X
+126 key tap X
+128 key tap C
+130 key tap Down
+132 key tap C
+134 pad tap North
+136 key tap Escape

@@ -1,0 +1,30 @@
+# Self-authored cheat database for the player tests: writes markers into EWRAM that the
+# tonc demos leave alone.
+[game]
+title = "Player test cheats"
+
+[lists]
+items = ["1 Potion", "2 Ether", "0x10 Elixir"]
+
+[[cheat]]
+name = "Memory/Write marker"
+format = "raw"
+code = ["0203F000:CAFEBABE"]
+
+[[cheat]]
+name = "Memory/Deep/Byte marker"
+format = "cb"
+code = ["3203F010 0042"]
+
+[[cheat]]
+name = "Items/Pick an item"
+format = "cb"
+code = ["8203F020 {v:4}"]
+param = { label = "Item", list = "items" }
+
+[[cheat]]
+name = "Items/Quantity"
+format = "cb"
+code = ["8203F022 {v:4}"]
+param = { label = "Count", min = 1, max = 99 }
+default = 1

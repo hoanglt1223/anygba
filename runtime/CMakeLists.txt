@@ -35,6 +35,11 @@ add_library(anygba_runtime STATIC
   src/rom_patch.cpp
   src/cheats/codes.cpp
   src/cheats/engine.cpp
+  src/cheats/cheat_list.cpp
+  src/player/osd.cpp
+  src/player/speed.cpp
+  src/player/script.cpp
+  src/player/menu.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
@@ -44,6 +49,8 @@ target_include_directories(anygba_runtime
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
   PRIVATE src)
 target_compile_definitions(anygba_runtime PRIVATE ANYGBA_VERSION="${PROJECT_VERSION}")
+# toml++ is header-only and compiled into the library, so installed games do not need it.
+target_include_directories(anygba_runtime SYSTEM PRIVATE "$<BUILD_INTERFACE:${tomlplusplus_SOURCE_DIR}>")
 target_link_libraries(anygba_runtime PUBLIC anyport::platform PRIVATE anygba_decode anygba::common)
 set_target_properties(anygba_runtime PROPERTIES OUTPUT_NAME anygba)
 anygba_configure_target(anygba_runtime)
