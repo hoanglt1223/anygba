@@ -50,18 +50,37 @@ void System::run_once() {
 }
 
 int System::resume(std::uint32_t expected) {
+    // A callee that never comes back to its call site (a scheduler loop entered by BL, a
+    // jump back into the caller's loop) nests one resume per round on the host stack,
+    // while ret_depth stays flat. All guest state is in cpu_, so past a bound drop the
+    // host frames and continue from r[15] in the run loop. Not inside an IRQ handler: the
+    // BIOS epilogue in deliver_irq() still has to run when it returns.
+    if (++resume_depth_ > kMaxResumeDepth && !in_irq_handler()) {
+        unwind();
+    }
     for (;;) {
         const std::uint32_t pc = cpu_.r[15];
         if (pc == expected) {
+            --resume_depth_;
             return 0;
         }
         for (std::uint32_t i = cpu_.ret_depth; i-- > 0;) {
             if (cpu_.ret_stack[i] == pc) {
+                --resume_depth_;
                 return 1;
             }
         }
         run_once();
     }
+}
+
+bool System::in_irq_handler() const {
+    for (std::uint32_t i = 0; i < cpu_.ret_depth; ++i) {
+        if (cpu_.ret_stack[i] == kBiosIrqReturn) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Owns the setjmp target. Kept free of objects with destructors: longjmp skips them.
@@ -77,6 +96,7 @@ int System::run_guarded() {
         return why;
     }
     cpu_.ret_depth = 0;
+    resume_depth_ = 0;
     for (;;) {
         run_once();
     }

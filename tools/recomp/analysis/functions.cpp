@@ -93,6 +93,15 @@ public:
 
 private:
     void enqueue(const EntryPoint& e) {
+        // Code the image does not hold (VRAM, RAM without a region) can only be interpreted;
+        // a generated stub would claim the address and stop the interpreter from running it.
+        if (!image_.contains(e.addr, e.mode == Mode::Thumb ? 2 : 4)) {
+            if (rejected_.insert(e.addr).second) {
+                out_.notes.push_back("entry " + hex(e.addr) + " (" + to_string(e.source) +
+                                     ") is outside the ROM and RAM regions; it stays in the interpreter");
+            }
+            return;
+        }
         if (const auto it = modes_.find(e.addr); it != modes_.end()) {
             if (it->second != e.mode) {
                 out_.notes.push_back("entry " + hex(e.addr) + " seen as both ARM and Thumb; keeping the first (" +
@@ -209,6 +218,7 @@ private:
     std::set<std::uint32_t> noreturn_;
     std::map<std::uint32_t, Mode> modes_;
     std::deque<EntryPoint> queue_;
+    std::set<std::uint32_t> rejected_;
     std::vector<EntryPoint> candidates_;
     Discovery out_;
 };

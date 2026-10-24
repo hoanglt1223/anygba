@@ -4,6 +4,7 @@
 #include "decode/disasm.h"
 
 #include <cstdio>
+#include <set>
 
 namespace anygba::codegen {
 
@@ -133,6 +134,10 @@ std::int32_t FunctionEmitter::extra_cycles(const Insn& in) {
 std::string FunctionEmitter::run() {
     const std::string name = options_.name.empty() ? function_name(fn_.entry) : options_.name;
     out_ += "void " + name + "(anygba_cpu* c) {\n";
+    if (!fn_.insns.empty() && fn_.insns.begin()->first != fn_.entry) {
+        // Code is emitted in address order; a branch target below the entry comes first.
+        line("goto L_%08x;", fn_.entry);
+    }
     for (auto it = fn_.insns.begin(); it != fn_.insns.end(); ++it) {
         const Insn& in = it->second;
         const std::uint32_t region = (in.addr >> 24) & 15;
@@ -227,7 +232,8 @@ void FunctionEmitter::emit_indirect_exit(const Insn& in) {
         line("if (c->t == %d) {", fn_.mode == analysis::Mode::Thumb ? 1 : 0);
         ++indent_;
         line("switch (c->r[15]) {");
-        for (const std::uint32_t target : table.targets) {
+        // Tables often repeat a target (the default case of a sparse switch); C needs each once.
+        for (const std::uint32_t target : std::set<std::uint32_t>(table.targets.begin(), table.targets.end())) {
             line("case %s: goto L_%08x;", hex(target).c_str(), target);
         }
         line("default: break;");

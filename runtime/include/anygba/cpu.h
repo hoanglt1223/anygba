@@ -238,14 +238,18 @@ static inline uint32_t ag_ror_c(uint32_t v, uint32_t n, uint32_t* carry) {
         }                                  \
     } while (0)
 
-/* Direct call: `fn` returns with r[15] = where execution continues. */
+/* Direct call: `fn` returns with r[15] = where execution continues. `ret` stays on the
+   return stack while resuming, so code the interpreter runs for the callee (a veneer's
+   target, say) stops at the return address instead of running on past it. */
 #define AG_CALL(cpu, fn, ret)                                                 \
     do {                                                                      \
+        int unwind_ = 0;                                                      \
         if ((cpu)->ret_depth >= ANYGBA_RET_STACK) anygba_unwind(cpu);         \
         (cpu)->ret_stack[(cpu)->ret_depth++] = (ret);                         \
         fn(cpu);                                                              \
+        if ((cpu)->r[15] != (ret)) unwind_ = anygba_resume((cpu), (ret));     \
         (cpu)->ret_depth--;                                                   \
-        if ((cpu)->r[15] != (ret) && anygba_resume((cpu), (ret))) return;     \
+        if (unwind_) return;                                                  \
     } while (0)
 
 /* Indirect call: r[15] already holds the target. */

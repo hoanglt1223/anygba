@@ -67,6 +67,9 @@ struct Timer {
     std::uint64_t started = 0;      // cycle the counter was last latched
 };
 
+// Where the HLE BIOS IRQ dispatcher sits after `bx` to the game's handler.
+inline constexpr std::uint32_t kBiosIrqReturn = 0x138;
+
 inline constexpr int kScreenWidth = 240;
 inline constexpr int kScreenHeight = 160;
 // 16.78 MHz / 280896 cycles per frame.
@@ -184,6 +187,7 @@ private:
     void schedule_timer(int timer);
     void log_miss(std::uint32_t addr, bool thumb);
     std::uint32_t open_bus() const;
+    bool in_irq_handler() const;
     bool eeprom_at(std::uint32_t addr) const;
     std::uint16_t eeprom_read();
     void eeprom_write(std::uint32_t value);
@@ -219,6 +223,8 @@ private:
     std::set<std::uint32_t> misses_;
     std::FILE* miss_file_ = nullptr;
     void* top_jmp_ = nullptr;  // jmp_buf of run(), while running
+    static constexpr std::uint32_t kMaxResumeDepth = 512;
+    std::uint32_t resume_depth_ = 0;  // nested resume() calls on the host stack
     std::uint32_t last_bios_opcode_ = 0xE129F000;
     std::uint64_t stubs_logged_ = 0;  // stubbed SWI numbers already reported
 };

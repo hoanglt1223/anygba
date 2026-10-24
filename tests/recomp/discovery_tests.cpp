@@ -467,3 +467,15 @@ TEST_CASE("discovery on ELF/ROM pairs from ANYGBA_ELF_DIR") {
     CHECK(pct >= 80.0);
     CHECK(feedback_total == executed_total);
 }
+
+TEST_CASE("entries the image does not hold stay with the interpreter") {
+    std::vector<std::uint8_t> rom(0x100, 0);
+    const std::uint8_t bx_lr[] = {0x1E, 0xFF, 0x2F, 0xE1};
+    std::copy(std::begin(bx_lr), std::end(bx_lr), rom.begin());
+    const Image image(rom);
+    const Discovery d = run(image, {{0x06014000, Mode::Arm, EntrySource::MissLog}});
+    CHECK_FALSE(d.functions.contains(0x06014000));
+    CHECK(d.functions.contains(kRomBase));
+    CHECK(std::any_of(d.notes.begin(), d.notes.end(),
+                      [](const std::string& n) { return n.find("0x06014000") != std::string::npos; }));
+}

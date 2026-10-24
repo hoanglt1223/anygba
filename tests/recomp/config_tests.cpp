@@ -154,3 +154,24 @@ TEST_CASE("generated project: replaced functions forward to the hand-written C, 
     CHECK_THROWS_WITH(anygba::codegen::write_project(out, image, discovery, info), doctest::Contains("0x08000040"));
     std::filesystem::remove_all(dir);
 }
+
+TEST_CASE("generated function starts at its entry when code below it belongs to it") {
+    // 0x08000000: bx lr ; 0x08000004: b 0x08000000 (the entry)
+    std::vector<std::uint8_t> rom(0x100, 0);
+    const std::uint8_t code[] = {0x1E, 0xFF, 0x2F, 0xE1, 0xFD, 0xFF, 0xFF, 0xEA};
+    std::copy(std::begin(code), std::end(code), rom.begin());
+    const anygba::analysis::Image image(rom);
+    anygba::analysis::DiscoveryOptions options;
+    options.entries.push_back({0x08000004, Mode::Arm, anygba::analysis::EntrySource::Config});
+    const auto discovery = anygba::analysis::discover(image, options);
+    REQUIRE(discovery.functions.contains(0x08000004));
+    const auto& fn = discovery.functions.at(0x08000004);
+    REQUIRE(fn.insns.contains(0x08000000));
+    anygba::codegen::EmitOptions emit;
+    emit.image = &image;
+    emit.functions = &discovery.functions;
+    const std::string c = anygba::codegen::emit_function(fn, emit);
+    const auto jump = c.find("goto L_08000004;");
+    REQUIRE(jump != std::string::npos);
+    CHECK(jump < c.find("L_08000000:"));
+}

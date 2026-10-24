@@ -1,9 +1,10 @@
-# Trace-feedback check, run by CTest as a script (cmake -P):
-#   pass 1: recompile ROM, build it against the installed runtime, run it headless and
-#           collect the miss log;
-#   pass 2: recompile with that log, rebuild, run again: the miss log must stay empty.
+# Trace-feedback check, run by CTest as a script (cmake -P): recompile ROM, build it against
+# the installed runtime, run it headless and collect the miss log; then recompile with every
+# log so far and run again, until a run has no misses. Each pass can only reach code the
+# previous one ran (switch cases behind unbounded jumps, for instance, appear one level at a
+# time), so up to MAX_PASSES (default 4) are allowed.
 #
-# Inputs (-D): RECOMP, PREFIX, ROM, WORK, FRAMES, CONFIG, GENERATOR, GENERATOR_PLATFORM
+# Inputs (-D): RECOMP, PREFIX, ROM, WORK, FRAMES, CONFIG, GENERATOR, GENERATOR_PLATFORM, MAX_PASSES
 foreach(var RECOMP PREFIX ROM WORK FRAMES CONFIG GENERATOR)
   if(NOT DEFINED ${var})
     message(FATAL_ERROR "feedback-pass.cmake needs -D${var}=...")
@@ -44,27 +45,23 @@ function(pass tag)
 endfunction()
 
 file(MAKE_DIRECTORY "${WORK}")
-pass(pass1)
-set(first "")
-if(EXISTS "${WORK}/pass1.log")
-  file(READ "${WORK}/pass1.log" first)
+if(NOT MAX_PASSES)
+  set(MAX_PASSES 4)
 endif()
-string(STRIP "${first}" first)
-if(first STREQUAL "")
-  message(STATUS "pass 1 had no misses")
-  return()
-endif()
-string(REGEX MATCHALL "\n" lines "${first}\n")
-list(LENGTH lines count)
-message(STATUS "pass 1 missed ${count} addresses:\n${first}")
-
-pass(pass2 "${WORK}/pass1.log")
-set(second "")
-if(EXISTS "${WORK}/pass2.log")
-  file(READ "${WORK}/pass2.log" second)
-endif()
-string(STRIP "${second}" second)
-if(NOT second STREQUAL "")
-  message(FATAL_ERROR "misses remain after one feedback pass:\n${second}")
-endif()
-message(STATUS "no misses after one feedback pass")
+set(logs "")
+foreach(n RANGE 1 ${MAX_PASSES})
+  pass(pass${n} ${logs})
+  set(missed "")
+  if(EXISTS "${WORK}/pass${n}.log")
+    file(READ "${WORK}/pass${n}.log" missed)
+  endif()
+  string(STRIP "${missed}" missed)
+  if(missed STREQUAL "")
+    math(EXPR feedback "${n} - 1")
+    message(STATUS "no misses after ${feedback} feedback pass(es)")
+    return()
+  endif()
+  message(STATUS "pass ${n} missed:\n${missed}")
+  list(APPEND logs "${WORK}/pass${n}.log")
+endforeach()
+message(FATAL_ERROR "misses remain after ${MAX_PASSES} passes")

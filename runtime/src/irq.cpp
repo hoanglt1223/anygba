@@ -8,10 +8,6 @@
 // with `subs pc, lr, #4`. The runtime does the same synchronously from anygba_tick.
 namespace anygba {
 
-namespace {
-constexpr std::uint32_t kBiosIrqReturn = 0x138;
-}
-
 void System::raise_irq(std::uint16_t bits) {
     std::uint16_t iflag;
     std::memcpy(&iflag, mem_.io.data() + 0x202, 2);
