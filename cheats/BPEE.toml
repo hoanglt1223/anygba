@@ -35,6 +35,104 @@ items = [
   "110 Nugget", "111 Heart Scale",
 ]
 vitamins = ["63 HP Up", "64 Protein", "65 Iron", "66 Carbos", "67 Calcium", "70 Zinc"]
+# Wild encounter species, by internal species number (pret/pokeemerald include/constants/species.h).
+# Each value is the two Thumb instructions the encounter patch writes: movs r6, #min(n, 255) and
+# adds r6, #(n - 255 or 0), packed as one 32-bit word.
+wild_species = [
+  "0x36002601 Bulbasaur", "0x36002602 Ivysaur", "0x36002603 Venusaur", "0x36002604 Charmander",
+  "0x36002605 Charmeleon", "0x36002606 Charizard", "0x36002607 Squirtle", "0x36002608 Wartortle",
+  "0x36002609 Blastoise", "0x3600260A Caterpie", "0x3600260B Metapod", "0x3600260C Butterfree",
+  "0x3600260D Weedle", "0x3600260E Kakuna", "0x3600260F Beedrill", "0x36002610 Pidgey",
+  "0x36002611 Pidgeotto", "0x36002612 Pidgeot", "0x36002613 Rattata", "0x36002614 Raticate",
+  "0x36002615 Spearow", "0x36002616 Fearow", "0x36002617 Ekans", "0x36002618 Arbok", "0x36002619 Pikachu",
+  "0x3600261A Raichu", "0x3600261B Sandshrew", "0x3600261C Sandslash", "0x3600261D Nidoran F",
+  "0x3600261E Nidorina", "0x3600261F Nidoqueen", "0x36002620 Nidoran M", "0x36002621 Nidorino",
+  "0x36002622 Nidoking", "0x36002623 Clefairy", "0x36002624 Clefable", "0x36002625 Vulpix",
+  "0x36002626 Ninetales", "0x36002627 Jigglypuff", "0x36002628 Wigglytuff", "0x36002629 Zubat",
+  "0x3600262A Golbat", "0x3600262B Oddish", "0x3600262C Gloom", "0x3600262D Vileplume", "0x3600262E Paras",
+  "0x3600262F Parasect", "0x36002630 Venonat", "0x36002631 Venomoth", "0x36002632 Diglett",
+  "0x36002633 Dugtrio", "0x36002634 Meowth", "0x36002635 Persian", "0x36002636 Psyduck",
+  "0x36002637 Golduck", "0x36002638 Mankey", "0x36002639 Primeape", "0x3600263A Growlithe",
+  "0x3600263B Arcanine", "0x3600263C Poliwag", "0x3600263D Poliwhirl", "0x3600263E Poliwrath",
+  "0x3600263F Abra", "0x36002640 Kadabra", "0x36002641 Alakazam", "0x36002642 Machop", "0x36002643 Machoke",
+  "0x36002644 Machamp", "0x36002645 Bellsprout", "0x36002646 Weepinbell", "0x36002647 Victreebel",
+  "0x36002648 Tentacool", "0x36002649 Tentacruel", "0x3600264A Geodude", "0x3600264B Graveler",
+  "0x3600264C Golem", "0x3600264D Ponyta", "0x3600264E Rapidash", "0x3600264F Slowpoke",
+  "0x36002650 Slowbro", "0x36002651 Magnemite", "0x36002652 Magneton", "0x36002653 Farfetch'd",
+  "0x36002654 Doduo", "0x36002655 Dodrio", "0x36002656 Seel", "0x36002657 Dewgong", "0x36002658 Grimer",
+  "0x36002659 Muk", "0x3600265A Shellder", "0x3600265B Cloyster", "0x3600265C Gastly", "0x3600265D Haunter",
+  "0x3600265E Gengar", "0x3600265F Onix", "0x36002660 Drowzee", "0x36002661 Hypno", "0x36002662 Krabby",
+  "0x36002663 Kingler", "0x36002664 Voltorb", "0x36002665 Electrode", "0x36002666 Exeggcute",
+  "0x36002667 Exeggutor", "0x36002668 Cubone", "0x36002669 Marowak", "0x3600266A Hitmonlee",
+  "0x3600266B Hitmonchan", "0x3600266C Lickitung", "0x3600266D Koffing", "0x3600266E Weezing",
+  "0x3600266F Rhyhorn", "0x36002670 Rhydon", "0x36002671 Chansey", "0x36002672 Tangela",
+  "0x36002673 Kangaskhan", "0x36002674 Horsea", "0x36002675 Seadra", "0x36002676 Goldeen",
+  "0x36002677 Seaking", "0x36002678 Staryu", "0x36002679 Starmie", "0x3600267A Mr. Mime",
+  "0x3600267B Scyther", "0x3600267C Jynx", "0x3600267D Electabuzz", "0x3600267E Magmar", "0x3600267F Pinsir",
+  "0x36002680 Tauros", "0x36002681 Magikarp", "0x36002682 Gyarados", "0x36002683 Lapras", "0x36002684 Ditto",
+  "0x36002685 Eevee", "0x36002686 Vaporeon", "0x36002687 Jolteon", "0x36002688 Flareon",
+  "0x36002689 Porygon", "0x3600268A Omanyte", "0x3600268B Omastar", "0x3600268C Kabuto",
+  "0x3600268D Kabutops", "0x3600268E Aerodactyl", "0x3600268F Snorlax", "0x36002690 Articuno",
+  "0x36002691 Zapdos", "0x36002692 Moltres", "0x36002693 Dratini", "0x36002694 Dragonair",
+  "0x36002695 Dragonite", "0x36002696 Mewtwo", "0x36002697 Mew", "0x36002698 Chikorita",
+  "0x36002699 Bayleef", "0x3600269A Meganium", "0x3600269B Cyndaquil", "0x3600269C Quilava",
+  "0x3600269D Typhlosion", "0x3600269E Totodile", "0x3600269F Croconaw", "0x360026A0 Feraligatr",
+  "0x360026A1 Sentret", "0x360026A2 Furret", "0x360026A3 Hoothoot", "0x360026A4 Noctowl",
+  "0x360026A5 Ledyba", "0x360026A6 Ledian", "0x360026A7 Spinarak", "0x360026A8 Ariados", "0x360026A9 Crobat",
+  "0x360026AA Chinchou", "0x360026AB Lanturn", "0x360026AC Pichu", "0x360026AD Cleffa",
+  "0x360026AE Igglybuff", "0x360026AF Togepi", "0x360026B0 Togetic", "0x360026B1 Natu", "0x360026B2 Xatu",
+  "0x360026B3 Mareep", "0x360026B4 Flaaffy", "0x360026B5 Ampharos", "0x360026B6 Bellossom",
+  "0x360026B7 Marill", "0x360026B8 Azumarill", "0x360026B9 Sudowoodo", "0x360026BA Politoed",
+  "0x360026BB Hoppip", "0x360026BC Skiploom", "0x360026BD Jumpluff", "0x360026BE Aipom",
+  "0x360026BF Sunkern", "0x360026C0 Sunflora", "0x360026C1 Yanma", "0x360026C2 Wooper",
+  "0x360026C3 Quagsire", "0x360026C4 Espeon", "0x360026C5 Umbreon", "0x360026C6 Murkrow",
+  "0x360026C7 Slowking", "0x360026C8 Misdreavus", "0x360026C9 Unown", "0x360026CA Wobbuffet",
+  "0x360026CB Girafarig", "0x360026CC Pineco", "0x360026CD Forretress", "0x360026CE Dunsparce",
+  "0x360026CF Gligar", "0x360026D0 Steelix", "0x360026D1 Snubbull", "0x360026D2 Granbull",
+  "0x360026D3 Qwilfish", "0x360026D4 Scizor", "0x360026D5 Shuckle", "0x360026D6 Heracross",
+  "0x360026D7 Sneasel", "0x360026D8 Teddiursa", "0x360026D9 Ursaring", "0x360026DA Slugma",
+  "0x360026DB Magcargo", "0x360026DC Swinub", "0x360026DD Piloswine", "0x360026DE Corsola",
+  "0x360026DF Remoraid", "0x360026E0 Octillery", "0x360026E1 Delibird", "0x360026E2 Mantine",
+  "0x360026E3 Skarmory", "0x360026E4 Houndour", "0x360026E5 Houndoom", "0x360026E6 Kingdra",
+  "0x360026E7 Phanpy", "0x360026E8 Donphan", "0x360026E9 Porygon2", "0x360026EA Stantler",
+  "0x360026EB Smeargle", "0x360026EC Tyrogue", "0x360026ED Hitmontop", "0x360026EE Smoochum",
+  "0x360026EF Elekid", "0x360026F0 Magby", "0x360026F1 Miltank", "0x360026F2 Blissey", "0x360026F3 Raikou",
+  "0x360026F4 Entei", "0x360026F5 Suicune", "0x360026F6 Larvitar", "0x360026F7 Pupitar",
+  "0x360026F8 Tyranitar", "0x360026F9 Lugia", "0x360026FA Ho-Oh", "0x360026FB Celebi", "0x361626FF Treecko",
+  "0x361726FF Grovyle", "0x361826FF Sceptile", "0x361926FF Torchic", "0x361A26FF Combusken",
+  "0x361B26FF Blaziken", "0x361C26FF Mudkip", "0x361D26FF Marshtomp", "0x361E26FF Swampert",
+  "0x361F26FF Poochyena", "0x362026FF Mightyena", "0x362126FF Zigzagoon", "0x362226FF Linoone",
+  "0x362326FF Wurmple", "0x362426FF Silcoon", "0x362526FF Beautifly", "0x362626FF Cascoon",
+  "0x362726FF Dustox", "0x362826FF Lotad", "0x362926FF Lombre", "0x362A26FF Ludicolo", "0x362B26FF Seedot",
+  "0x362C26FF Nuzleaf", "0x362D26FF Shiftry", "0x362E26FF Nincada", "0x362F26FF Ninjask",
+  "0x363026FF Shedinja", "0x363126FF Taillow", "0x363226FF Swellow", "0x363326FF Shroomish",
+  "0x363426FF Breloom", "0x363526FF Spinda", "0x363626FF Wingull", "0x363726FF Pelipper",
+  "0x363826FF Surskit", "0x363926FF Masquerain", "0x363A26FF Wailmer", "0x363B26FF Wailord",
+  "0x363C26FF Skitty", "0x363D26FF Delcatty", "0x363E26FF Kecleon", "0x363F26FF Baltoy",
+  "0x364026FF Claydol", "0x364126FF Nosepass", "0x364226FF Torkoal", "0x364326FF Sableye",
+  "0x364426FF Barboach", "0x364526FF Whiscash", "0x364626FF Luvdisc", "0x364726FF Corphish",
+  "0x364826FF Crawdaunt", "0x364926FF Feebas", "0x364A26FF Milotic", "0x364B26FF Carvanha",
+  "0x364C26FF Sharpedo", "0x364D26FF Trapinch", "0x364E26FF Vibrava", "0x364F26FF Flygon",
+  "0x365026FF Makuhita", "0x365126FF Hariyama", "0x365226FF Electrike", "0x365326FF Manectric",
+  "0x365426FF Numel", "0x365526FF Camerupt", "0x365626FF Spheal", "0x365726FF Sealeo", "0x365826FF Walrein",
+  "0x365926FF Cacnea", "0x365A26FF Cacturne", "0x365B26FF Snorunt", "0x365C26FF Glalie",
+  "0x365D26FF Lunatone", "0x365E26FF Solrock", "0x365F26FF Azurill", "0x366026FF Spoink",
+  "0x366126FF Grumpig", "0x366226FF Plusle", "0x366326FF Minun", "0x366426FF Mawile", "0x366526FF Meditite",
+  "0x366626FF Medicham", "0x366726FF Swablu", "0x366826FF Altaria", "0x366926FF Wynaut",
+  "0x366A26FF Duskull", "0x366B26FF Dusclops", "0x366C26FF Roselia", "0x366D26FF Slakoth",
+  "0x366E26FF Vigoroth", "0x366F26FF Slaking", "0x367026FF Gulpin", "0x367126FF Swalot",
+  "0x367226FF Tropius", "0x367326FF Whismur", "0x367426FF Loudred", "0x367526FF Exploud",
+  "0x367626FF Clamperl", "0x367726FF Huntail", "0x367826FF Gorebyss", "0x367926FF Absol",
+  "0x367A26FF Shuppet", "0x367B26FF Banette", "0x367C26FF Seviper", "0x367D26FF Zangoose",
+  "0x367E26FF Relicanth", "0x367F26FF Aron", "0x368026FF Lairon", "0x368126FF Aggron", "0x368226FF Castform",
+  "0x368326FF Volbeat", "0x368426FF Illumise", "0x368526FF Lileep", "0x368626FF Cradily",
+  "0x368726FF Anorith", "0x368826FF Armaldo", "0x368926FF Ralts", "0x368A26FF Kirlia",
+  "0x368B26FF Gardevoir", "0x368C26FF Bagon", "0x368D26FF Shelgon", "0x368E26FF Salamence",
+  "0x368F26FF Beldum", "0x369026FF Metang", "0x369126FF Metagross", "0x369226FF Regirock",
+  "0x369326FF Regice", "0x369426FF Registeel", "0x369526FF Kyogre", "0x369626FF Groudon",
+  "0x369726FF Rayquaza", "0x369826FF Latias", "0x369926FF Latios", "0x369A26FF Jirachi", "0x369B26FF Deoxys",
+  "0x369C26FF Chimecho",
+]
 
 # ---- Player ----
 
@@ -108,3 +206,13 @@ format = "raw"
 code = ["[03005D8C]+056C:{v:4}", "[03005D8C]+056E:0063^[03005D90]+00AC"]
 param = { label = "Vitamin", list = "vitamins" }
 default = 63
+
+# ---- Wild Pokemon ----
+
+[[cheat]]
+name = "Wild Pokemon/Wild Pokemon species of your choice"
+note = "ROM patch of CreateWildMon (0x080B4E68): the species argument is replaced; levels, areas and encounter rates stay"
+format = "raw"
+code = ["080B4E6C:{v:8}"]
+param = { label = "Species", list = "wild_species" }
+default = 0x36002619

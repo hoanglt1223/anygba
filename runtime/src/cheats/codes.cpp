@@ -450,6 +450,21 @@ Program compile_known(Format format, std::span<const std::string> text) {
                 continue;
             }
             const Line l = split_line(text[i], i + 1, 0);
+            if (l.a >= 0x08000000 && l.a < 0x0E000000) {
+                // A cartridge address patches the ROM, as in VisualBoyAdvance: 16 or 32 bits,
+                // halfword aligned; a 32-bit value covers two halfwords, low one first.
+                if (l.value_digits == 2 || (l.a & 1) != 0) {
+                    throw CodeError("line " + std::to_string(i + 1) +
+                                    ": a ROM patch writes 4 or 8 hex digits at an even address");
+                }
+                const std::uint32_t index = (l.a - 0x08000000) >> 1;
+                p.ops.push_back(rom_patch(index, l.v & 0xFFFF));
+                if (l.value_digits == 8) {
+                    p.ops.push_back(rom_patch(index + 1, l.v >> 16));
+                }
+                p.has_rom_patch = true;
+                continue;
+            }
             p.ops.push_back(write(static_cast<std::uint8_t>(l.value_digits / 2), l.a, l.v));
         }
         if (p.ops.empty()) {

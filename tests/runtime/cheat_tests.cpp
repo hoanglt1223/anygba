@@ -57,6 +57,19 @@ TEST_CASE("auto-detection picks the device from the code's shape and decoding") 
     CHECK(p.ops[0].addr == 0x080B3D6C);
     CHECK(p.ops[0].value == 0xE038);
     CHECK_THROWS_AS(code(Format::Auto, {"DEADFACE 00001234"}), CodeError);
+    // Raw writes to a cartridge address patch the ROM; 32 bits cover two halfwords.
+    const Program raw_rom = code(Format::Raw, {"080B4E6C:36002619", "08000100:4770"});
+    REQUIRE(raw_rom.ops.size() == 3);
+    CHECK(raw_rom.has_rom_patch);
+    CHECK(raw_rom.ops[0].kind == Op::Kind::RomPatch);
+    CHECK(raw_rom.ops[0].addr == 0x080B4E6C);
+    CHECK(raw_rom.ops[0].value == 0x2619);
+    CHECK(raw_rom.ops[1].addr == 0x080B4E6E);
+    CHECK(raw_rom.ops[1].value == 0x3600);
+    CHECK(raw_rom.ops[2].addr == 0x08000100);
+    CHECK(raw_rom.ops[2].value == 0x4770);
+    CHECK_THROWS_AS(code(Format::Raw, {"08000101:4770"}), CodeError);
+    CHECK_THROWS_AS(code(Format::Raw, {"08000100:47"}), CodeError);
     // Emerald "Have all Poke Balls" from libretro: a 32-bit increment slide plus GBATEK's filler.
     const Program slide = code(Format::Auto, {"00000000 84226050", "00630001 010C0001", "80000000 00000000"});
     CHECK(slide.format == Format::ActionReplayRaw);

@@ -42,7 +42,7 @@ decoded is not added, and the message says why.
 | `arv3` | Action Replay v3, GameShark SP (encrypted, as printed) | `XXXXXXXX YYYYYYYY` |
 | `arv3raw` | the same, already decrypted | `XXXXXXXX YYYYYYYY` |
 | `cb` | CodeBreaker, Xploder (plain, or encrypted after a `9...` code) | `XXXXXXXX YYYY` |
-| `raw` | address and value, VisualBoyAdvance style | `AAAAAAAA:VV`, `:VVVV` or `:VVVVVVVV` |
+| `raw` | address and value, VisualBoyAdvance style; a cartridge address (`08xxxxxx`) patches the ROM | `AAAAAAAA:VV`, `:VVVV` or `:VVVVVVVV` |
 
 Supported: RAM and I/O writes (8, 16, 32 bits), fills and increment slides, pointer writes, add/or/and,
 byte lists, all conditions (equal, not equal, less, greater, AND; skip the next code, the next two, or an
