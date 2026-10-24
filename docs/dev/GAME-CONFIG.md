@@ -75,6 +75,44 @@ Every call reaches the replacement, including direct calls from other generated 
 `f_XXXXXXXX` becomes a one-line call to it. Function names may not start with `f_`, `ag_` or `anygba_`.
 `[[replace]]` without `sources` is an error.
 
+## Symbols: named memory for agents
+
+A `[symbols]` table names game variables for AI agents ([../user/AI-CONTROL.md](../user/AI-CONTROL.md)):
+`read_named` reads `money` or `party[0].hp`, and the play journal snapshots the ones marked `journal`.
+The recompiler ignores it; `anygba build --config` copies the file next to the game as
+`symbols/<game code>.toml`, where the game reads only this table. Shipped files live in
+`compat/symbols/` (installed to `share/anygba/symbols/`); games also read `--symbols FILE`. The game checks
+the table when it starts and stops with the file, line and problem.
+
+```toml
+[symbols.save_key]            # the name agents use: letters, digits, '_' (no '.', '[', ']', spaces)
+pointer = 0x03005D90          # optional: address of a 32-bit pointer; `address` is then an offset from it
+address = 0xAC
+type = "u32"                  # u8 u16 u32 s8 s16 s32 bool bytes text struct
+
+[symbols.money]
+pointer = 0x03005D8C
+address = 0x490
+type = "u32"
+xor = "save_key"              # optional: XORed with another integer symbol (low bytes for u8/u16)
+journal = true                # optional: in the journal's periodic snapshots
+description = "shown by list_symbols"
+
+[symbols.party]
+address = 0x020244EC
+type = "struct"
+size = 100                    # bytes per element; required for struct, bytes and text
+count = 6                     # optional: an array (read as party, party[2], party[2].hp)
+fields.nickname = { offset = 0x08, type = "text", size = 10, charset = "pokemon" }   # charset: ascii, pokemon
+fields.hp = { offset = 0x56, type = "u16" }
+fields.moves = { offset = 0x0C, type = "u16", count = 4 }                            # party[0].moves[1]
+fields.badge = { offset = 0x10, type = "u8", bit = 7 }                               # one bit, as a boolean
+```
+
+Fields take `offset`, `type` (not `struct`), `size`, `count`, `bit`, `xor` and `charset`, and must fit in
+the struct's `size`. One read returns at most 64 KB. `bytes` reads as hex; `text` stops at the charset's
+terminator (0 for ASCII, 0xFF for the Gen 3 Pokemon charset).
+
 ## Save type
 
 Without `save`, the runtime picks the type from the library ID string in the ROM (`SRAM_V`, `FLASH_V`,

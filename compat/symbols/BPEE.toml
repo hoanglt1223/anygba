@@ -1,0 +1,252 @@
+# Pokemon Emerald (USA, Europe): named memory for AI agents (docs/dev/GAME-CONFIG.md "[symbols]").
+#
+# Addresses and layouts come from the pret/pokeemerald decompilation: include/global.h (SaveBlock1/2),
+# include/pokemon.h (Pokemon, BattlePokemon), include/constants/flags.h, and pokeemerald.sym on the
+# repository's `symbols` branch for the addresses of globals. Names and numbers only.
+#
+# Emerald keeps its save data in EWRAM at addresses that move on every map change, so most entries
+# go through the save-block pointers in IWRAM (SaveBlock1 at 0x03005D8C, SaveBlock2 at 0x03005D90).
+# Money, coins, bag quantities and game stats are XORed with a per-save key (`save_key`).
+# Party species, moves and IVs sit in an encrypted, shuffled block and are not listed; in battle,
+# `battle_mons` has them in the clear.
+
+# ---- the player (SaveBlock2) ----
+
+[symbols.player_name]
+pointer = 0x03005D90
+address = 0x00
+type = "text"
+size = 8
+charset = "pokemon"
+
+[symbols.player_gender]
+pointer = 0x03005D90
+address = 0x08
+type = "u8"
+description = "0 boy, 1 girl"
+
+[symbols.trainer_id]
+pointer = 0x03005D90
+address = 0x0A
+type = "u16"
+description = "public trainer ID (the secret ID follows at +2)"
+
+[symbols.play_time]
+pointer = 0x03005D90
+address = 0x0E
+type = "struct"
+size = 4
+journal = true
+fields.hours = { offset = 0, type = "u16" }
+fields.minutes = { offset = 2, type = "u8" }
+fields.seconds = { offset = 3, type = "u8" }
+
+[symbols.save_key]
+pointer = 0x03005D90
+address = 0xAC
+type = "u32"
+description = "XOR key for money, coins, bag quantities and game stats"
+
+# ---- where the player is, money, progress (SaveBlock1) ----
+
+[symbols.position]
+pointer = 0x03005D8C
+address = 0x00
+type = "struct"
+size = 4
+journal = true
+description = "map tile coordinates"
+fields.x = { offset = 0, type = "s16" }
+fields.y = { offset = 2, type = "s16" }
+
+[symbols.location]
+pointer = 0x03005D8C
+address = 0x04
+type = "struct"
+size = 8
+journal = true
+description = "current map (pokeemerald include/constants/map_groups.h)"
+fields.map_group = { offset = 0, type = "s8" }
+fields.map_num = { offset = 1, type = "s8" }
+fields.warp_id = { offset = 2, type = "s8" }
+
+[symbols.money]
+pointer = 0x03005D8C
+address = 0x490
+type = "u32"
+xor = "save_key"
+journal = true
+
+[symbols.coins]
+pointer = 0x03005D8C
+address = 0x494
+type = "u16"
+xor = "save_key"
+description = "Game Corner coins"
+
+[symbols.pc_items]
+pointer = 0x03005D8C
+address = 0x498
+type = "struct"
+size = 4
+count = 50
+fields.item = { offset = 0, type = "u16" }
+fields.quantity = { offset = 2, type = "u16" }
+
+[symbols.bag_items]
+pointer = 0x03005D8C
+address = 0x560
+type = "struct"
+size = 4
+count = 30
+fields.item = { offset = 0, type = "u16" }
+fields.quantity = { offset = 2, type = "u16", xor = "save_key" }
+
+[symbols.bag_key_items]
+pointer = 0x03005D8C
+address = 0x5D8
+type = "struct"
+size = 4
+count = 30
+fields.item = { offset = 0, type = "u16" }
+fields.quantity = { offset = 2, type = "u16", xor = "save_key" }
+
+[symbols.bag_poke_balls]
+pointer = 0x03005D8C
+address = 0x650
+type = "struct"
+size = 4
+count = 16
+fields.item = { offset = 0, type = "u16" }
+fields.quantity = { offset = 2, type = "u16", xor = "save_key" }
+
+[symbols.bag_tms_hms]
+pointer = 0x03005D8C
+address = 0x690
+type = "struct"
+size = 4
+count = 64
+fields.item = { offset = 0, type = "u16" }
+fields.quantity = { offset = 2, type = "u16", xor = "save_key" }
+
+[symbols.bag_berries]
+pointer = 0x03005D8C
+address = 0x790
+type = "struct"
+size = 4
+count = 46
+fields.item = { offset = 0, type = "u16" }
+fields.quantity = { offset = 2, type = "u16", xor = "save_key" }
+
+# Event flags start at SaveBlock1 + 0x1270; flag N is bit N % 8 of byte N / 8.
+# FLAG_SYS_POKEMON_GET = 0x860, FLAG_SYS_POKEDEX_GET = 0x861, FLAG_BADGE01_GET..08 = 0x867..0x86E.
+[symbols.progress]
+pointer = 0x03005D8C
+address = 0x137C
+type = "struct"
+size = 2
+journal = true
+fields.has_pokemon = { offset = 0, type = "u8", bit = 0 }
+fields.has_pokedex = { offset = 0, type = "u8", bit = 1 }
+fields.badge_1 = { offset = 0, type = "u8", bit = 7 }
+fields.badge_2 = { offset = 1, type = "u8", bit = 0 }
+fields.badge_3 = { offset = 1, type = "u8", bit = 1 }
+fields.badge_4 = { offset = 1, type = "u8", bit = 2 }
+fields.badge_5 = { offset = 1, type = "u8", bit = 3 }
+fields.badge_6 = { offset = 1, type = "u8", bit = 4 }
+fields.badge_7 = { offset = 1, type = "u8", bit = 5 }
+fields.badge_8 = { offset = 1, type = "u8", bit = 6 }
+
+[symbols.steps]
+pointer = 0x03005D8C
+address = 0x15B0
+type = "u32"
+xor = "save_key"
+description = "game stat 5: steps taken"
+
+[symbols.battles]
+pointer = 0x03005D8C
+address = 0x15B8
+type = "u32"
+xor = "save_key"
+description = "game stat 7: battles fought"
+
+# ---- the party (EWRAM globals) ----
+
+[symbols.party_count]
+address = 0x020244E9
+type = "u8"
+journal = true
+
+[symbols.party]
+address = 0x020244EC
+type = "struct"
+size = 100
+count = 6
+journal = true
+fields.personality = { offset = 0x00, type = "u32" }
+fields.ot_id = { offset = 0x04, type = "u32" }
+fields.nickname = { offset = 0x08, type = "text", size = 10, charset = "pokemon" }
+fields.status = { offset = 0x50, type = "u32" }
+fields.level = { offset = 0x54, type = "u8" }
+fields.hp = { offset = 0x56, type = "u16" }
+fields.max_hp = { offset = 0x58, type = "u16" }
+fields.attack = { offset = 0x5A, type = "u16" }
+fields.defense = { offset = 0x5C, type = "u16" }
+fields.speed = { offset = 0x5E, type = "u16" }
+fields.sp_attack = { offset = 0x60, type = "u16" }
+fields.sp_defense = { offset = 0x62, type = "u16" }
+
+[symbols.enemy_party_count]
+address = 0x020244EA
+type = "u8"
+
+[symbols.enemy_party]
+address = 0x02024744
+type = "struct"
+size = 100
+count = 6
+fields.nickname = { offset = 0x08, type = "text", size = 10, charset = "pokemon" }
+fields.status = { offset = 0x50, type = "u32" }
+fields.level = { offset = 0x54, type = "u8" }
+fields.hp = { offset = 0x56, type = "u16" }
+fields.max_hp = { offset = 0x58, type = "u16" }
+
+# ---- battle ----
+
+[symbols.battle_type_flags]
+address = 0x02022FEC
+type = "u32"
+description = "nonzero during a battle (pokeemerald include/constants/battle.h BATTLE_TYPE_*)"
+
+[symbols.battlers_count]
+address = 0x0202406C
+type = "u8"
+
+[symbols.battle_mons]
+address = 0x02024084
+type = "struct"
+size = 0x58
+count = 4
+description = "battlers in battle order: 0 player, 1 opponent (2 and 3 in double battles)"
+fields.species = { offset = 0x00, type = "u16" }
+fields.moves = { offset = 0x0C, type = "u16", count = 4 }
+fields.ability = { offset = 0x20, type = "u8" }
+fields.types = { offset = 0x21, type = "u8", count = 2 }
+fields.pp = { offset = 0x24, type = "u8", count = 4 }
+fields.hp = { offset = 0x28, type = "u16" }
+fields.level = { offset = 0x2A, type = "u8" }
+fields.max_hp = { offset = 0x2C, type = "u16" }
+fields.item = { offset = 0x2E, type = "u16" }
+fields.nickname = { offset = 0x30, type = "text", size = 11, charset = "pokemon" }
+fields.status1 = { offset = 0x4C, type = "u32" }
+
+[symbols.battle_outcome]
+address = 0x0202433A
+type = "u8"
+description = "1 won, 2 lost, 3 draw, 4 ran, 7 caught (B_OUTCOME_*)"
+
+[symbols.special_var_result]
+address = 0x020375F0
+type = "u16"
+description = "VAR_RESULT of the running script"

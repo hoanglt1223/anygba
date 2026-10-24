@@ -37,6 +37,8 @@ SpeedDown = -
 Menu = Escape
 FastForward = Space
 CheatButton = F12
+AiControl = F10
+Journal = F11
 
 [gamepad]
 A = South
@@ -65,7 +67,8 @@ StickDeadzone = 12000
 
 - Names are the GBA buttons `A`, `B`, `Select`, `Start`, `Right`, `Left`, `Up`, `Down`, `R`, `L` and the
   hotkeys `SaveState1`-`SaveState9`, `LoadState1`-`LoadState9`, `SpeedUp`, `SpeedDown`, `Menu`,
-  `FastForward` (held) and `CheatButton` (held; the cheat device's button that some codes test).
+  `FastForward` (held), `CheatButton` (held; the cheat device's button that some codes test), `AiControl`
+  and `Journal` (switch AI agent control and the play journal on and off, [AI-CONTROL.md](AI-CONTROL.md)).
 - A value is a comma-separated list: `A = X, K`. An empty value unbinds the name for that device.
 - A name you do not mention keeps its default, so a file can hold just the lines you change.
 - Keyboard names are SDL key names: letters and digits, `Return`, `Space`, `Backspace`, `Tab`,

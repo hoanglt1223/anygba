@@ -22,6 +22,7 @@ add_subdirectory(tools/recomp)
 # The build driver runs on the PC only; an Android build is the runtime package alone.
 if(NOT ANDROID)
   add_subdirectory(tools/anygba)
+  add_subdirectory(tools/mcp)
 endif()
 
 if(ANYGBA_BUILD_TESTS)

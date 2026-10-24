@@ -39,7 +39,7 @@ void System::reset() {
     void* const runtime = this;
     std::memset(&cpu_, 0, sizeof cpu_);
     cpu_.runtime = runtime;
-    cpu_.rom_patched = rom_patches_.empty() ? 0 : 1;  // cheats outlive a reset
+    cpu_.rom_patched = rom_patches_.empty() && breakpoints_.empty() ? 0 : 1;  // cheats outlive a reset
     map_pages();
     update_wait_states();  // WAITCNT is 0 at power-on; games that never write it still pay
 

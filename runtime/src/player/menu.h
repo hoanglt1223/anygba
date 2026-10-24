@@ -24,7 +24,14 @@ struct MenuInput {
     bool menu_hotkey = false;            // the Menu hotkey was pressed this frame
 };
 
-enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged };
+enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged, SettingsChanged };
+
+// The Settings page's switches (docs/user/AI-CONTROL.md); the player applies them.
+struct MenuSettings {
+    bool ai_control = false;
+    bool readonly_agent = false;
+    bool journal = false;
+};
 
 class Menu {
 public:
@@ -33,6 +40,8 @@ public:
 
     void open();
     void close() { open_ = false; }
+    // Shows the Settings page; null hides it.
+    void set_settings(MenuSettings* settings) { settings_ = settings; }
     bool is_open() const { return open_; }
     // Shows the Video page, which edits these settings (owned by the caller).
     void set_video(video::Options* options) { video_ = options; }
@@ -43,7 +52,7 @@ public:
     std::vector<std::string> lines() const;
 
 private:
-    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video };
+    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video, Settings };
     struct Row {
         std::string text;
         std::string value;  // right-aligned part
@@ -60,6 +69,7 @@ private:
     void update_picker(std::uint16_t press, const MenuInput& in, std::vector<MenuAction>& out);
     void update_entry(std::uint16_t press, const MenuInput& in, std::vector<MenuAction>& out);
     void update_controls(std::uint16_t press, std::vector<MenuAction>& out);
+    void update_settings(std::uint16_t press, std::vector<MenuAction>& out);
     void update_capture(const MenuInput& in, std::vector<MenuAction>& out);
     void update_video(std::uint16_t press, std::vector<MenuAction>& out);
     void bind(input::Device device, const std::string& binding, std::vector<MenuAction>& out);
@@ -79,6 +89,7 @@ private:
     int& speed_;
     int& slot_;
     video::Options* video_ = nullptr;
+    MenuSettings* settings_ = nullptr;
 
     bool open_ = false;
     Page page_ = Page::Main;

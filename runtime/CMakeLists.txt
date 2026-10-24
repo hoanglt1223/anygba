@@ -52,6 +52,14 @@ add_library(anygba_runtime STATIC
   src/player/touch.cpp
   src/player/touch_overlay.cpp
   src/player/lifecycle.cpp
+  src/control/json.cpp
+  src/control/png.cpp
+  src/control/net.cpp
+  src/control/server.cpp
+  src/control/memory.cpp
+  src/control/symbols.cpp
+  src/control/controller.cpp
+  src/journal/journal.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
@@ -64,6 +72,9 @@ target_compile_definitions(anygba_runtime PRIVATE ANYGBA_VERSION="${PROJECT_VERS
 # toml++ is header-only and compiled into the library, so installed games do not need it.
 target_include_directories(anygba_runtime SYSTEM PRIVATE "$<BUILD_INTERFACE:${tomlplusplus_SOURCE_DIR}>")
 target_link_libraries(anygba_runtime PUBLIC anyport::platform PRIVATE anygba_decode anygba::common)
+if(WIN32)
+  target_link_libraries(anygba_runtime PUBLIC ws2_32)  # the agent control server
+endif()
 set_target_properties(anygba_runtime PROPERTIES OUTPUT_NAME anygba)
 anygba_configure_target(anygba_runtime)
 

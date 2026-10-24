@@ -9,7 +9,7 @@ if(ANDROID)
   install(DIRECTORY "${sdl3_SOURCE_DIR}/android-project/app/src/main/java/"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/android/sdl-java)
 else()
-  install(TARGETS anygba-recomp anygba RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(TARGETS anygba-recomp anygba anygba-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
   # Gradle-free APK template: manifest, Java sources and resources for games and the launcher.
   install(DIRECTORY "${PROJECT_SOURCE_DIR}/platform/android/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/android
     PATTERN "*.cmake" EXCLUDE PATTERN "*.sh" EXCLUDE)
@@ -53,4 +53,7 @@ install(FILES
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" DESTINATION .)
 # Curated cheat databases; `anygba build` copies the ones for the ROM next to the game.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/cheats/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/cheats
+  FILES_MATCHING PATTERN "*.toml")
+# Named memory for AI agents; `anygba build` copies the file for the ROM next to the game.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/compat/symbols/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/symbols
   FILES_MATCHING PATTERN "*.toml")

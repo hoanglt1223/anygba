@@ -144,7 +144,8 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
     }
 
     const Reader r(source_name);
-    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace", "video"});
+    // [symbols] is for the runtime's agent control (docs/dev/GAME-CONFIG.md); the game checks it.
+    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace", "video", "symbols"});
 
     GameConfig config;
     if (const toml::node* game = root.get("game")) {

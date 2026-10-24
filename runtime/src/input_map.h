@@ -28,6 +28,8 @@ enum class Hotkey : std::uint8_t {
     Menu,
     FastForward,  // held: run unthrottled
     CheatButton,  // held: the GameShark / Action Replay device button
+    AiControl,    // agent control server on/off (docs/user/AI-CONTROL.md)
+    Journal,      // play journal on/off
     Count,
 };
 inline constexpr int kHotkeys = static_cast<int>(Hotkey::Count);

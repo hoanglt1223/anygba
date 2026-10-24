@@ -60,6 +60,13 @@ What works:
     `tools/cheats/import-libretro.py` converts the libretro community lists for about 490 more games.
   - An in-game menu (Escape or Back+Start) for states, speed, cheats and rebinding keys and gamepad
     buttons; on-screen messages; gamepad hot-plug with SDL's controller database and the left stick.
+- AI agents can play and debug a running game through `anygba-mcp`, an MCP server shipped in the package
+  ([docs/user/AI-CONTROL.md](docs/user/AI-CONTROL.md)): screenshots, frame-accurate input, pause and step,
+  save states, cheats, memory, named game variables (a Pokemon Emerald symbols file ships), breakpoints at
+  function entries and memory watches. A play journal records every agent command, your own actions,
+  snapshots and thumbnails so later sessions can learn from earlier ones. Both are off by default, can be
+  switched on and off while playing (menu Settings, F10, F11), listen on 127.0.0.1 with a per-user token,
+  and give way as soon as you press a button.
 
 What does not work yet:
 
@@ -132,10 +139,13 @@ GitHub Release, together with the Android runtime archive and the launcher APK.
   CLI. Writes a C project to the output directory; `--list` prints the discovered functions with
   disassembly instead. Config schema and the miss-log format: [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
 - `anygba build <rom.gba> [options]`: recompile, compile and package in one step (`anygba help build`).
+- `anygba-mcp [--control-dir DIR] [--journal-dir DIR]`: MCP server on stdin/stdout for AI agents
+  ([docs/user/AI-CONTROL.md](docs/user/AI-CONTROL.md); protocol: [docs/dev/control-protocol.md](docs/dev/control-protocol.md)).
 - A generated game: `game [rom.gba] [--headless] [--pace | --fast] [--speed N] [--frames N] [--seconds S]
   [--exit-on-idle] [--dump-frame-hash] [--save-dir DIR | --no-save] [--save-type T] [--load-state FILE]
   [--cheat CODE] [--cheats FILE] [--cheat-db FILE] [--input FILE] [--script FILE] [--keys SPEC]
-  [--dump REGION:FILE] [--miss-log FILE | --no-miss-log] [--scale N]` (`--help` explains each). It only
+  [--dump REGION:FILE] [--miss-log FILE | --no-miss-log] [--scale N] [--control] [--journal] [--symbols FILE]
+  ...` (`--help` explains each). It only
   accepts the ROM it was generated from (SHA-256); without a ROM argument it uses the one `anygba build`
   embedded. With a window it paces to the audio device and Space fast-forwards; headless runs are unpaced
   unless `--pace`. Addresses it had to interpret are appended to `anygba-miss.log`.

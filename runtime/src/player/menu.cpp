@@ -25,7 +25,7 @@ constexpr cheats::Format kEntryFormats[] = {cheats::Format::Auto,         cheats
 constexpr int kEntryFormatCount = static_cast<int>(sizeof kEntryFormats / sizeof kEntryFormats[0]);
 
 constexpr int kMainResume = 0, kMainSave = 1, kMainLoad = 2, kMainSpeed = 3, kMainCheats = 4, kMainControls = 5;
-constexpr int kMainVideo = 6;
+constexpr int kMainVideo = 6, kMainSettings = 7;
 constexpr int kCustomGroup = -2;  // tree row: "My codes"
 constexpr int kAddCode = -3;      // tree row: "Add code..."
 constexpr int kReset = -4;        // controls row: reset to defaults
@@ -121,6 +121,7 @@ std::vector<MenuAction> Menu::update(const MenuInput& in) {
     case Page::Picker: update_picker(press, in, out); break;
     case Page::Controls: update_controls(press, out); break;
     case Page::Video: update_video(press, out); break;
+    case Page::Settings: update_settings(press, out); break;
     default: break;
     }
     const int rows_now = static_cast<int>(rows().size());
@@ -150,7 +151,10 @@ void Menu::update_main(std::uint16_t press, std::vector<MenuAction>& out) {
     if (!(press & kA)) {
         return;
     }
-    switch (cursor_) {
+    // Video and Settings rows are optional, so act on the row's id, not its position.
+    const auto main_rows = rows();
+    if (cursor_ < 0 || cursor_ >= static_cast<int>(main_rows.size())) return;
+    switch (main_rows[static_cast<std::size_t>(cursor_)].index) {
     case kMainResume:
         open_ = false;
         out.push_back(MenuAction::Close);
@@ -177,8 +181,26 @@ void Menu::update_main(std::uint16_t press, std::vector<MenuAction>& out) {
         page_ = Page::Video;
         cursor_ = 0;
         break;
+    case kMainSettings:
+        cursor_stack_.push_back(cursor_);
+        page_ = Page::Settings;
+        cursor_ = 0;
+        break;
     default: break;
     }
+}
+
+void Menu::update_settings(std::uint16_t press, std::vector<MenuAction>& out) {
+    if (press & kB) {
+        page_ = Page::Main;
+        cursor_ = cursor_stack_.empty() ? 0 : cursor_stack_.back();
+        if (!cursor_stack_.empty()) cursor_stack_.pop_back();
+        return;
+    }
+    if (!(press & (kA | kLeft | kRight)) || !settings_) return;
+    bool& value = cursor_ == 0 ? settings_->ai_control : cursor_ == 1 ? settings_->readonly_agent : settings_->journal;
+    value = !value;
+    out.push_back(MenuAction::SettingsChanged);
 }
 
 std::vector<Menu::Node> Menu::nodes() const {
@@ -452,6 +474,7 @@ std::string Menu::title() const {
     case Page::Controls: return "Controls";
     case Page::Capture: return "Rebind " + input::target_name(capture_target_);
     case Page::Video: return "Video";
+    case Page::Settings: return "Settings";
     }
     return {};
 }
@@ -465,6 +488,7 @@ std::string Menu::help() const {
     case Page::Controls: return "A rebind  B back";
     case Page::Capture: return "Press a key or button  Esc cancel";
     case Page::Video: return "</> change  B back";
+    case Page::Settings: return "A on/off  B back";
     }
     return {};
 }
@@ -480,6 +504,14 @@ std::vector<Menu::Row> Menu::rows() const {
         out.push_back({"Cheats", ">", kMainCheats});
         out.push_back({"Controls", ">", kMainControls});
         if (video_) out.push_back({"Video", ">", kMainVideo});
+        if (settings_) out.push_back({"Settings", ">", kMainSettings});
+        break;
+    case Page::Settings:
+        if (settings_) {
+            out.push_back({"AI control", settings_->ai_control ? "On" : "Off", 0});
+            out.push_back({"Read-only agent", settings_->readonly_agent ? "On" : "Off", 1});
+            out.push_back({"Journal", settings_->journal ? "On" : "Off", 2});
+        }
         break;
     case Page::Cheats:
         for (const Node& n : nodes()) {

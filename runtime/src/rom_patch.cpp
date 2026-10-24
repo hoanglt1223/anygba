@@ -44,13 +44,21 @@ void System::set_rom_patches(const std::map<std::uint32_t, std::uint16_t>& patch
             }
         }
     }
-    cpu_.rom_patched = rom_patches_.empty() ? 0 : 1;
+    cpu_.rom_patched = rom_patches_.empty() && breakpoints_.empty() ? 0 : 1;
+}
+
+// Breakpoints share the AG_ENTER check: while any are set, every generated ROM function asks.
+void System::set_breakpoints(std::set<std::uint32_t> addrs) {
+    breakpoints_ = std::move(addrs);
+    cpu_.rom_patched = rom_patches_.empty() && breakpoints_.empty() ? 0 : 1;
 }
 
 }  // namespace anygba
 
 extern "C" int anygba_rom_patched(anygba_cpu* c, std::uint32_t entry) {
-    return anygba::system_of(c).rom_bypassed(entry) ? 1 : 0;
+    anygba::System& sys = anygba::system_of(c);
+    sys.hit_breakpoint(entry);
+    return sys.rom_bypassed(entry) ? 1 : 0;
 }
 
 extern "C" int anygba_ram_code_valid(anygba_cpu* c, std::uint32_t entry, int thumb) {

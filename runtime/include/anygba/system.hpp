@@ -170,13 +170,45 @@ public:
     std::uint16_t io_read16(std::uint32_t offset) const;
     void io_write16(std::uint32_t offset, std::uint16_t value);
 
+    // ---- debugger hooks (agent control: docs/dev/control-protocol.md) ----
+    struct Access {
+        std::uint32_t addr = 0;
+        std::uint32_t value = 0;  // read or written
+        std::uint8_t size = 0;    // 1, 2 or 4
+        bool write = false;
+    };
+    // Called after every bus access in a watched region (bit n of the mask: 0x0n000000 -
+    // 0x0nFFFFFF). Watched regions leave the inline fast path, so generated code's accesses
+    // reach the bus and the hook as well.
+    std::function<void(System&, const Access&)> on_watch;
+    void set_watched_regions(std::uint16_t mask);
+    // Called before the interpreter runs the instruction at a breakpoint, and when a generated
+    // ROM function whose entry is a breakpoint starts (its body runs compiled, so addresses
+    // inside it cannot stop).
+    std::function<void(System&, std::uint32_t)> on_breakpoint;
+    void set_breakpoints(std::set<std::uint32_t> addrs);
+    const std::set<std::uint32_t>& breakpoints() const { return breakpoints_; }
+    void hit_breakpoint(std::uint32_t addr) {
+        if (on_breakpoint && breakpoints_.contains(addr)) on_breakpoint(*this, addr);
+    }
+    const anygba_game* game() const { return game_; }
+
     // ---- used by the C ABI glue (anygba_* functions) ----
-    std::uint32_t read32(std::uint32_t addr);
-    std::uint32_t read16(std::uint32_t addr);
-    std::uint32_t read8(std::uint32_t addr);
-    void write32(std::uint32_t addr, std::uint32_t value);
-    void write16(std::uint32_t addr, std::uint32_t value);
-    void write8(std::uint32_t addr, std::uint32_t value);
+    std::uint32_t read32(std::uint32_t addr) { return watched(addr, bus_read32(addr), 4, false); }
+    std::uint32_t read16(std::uint32_t addr) { return watched(addr, bus_read16(addr), 2, false); }
+    std::uint32_t read8(std::uint32_t addr) { return watched(addr, bus_read8(addr), 1, false); }
+    void write32(std::uint32_t addr, std::uint32_t value) {
+        bus_write32(addr, value);
+        watched(addr, value, 4, true);
+    }
+    void write16(std::uint32_t addr, std::uint32_t value) {
+        bus_write16(addr, value);
+        watched(addr, value, 2, true);
+    }
+    void write8(std::uint32_t addr, std::uint32_t value) {
+        bus_write8(addr, value);
+        watched(addr, value, 1, true);
+    }
 
     void tick();
     void idle_loop();
@@ -198,6 +230,19 @@ public:
 
 private:
     friend struct SystemAccess;
+
+    std::uint32_t bus_read32(std::uint32_t addr);
+    std::uint32_t bus_read16(std::uint32_t addr);
+    std::uint32_t bus_read8(std::uint32_t addr);
+    void bus_write32(std::uint32_t addr, std::uint32_t value);
+    void bus_write16(std::uint32_t addr, std::uint32_t value);
+    void bus_write8(std::uint32_t addr, std::uint32_t value);
+    std::uint32_t watched(std::uint32_t addr, std::uint32_t value, std::uint8_t size, bool write) {
+        if ((addr >> 28) == 0 && ((watched_regions_ >> (addr >> 24)) & 1u) && on_watch) [[unlikely]] {
+            on_watch(*this, Access{addr, value, size, write});
+        }
+        return value;
+    }
 
     void map_pages();
     void update_wait_states();
@@ -282,6 +327,8 @@ private:
     std::map<std::uint32_t, std::uint16_t> rom_patches_;
     std::map<std::uint32_t, std::uint16_t> rom_originals_;
     std::set<std::uint32_t> bypassed_;  // generated function entries covered by a ROM patch
+    std::uint16_t watched_regions_ = 0;
+    std::set<std::uint32_t> breakpoints_;
     anygba_fn lookup_compiled(std::uint32_t addr, bool thumb) const;  // ignores ROM patches and RAM contents
     const anygba_function_entry* ram_function(std::uint32_t addr, bool thumb) const;
 public:
