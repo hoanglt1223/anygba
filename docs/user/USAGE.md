@@ -52,6 +52,8 @@ Options (`anygba help build`):
 - `--exit-on-idle`: stop at the first branch-to-self (test ROMs end this way) and print the registers.
 - `--dump REGION:FILE`: write memory (`ewram`, `iwram`, `io`, `palette`, `vram`, `oam`) or the last
   picture (`frame`, 240x160 RGB555) to a file on exit. Handy for finding cheat addresses.
+- `--control`, `--journal`, `--symbols FILE` and the other `--control-*` and `--journal-*` options: AI agent
+  control and the play journal ([AI-CONTROL.md](AI-CONTROL.md)).
 
 ## Hotkeys
 
@@ -63,6 +65,8 @@ Options (`anygba help build`):
 | `=` / `-` | Back+DpadUp / Back+DpadDown | speed up / down: 100, 200, 300, 400% |
 | Escape | Back+Start | open or close the menu |
 | F12 (hold) | | the cheat device's button, for codes that need it |
+| F10 | | AI control on/off ([AI-CONTROL.md](AI-CONTROL.md)) |
+| F11 | | play journal on/off |
 
 All of them can be changed in the Controls page of the menu or in
 [INPUT_MAPPING.md](INPUT_MAPPING.md). Messages about slots, speed, cheats and gamepads appear at the bottom
@@ -95,6 +99,8 @@ A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes
   the new key (with Ctrl, Alt or Shift for a hotkey chord) or gamepad button (hold another gamepad button
   first for a chord such as Back+Start). If that key was bound to something else, the two swap. Escape
   cancels. *Reset to defaults* restores the defaults. Changes are saved to the input mapping file at once.
+- **Settings**: AI control, Read-only agent and Journal switches ([AI-CONTROL.md](AI-CONTROL.md)). They
+  take effect at once and last until the game ends.
 
 ## Gamepads
 

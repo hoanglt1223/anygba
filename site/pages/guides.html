@@ -7,6 +7,7 @@
 <li><a href="#saves">Saves</a></li>
 <li><a href="#controls">Controls and remapping</a></li>
 <li><a href="#config">Per-game config</a></li>
+<li><a href="#ai">AI agents</a></li>
 <li><a href="#troubleshooting">Troubleshooting</a></li>
 <li><a href="#faq">FAQ</a></li>
 </ul></nav>
@@ -110,6 +111,19 @@ end = 0x08001200</code></pre>
 <p>Also available: code copied into RAM (<code>[[ram_region]]</code>), byte patches (<code>[[patch]]</code>) and replacing a
 function with your own C (<code>[[replace]]</code>). Unknown keys are errors. Full schema:
 <a href="{{repo}}/blob/main/docs/dev/GAME-CONFIG.md">GAME-CONFIG.md</a>.</p>
+
+<h2 id="ai">AI agents <span class="badge">0.2</span></h2>
+<p>An AI agent such as Claude can play and debug a game through <code>anygba-mcp</code>, an MCP server in the package's
+<code>bin</code> folder. Add it to your MCP client (Claude Code: <code>claude mcp add anygba -- &lt;path&gt;/anygba-mcp</code>),
+then turn on AI control in the game (menu <em>Settings &gt; AI control</em>, or F10) or let the agent start the game
+with its <code>launch</code> tool.</p>
+<ul>
+<li>The game listens on 127.0.0.1 only, with a random token in a file in your user folder.</li>
+<li>Pressing any button gives you control back at once; <em>Read-only agent</em> limits agents to watching and debugging.</li>
+<li>The play journal (<em>Settings &gt; Journal</em>, or F11) records what the agent and you did, with snapshots and
+thumbnails, in your user folder only.</li>
+</ul>
+<p>Tools, safety and the journal: <a href="{{repo}}/blob/main/docs/user/AI-CONTROL.md">AI-CONTROL.md</a>.</p>
 
 <h2 id="troubleshooting">Troubleshooting</h2>
 <details><summary>The game runs slowly in places, and <code>anygba-miss.log</code> appeared</summary>
