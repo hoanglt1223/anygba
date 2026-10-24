@@ -5,8 +5,10 @@
 # map change. These cheats use AnyGBA's raw format instead: "[PTR]+OFFSET" writes through the
 # save-block pointers the game keeps in IWRAM (SaveBlock1 at 0x03005D8C, SaveBlock2 at
 # 0x03005D90), and "VALUE^[PTR]+00AC" encrypts with the key at SaveBlock2 + 0xAC. Offsets are
-# those of the pret/pokeemerald decompilation; every entry was checked on a US/EU ROM by
-# reading memory after the cheat ran (docs/user/CHEATS.md).
+# those of the pret/pokeemerald decompilation. Cheats that change how the game works (EXP,
+# battles, wild Pokemon, IVs) are ROM patches of the functions named in their notes, at the
+# addresses of pokeemerald.sym for this ROM. Every entry was checked on a US/EU ROM headless,
+# by reading memory or the screen after the cheat ran (docs/user/CHEATS.md).
 #
 # Item slots: the pickers write slot 1 of a pocket, the fixed entries slot 2, so both can be on.
 
