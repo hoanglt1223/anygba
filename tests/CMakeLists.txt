@@ -43,6 +43,7 @@ add_executable(anygba-tests
   runtime/player_tests.cpp
   runtime/video_tests.cpp
   runtime/touch_tests.cpp
+  runtime/assist_tests.cpp
   runtime/control_tests.cpp
   runtime/hd_tests.cpp
   runtime/hd_pack_tests.cpp

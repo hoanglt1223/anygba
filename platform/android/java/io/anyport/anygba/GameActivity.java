@@ -37,8 +37,10 @@ public class GameActivity extends SDLActivity {
     /** Extra player arguments, e.g. adb shell am start ... --esa args --headless,--frames,600 */
     public static final String EXTRA_ARGS = "args";
 
-    /** SDL_SendAndroidMessage() command from the touch overlay: long press on MENU. */
+    /** SDL_SendAndroidMessage() command from the touch overlay: hold MENU, or Setup in the quick menu. */
     static final int MSG_TOUCH_SETTINGS = 0x8001;
+    /** SDL_SendAndroidMessage(): a new screenshot is in getFilesDir()/screenshots. */
+    static final int MSG_SCREENSHOT = 0x8002;
     private static final int REQUEST_IMPORT = 0x41;
 
     private File gameDir() {
@@ -131,7 +133,79 @@ public class GameActivity extends SDLActivity {
             TouchSettings.show(this);
             return true;
         }
+        if (command == MSG_SCREENSHOT) {
+            final File shot = newestScreenshot();
+            if (shot != null) new Thread(() -> publishScreenshot(shot), "anygba-screenshot").start();
+            return true;
+        }
         return super.onUnhandledMessage(command, param);
+    }
+
+    private File newestScreenshot() {
+        File[] files = new File(getFilesDir(), "screenshots").listFiles((dir, name) -> name.endsWith(".png"));
+        File newest = null;
+        if (files != null) {
+            for (File f : files) {
+                if (newest == null || f.lastModified() > newest.lastModified()) newest = f;
+            }
+        }
+        return newest;
+    }
+
+    /**
+     * Copies a screenshot to Pictures/AnyGBA in the gallery (Android 10+), else to the app's
+     * external Pictures folder, and removes the private copy once it is published.
+     */
+    private void publishScreenshot(File shot) {
+        String where;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                where = publishToMediaStore(shot);
+            } else {
+                where = copyToExternalPictures(shot);
+            }
+        } catch (IOException | RuntimeException e) {
+            Log.w(TAG, "screenshot to the gallery", e);
+            try {
+                where = copyToExternalPictures(shot);
+            } catch (IOException | RuntimeException e2) {
+                Log.e(TAG, "screenshot " + shot, e2);
+                where = null;
+            }
+        }
+        if (where != null && !shot.delete()) Log.w(TAG, "cannot delete " + shot);
+        final String message = where == null ? "Screenshot kept in app storage" : "Screenshot saved to " + where;
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
+    }
+
+    private String publishToMediaStore(File shot) throws IOException {
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, shot.getName());
+        values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png");
+        values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/AnyGBA");
+        values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1);
+        android.content.ContentResolver resolver = getContentResolver();
+        Uri uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new IOException("the gallery refused the screenshot");
+        try (InputStream in = new java.io.FileInputStream(shot); OutputStream out = resolver.openOutputStream(uri)) {
+            if (out == null) throw new IOException("cannot open " + uri);
+            byte[] buf = new byte[1 << 16];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (IOException e) {
+            resolver.delete(uri, null, null);
+            throw e;
+        }
+        values.clear();
+        values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0);
+        resolver.update(uri, values, null, null);
+        return "Pictures/AnyGBA";
+    }
+
+    private String copyToExternalPictures(File shot) throws IOException {
+        File dir = getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES);
+        if (dir == null) throw new IOException("no external storage");
+        copy(new java.io.FileInputStream(shot), new File(dir, shot.getName()));
+        return dir.getPath();
     }
 
     @Override

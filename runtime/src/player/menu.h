@@ -40,6 +40,8 @@ public:
         : cheats_(cheats), mapping_(mapping), speed_(speed), slot_(slot) {}
 
     void open();
+    // Opens straight on the cheat tree; B goes back to the main page.
+    void open_cheats();
     void close() { open_ = false; }
     // Shows the Settings page; null hides it.
     void set_settings(MenuSettings* settings) { settings_ = settings; }

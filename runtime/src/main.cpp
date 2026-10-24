@@ -31,6 +31,7 @@
 
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_stdinc.h>
+#include <SDL3/SDL_system.h>
 #if defined(__ANDROID__)
 #include <SDL3/SDL_main.h>  // main() becomes SDL_main(), which SDLActivity calls
 #endif
@@ -38,6 +39,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -617,6 +619,7 @@ public:
         const std::uint32_t pressed = held & ~hotkeys_prev_;
         hotkeys_prev_ = held;
         handle_hotkeys(pressed);
+        handle_touch(false);
         std::uint16_t keys = gba_keys();
         if (control_) keys = control_->keys(keys);
         sys_.set_keys(keys);
@@ -629,7 +632,7 @@ public:
             cheats::run(*program, sys_, frame_keys);
         }
 
-        fast_forward_held_ = anygba::input::has(held, Hotkey::FastForward);
+        fast_forward_held_ = anygba::input::has(held, Hotkey::FastForward) || fast_forward_latched_;
         if (effective_speed() != pacer_speed_) reset_pacer();
         const bool unthrottled = this->unthrottled();
         present(unthrottled);
@@ -643,7 +646,7 @@ public:
             osd_.show(std::move(m), 150, progress ? Session::kAiDownloadPrefix : "");
         }
         for (const auto& [frame, file] : args_.screenshots) {
-            if (frame == sys_.frames()) screenshot(file);
+            if (frame == sys_.frames()) screenshot(file, args_.screenshot_size);
         }
         sound_.clear();
         sys_.drain_audio(sound_);
@@ -654,6 +657,7 @@ public:
             pacer_->wait();
         }
         osd_.tick();
+        if (touch_ && touch_->paused()) run_touch_pause();
         poll_dialog();
         if (menu_.is_open()) {
             run_menu();
@@ -783,6 +787,147 @@ private:
         if (control_ && anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
         if (control_ && anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
         if (anygba::input::has(pressed, Hotkey::Stats)) toggle_stats();
+    }
+
+    // The floating button's quick menu (Android): carries out its choices and tells it what
+    // to show. `scan_slots` looks which state slots exist (only while the menu is open).
+    void handle_touch(bool scan_slots) {
+        if (!touch_) return;
+        for (const player::TouchAction& a : touch_->take_actions()) {
+            using player::assist::Item;
+            switch (a.item) {
+            case Item::SaveState: save_state(slot_); break;
+            case Item::LoadState:
+                if (a.slot >= 1 && a.slot <= player::assist::kSlots) {
+                    slot_ = a.slot;
+                    load_state(slot_);
+                }
+                break;
+            case Item::FastForward:
+                fast_forward_latched_ = !fast_forward_latched_;
+                osd_.show(fast_forward_latched_ ? "Fast-forward on" : "Fast-forward off");
+                break;
+            case Item::FastForwardSpeed: {
+                const auto& speeds = player::kFastForwardSpeeds;
+                const auto at = std::find(speeds.begin(), speeds.end(), mapping_.fast_forward);
+                mapping_.fast_forward = at == speeds.end() || at + 1 == speeds.end() ? speeds.front() : *(at + 1);
+                save_mapping();
+                osd_.show("Fast-forward " + player::format_fast_forward(mapping_.fast_forward));
+                break;
+            }
+            case Item::Cheats:
+                sync_menu_settings();
+                menu_.open_cheats();
+                menu_trace_.clear();
+                break;
+            case Item::Screenshot: take_screenshot(); break;
+            case Item::Filter: {
+                const auto effects = anygba::video::all_effects();
+                const auto at = std::find(effects.begin(), effects.end(), video_options_.effect);
+                video_options_.effect = at == effects.end() || at + 1 == effects.end() ? effects.front() : *(at + 1);
+                apply_video();
+                osd_.show("Filter: " + std::string(anygba::video::name(video_options_.effect)));
+                break;
+            }
+            case Item::Widescreen: {
+                const auto modes = anygba::video::all_widescreens();
+                const auto at = std::find(modes.begin(), modes.end(), video_options_.widescreen);
+                video_options_.widescreen = at == modes.end() || at + 1 == modes.end() ? modes.front() : *(at + 1);
+                apply_video();
+                osd_.show("Widescreen: " + std::string(anygba::video::name(video_options_.widescreen)));
+                break;
+            }
+            case Item::GameMenu:
+                if (menu_.is_open()) {
+                    menu_.close();
+                } else {
+                    sync_menu_settings();
+                    menu_.open();
+                    menu_trace_.clear();
+                }
+                break;
+            case Item::Exit:
+                write_save();
+                stop();
+                break;
+            default: break;
+            }
+        }
+        player::TouchStatus status = touch_status_;
+        status.fast_forward = fast_forward_latched_;
+        status.fast_forward_speed = player::format_fast_forward(mapping_.fast_forward);
+        status.slot = slot_;
+        status.filter = std::string(anygba::video::name(video_options_.effect));
+        status.widescreen = std::string(anygba::video::name(video_options_.widescreen));
+        status.game_menu_open = menu_.is_open();
+        if (scan_slots) {
+            status.saved_slots = 0;
+            for (int slot = 1; slot <= player::assist::kSlots; ++slot) {
+                std::error_code ec;
+                const auto path = state_path(slot);
+                if (path && fs::exists(*path, ec)) status.saved_slots |= static_cast<std::uint16_t>(1u << (slot - 1));
+            }
+        }
+        if (status != touch_status_) {
+            touch_status_ = status;
+            touch_->set_status(status);
+        }
+    }
+
+    // The game waits while the quick menu or the layout editor is open.
+    void run_touch_pause() {
+        while (touch_->paused() && !stopping_) {
+            if (!poll()) {
+                stop();
+                return;
+            }
+            handle_touch(true);
+            osd_.tick();
+            if (window_) {
+                if (const anygba::video::Image* hd = hd_picture()) {
+                    video_->present(*hd, hd_->logical_width(), hd_->logical_height());
+                } else {
+                    frame_copy_ = sys_.framebuffer();
+                    decorate();
+                    show(frame_copy_);
+                }
+            }
+            platform::sleep_ns(16'000'000);
+        }
+        hotkeys_prev_ = hotkeys_held();
+        reset_audio();
+    }
+
+    // A PNG of the game picture (filters included) in <data>/screenshots, which the Android
+    // activity then copies to the gallery.
+    void take_screenshot() {
+        const auto data = data_dir();
+        if (!data) {
+            osd_.show("No folder for screenshots");
+            return;
+        }
+        const fs::path dir = *data / "screenshots";
+        std::error_code ec;
+        fs::create_directories(dir, ec);
+        if (ec) {
+            osd_.show("Screenshot failed: " + ec.message());
+            return;
+        }
+        const auto stamp = std::chrono::duration_cast<std::chrono::seconds>(
+                               std::chrono::system_clock::now().time_since_epoch()).count();
+        const fs::path file = dir / (game_file_stem() + "-" + std::to_string(stamp) + ".png");
+        const int lw = hd_->logical_width();
+        screenshot(file, {lw * 4, anygba::kScreenHeight * 4});
+        if (!fs::exists(file, ec)) {
+            osd_.show("Screenshot failed");
+            return;
+        }
+        osd_.show("Screenshot saved");
+#if defined(__ANDROID__)
+        if (!SDL_SendAndroidMessage(player::kScreenshotMessage, 0)) {
+            std::fprintf(stderr, "warning: cannot publish the screenshot: %s\n", SDL_GetError());
+        }
+#endif
     }
 
     void set_speed(int speed) {
@@ -1230,6 +1375,7 @@ private:
                 case player::MenuAction::Close: break;
                 }
             }
+            handle_touch(false);
             poll_dialog();
             trace_menu();
             osd_.tick();
@@ -1272,6 +1418,7 @@ private:
         last_present_ns_ = now;
         ++presents_;  // counted headless too, as the pictures a window would show
         if (!window_) return;
+        if (touch_) touch_->set_picture_width(hd_->logical_width());
         if (const anygba::video::Image* hd = hd_picture()) {
             video_->present(*hd, hd_->logical_width(), hd_->logical_height());
             return;
@@ -1331,11 +1478,11 @@ private:
     }
 
     // --screenshot: what a window would show (filters included), as a PNG.
-    void screenshot(const fs::path& file) {
+    void screenshot(const fs::path& file, std::pair<int, int> size) {
         const anygba::video::Image* hd = hd_picture();
         shot_pipeline_.set_options(video_options_);
         const int lw = hd ? hd_->logical_width() : anygba::kScreenWidth;
-        int w = args_.screenshot_size.first, h = args_.screenshot_size.second;
+        int w = size.first, h = size.second;
         if (w == 0) {
             w = hd ? hd->width : lw;
             h = hd ? hd->height : anygba::kScreenHeight;
@@ -1446,6 +1593,8 @@ private:
     int speed_ = 100;
     int pacer_speed_ = 0;
     bool fast_forward_held_ = false;
+    bool fast_forward_latched_ = false;  // the quick menu's fast-forward toggle
+    player::TouchStatus touch_status_;
     int file_fast_forward_ = player::kDefaultFastForward;  // what the settings file holds
     int slot_ = 1;
     player::Menu menu_;

@@ -69,6 +69,12 @@ void Menu::open() {
     last_held_ = 0xFFFF;  // ignore buttons still held from opening the menu
 }
 
+void Menu::open_cheats() {
+    open();
+    cursor_stack_.push_back(kMainCheats);
+    page_ = Page::Cheats;
+}
+
 std::uint16_t Menu::pressed_with_repeat(std::uint16_t held) {
     if (last_held_ == 0xFFFF) {
         last_held_ = held;  // first frame: everything held counts as old

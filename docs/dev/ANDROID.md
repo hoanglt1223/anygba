@@ -11,10 +11,23 @@ User guide: [../user/ANDROID.md](../user/ANDROID.md).
 | `tools/anygba/android.cpp` | `--target android`, `--target android-package`, `android-launcher` |
 | `tools/anygba/zip.cpp` | stored-entry ZIP writer that also copies an existing archive (aapt2 output) |
 | `runtime/src/player/touch.cpp` | touch layout and hit testing (unit tested, no SDL) |
-| `runtime/src/player/touch_overlay.cpp` | SDL glue: finger events, drawing, haptics, settings reload |
+| `runtime/src/player/assist.cpp` | floating menu button: edge snapping, tap/long-press/drag, quick menu and layout-editor geometry (unit tested, no SDL) |
+| `runtime/src/player/touch_overlay.cpp` | SDL glue: finger events, drawing (controls, floating button, quick menu, layout editor), haptics, settings reload and write-back |
 | `runtime/src/player/lifecycle.cpp` | writes the save on `SDL_EVENT_WILL_ENTER_BACKGROUND` / `TERMINATING` |
 | `runtime/src/android/log_forward.cpp` | stdout/stderr to logcat |
 | `platform::Window::set_overlay` | lets the overlay place the picture and draw on top |
+
+## Floating button and quick menu
+
+The overlay turns quick-menu taps into `TouchAction`s that `Player::handle_touch` carries out with the
+same functions as the hotkeys and the in-game menu (`save_state`, `load_state`, `apply_video`,
+`Menu::open_cheats`), and the player sends back a `TouchStatus` for the labels. While the quick menu or
+the layout editor is open `TouchOverlay::paused()` is true and the player runs `run_touch_pause` (no
+emulation, the last picture redrawn). Both the game and the Java settings dialog write
+`anygba-touch.ini`: the game rewrites the whole file, the dialog merges its own keys into what is on
+disk. Screenshots go to `files/screenshots/`; message `0x8002` makes `GameActivity` move the newest one
+to `Pictures/AnyGBA` through MediaStore (Android 10+; older versions or a refusal fall back to the
+app's external Pictures folder).
 
 ## APK assembly without Gradle
 

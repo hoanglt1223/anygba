@@ -53,6 +53,27 @@ bool in_circle(const FRect& r, float x, float y) {
     return dx * dx + dy * dy <= radius * radius;
 }
 
+// "<Control>X", "<Control>Y" or "<Control>Size"; false for any other name.
+bool adjust_setting(Settings& s, std::string_view name, int n) {
+    for (int i = 0; i < kControls; ++i) {
+        const std::string_view key = key_name(static_cast<Control>(i));
+        if (name.size() <= key.size() || !equals_nocase(name.substr(0, key.size()), key)) continue;
+        const std::string_view field = name.substr(key.size());
+        Adjust& a = s.adjust[static_cast<std::size_t>(i)];
+        if (equals_nocase(field, "X")) {
+            a.x = std::clamp(n, -1000, 1000);
+        } else if (equals_nocase(field, "Y")) {
+            a.y = std::clamp(n, -1000, 1000);
+        } else if (equals_nocase(field, "Size")) {
+            a.size = std::clamp(n, 50, 200);
+        } else {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 Settings parse_settings(std::string_view text) {
@@ -71,6 +92,7 @@ Settings parse_settings(std::string_view text) {
         int n = 0;
         const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), n);
         if (ec != std::errc{} || end != value.data() + value.size()) continue;
+        if (adjust_setting(s, name, n)) continue;
         if (equals_nocase(name, "Size")) {
             s.size = std::clamp(n, 50, 200);
         } else if (equals_nocase(name, "Opacity")) {
@@ -81,27 +103,51 @@ Settings parse_settings(std::string_view text) {
             s.offset_y = std::clamp(n, -100, 100);
         } else if (equals_nocase(name, "Haptics")) {
             s.haptics = n != 0;
+        } else if (equals_nocase(name, "FloatingButton")) {
+            s.floating_button = n != 0;
+        } else if (equals_nocase(name, "ShowControls")) {
+            s.show_controls = n != 0;
+        } else if (equals_nocase(name, "ButtonEdge")) {
+            s.button_edge = static_cast<Edge>(std::clamp(n, 0, 3));
+        } else if (equals_nocase(name, "ButtonPos")) {
+            s.button_pos = std::clamp(n, 0, 1000);
         }
     }
     return s;
 }
 
 std::string format_settings(const Settings& s) {
-    return "# AnyGBA touch controls (docs/user/ANDROID.md)\n"
-           "Size = " + std::to_string(s.size) + "\n"
-           "Opacity = " + std::to_string(s.opacity) + "\n"
-           "OffsetX = " + std::to_string(s.offset_x) + "\n"
-           "OffsetY = " + std::to_string(s.offset_y) + "\n"
-           "Haptics = " + std::to_string(s.haptics ? 1 : 0) + "\n";
+    std::string out = "# AnyGBA touch controls (docs/user/ANDROID.md)\n"
+                      "Size = " + std::to_string(s.size) + "\n"
+                      "Opacity = " + std::to_string(s.opacity) + "\n"
+                      "OffsetX = " + std::to_string(s.offset_x) + "\n"
+                      "OffsetY = " + std::to_string(s.offset_y) + "\n"
+                      "Haptics = " + std::to_string(s.haptics ? 1 : 0) + "\n"
+                      "FloatingButton = " + std::to_string(s.floating_button ? 1 : 0) + "\n"
+                      "ShowControls = " + std::to_string(s.show_controls ? 1 : 0) + "\n"
+                      "ButtonEdge = " + std::to_string(static_cast<int>(s.button_edge)) + "\n"
+                      "ButtonPos = " + std::to_string(s.button_pos) + "\n";
+    for (int i = 0; i < kControls; ++i) {
+        const Adjust& a = s.adjust[static_cast<std::size_t>(i)];
+        if (a == Adjust{}) continue;
+        const std::string key = key_name(static_cast<Control>(i));
+        out += key + "X = " + std::to_string(a.x) + "\n" + key + "Y = " + std::to_string(a.y) + "\n" + key +
+               "Size = " + std::to_string(a.size) + "\n";
+    }
+    return out;
 }
 
-Layout layout(float width, float height, FRect safe, const Settings& settings) {
+Layout layout(float width, float height, FRect safe, const Settings& settings, float picture_width) {
     if (safe.w <= 0 || safe.h <= 0) safe = {0, 0, width, height};
+    if (!(picture_width >= kGbaWidth)) picture_width = kGbaWidth;
     Layout out;
+    out.safe = safe;
+    out.menu_button = !settings.floating_button;
+    out.show_controls = settings.show_controls;
     const bool landscape = width >= height;
-    float scale = landscape ? std::min(safe.w / kGbaWidth, safe.h / kGbaHeight) : safe.w / kGbaWidth;
+    float scale = landscape ? std::min(safe.w / picture_width, safe.h / kGbaHeight) : safe.w / picture_width;
     if (scale >= 1) scale = std::floor(scale);
-    const float pw = kGbaWidth * scale, ph = kGbaHeight * scale;
+    const float pw = picture_width * scale, ph = kGbaHeight * scale;
     FRect area = safe;  // where the controls go
     if (landscape) {
         out.picture = {safe.x + (safe.w - pw) / 2, safe.y + (safe.h - ph) / 2, pw, ph};
@@ -132,10 +178,24 @@ Layout layout(float width, float height, FRect safe, const Settings& settings) {
     set(Control::Start, centred(mid + 0.95f * u, bottom - 0.5f * u, 1.5f * u, 0.6f * u));
     set(Control::Menu, centred(mid - 0.75f * u, top + 0.5f * u, 1.2f * u, 0.6f * u));
     set(Control::FastForward, centred(mid + 0.75f * u, top + 0.5f * u, 1.2f * u, 0.6f * u));
+
+    out.unit = u;
+    for (int i = 0; i < kControls; ++i) {
+        const Adjust& a = settings.adjust[static_cast<std::size_t>(i)];
+        FRect& r = c[static_cast<std::size_t>(i)];
+        const float k = static_cast<float>(a.size) / 100.0f;
+        const float w = std::min(r.w * k, safe.w), h = std::min(r.h * k, safe.h);
+        const float x = centre_x(r) + static_cast<float>(a.x) / 100.0f * u - w / 2;
+        const float y = centre_y(r) + static_cast<float>(a.y) / 100.0f * u - h / 2;
+        r = {std::clamp(x, safe.x, safe.x + safe.w - w), std::clamp(y, safe.y, safe.y + safe.h - h), w, h};
+    }
     return out;
 }
 
 std::uint16_t buttons_at(const Layout& l, float x, float y) {
+    if (!l.show_controls) {
+        return l.menu_button && inside(l[Control::Menu], x, y, l[Control::Menu].h * 0.15f) ? kMenu : 0;
+    }
     if (const std::uint16_t d = dpad_at(l[Control::DPad], x, y)) return d;
     if (in_circle(l[Control::A], x, y)) return kA;
     if (in_circle(l[Control::B], x, y)) return kB;
@@ -144,9 +204,35 @@ std::uint16_t buttons_at(const Layout& l, float x, float y) {
     if (inside(l[Control::R], x, y, margin)) return kR;
     if (inside(l[Control::Select], x, y, margin)) return kSelect;
     if (inside(l[Control::Start], x, y, margin)) return kStart;
-    if (inside(l[Control::Menu], x, y, margin)) return kMenu;
+    if (l.menu_button && inside(l[Control::Menu], x, y, margin)) return kMenu;
     if (inside(l[Control::FastForward], x, y, margin)) return kFastForward;
     return 0;
+}
+
+Control control_at(const Layout& l, float x, float y) {
+    // Last drawn first, so the topmost of two overlapping controls wins.
+    for (int i = kControls - 1; i >= 0; --i) {
+        const auto c = static_cast<Control>(i);
+        if (c == Control::Menu && !l.menu_button) continue;
+        if (inside(l[c], x, y, 0)) return c;
+    }
+    return Control::Count;
+}
+
+const char* key_name(Control control) {
+    switch (control) {
+    case Control::DPad: return "DPad";
+    case Control::A: return "A";
+    case Control::B: return "B";
+    case Control::L: return "L";
+    case Control::R: return "R";
+    case Control::Select: return "Select";
+    case Control::Start: return "Start";
+    case Control::Menu: return "Menu";
+    case Control::FastForward: return "FastForward";
+    case Control::Count: break;
+    }
+    return "";
 }
 
 const char* label(Control control) {

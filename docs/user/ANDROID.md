@@ -54,13 +54,27 @@ play; long-press for per-game settings (starting speed) or to remove the game (s
 ## Playing
 
 - **Touch controls** appear on a touchscreen: d-pad (eight directions; slide your thumb), A, B, L, R,
-  Start, Select, `>>` (fast-forward while held) and MENU. In landscape they sit over the sides of the
+  Start, Select and `>>` (fast-forward while held). In landscape they sit over the sides of the
   picture; in portrait the picture is at the top and the controls below it. Notches and rounded corners
   are kept clear.
-- **MENU** (tap) opens the in-game menu: save states, speed, cheats, controls. Navigate it with the touch
-  d-pad, A and B. Typing a cheat code needs a keyboard; cheats from the database work by touch.
-- **Hold MENU** for a second to open the touch settings: size, opacity, position, vibration, and save
-  export and import. Changes apply while you play and are stored in `anygba-touch.ini`.
+- **The floating button** (the round button at the screen edge) opens the quick menu; the game waits
+  while it is open. Drag the button anywhere: it settles against the nearest edge and remembers its
+  place. It dims after a few seconds untouched. **Hold it** to quick-save to the current slot.
+- **Quick menu**: Save (current slot), Load (pick a slot 1-9; filled slots say "saved"), Fast
+  (fast-forward on/off), the fast-forward speed (tap to step through 150%-unlimited), Cheats (the cheat
+  tree), Shot (screenshot to the gallery, `Pictures/AnyGBA`), Filter (none, LCD grid, scanlines, CRT),
+  Wide (off, 16:10, 16:9), Layout (move and resize the touch buttons), Hide/Show pad, Menu (the full
+  in-game menu), Setup (the touch settings) and Exit (writes the save and closes the game). Tap outside
+  the menu to go back to the game.
+- **Layout editor**: drag any button to move it. Tap one to select it, then Smaller/Bigger resize it and
+  Reset puts it back; with nothing selected they apply to all buttons. Done saves the layout.
+- The **in-game menu** (Menu in the quick menu) has save states, speed, cheats, video and controls.
+  Navigate it with the touch d-pad, A and B; tap the floating button to close it. Typing a cheat code
+  needs a keyboard; cheats from the database work by touch.
+- **Touch settings** (Setup): size, opacity, position, vibration, the floating button, and save export
+  and import. Changes apply while you play and are stored in `anygba-touch.ini` with the button's place
+  and the layout. Turn the floating button off there to get the classic MENU button back (tap: in-game
+  menu, hold for a second: touch settings).
 - **Gamepads** (Bluetooth or USB) work out of the box; the touch controls hide while one is used and come
   back when you touch the screen. Remap buttons in MENU > Controls as on the desktop.
 - The game runs full screen and turns with the phone.
@@ -71,11 +85,11 @@ Saves, save states and cheat choices live in the app's private storage (`files/s
 The battery save is written whenever the game changes it and again when the app goes to the background,
 so switching apps or the system closing AnyGBA loses nothing the game had saved.
 
-- **Export**: hold MENU, then Export saves. The share sheet sends the `.sav`, `.ss1`-`.ss9` and
-  `.cheats.toml` files anywhere (Drive, mail, Files).
-- **Import**: hold MENU, then Import saves and pick files. A `.sav` from the desktop build or from a
-  backup works; the file name does not matter, only the extension. The game closes afterwards; open it
-  again to use the imported saves.
+- **Export**: Setup in the quick menu (or hold MENU), then Export saves. The share sheet sends the
+  `.sav`, `.ss1`-`.ss9` and `.cheats.toml` files anywhere (Drive, mail, Files).
+- **Import**: Setup in the quick menu (or hold MENU), then Import saves and pick files. A `.sav` from the
+  desktop build or from a backup works; the file name does not matter, only the extension. The game
+  closes afterwards; open it again to use the imported saves.
 
 Uninstalling a per-game APK deletes its saves; export them first.
 

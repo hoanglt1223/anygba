@@ -83,7 +83,9 @@ TEST_CASE("touch: the d-pad has eight directions and a dead centre") {
 }
 
 TEST_CASE("touch: buttons map to GBA keys and player functions") {
-    const auto l = touch::layout(2400, 1080, {0, 0, 2400, 1080}, {});
+    touch::Settings classic;
+    classic.floating_button = false;
+    const auto l = touch::layout(2400, 1080, {0, 0, 2400, 1080}, classic);
     const auto at = [&l](Control c) { return touch::buttons_at(l, cx(l[c]), cy(l[c])); };
     CHECK(at(Control::A) == kA);
     CHECK(at(Control::B) == kB);
@@ -119,4 +121,64 @@ TEST_CASE("touch: settings round-trip, clamp and skip bad lines") {
     CHECK(t.opacity == touch::Settings{}.opacity);
     CHECK(t.offset_x == -100);
     CHECK(touch::parse_settings("") == touch::Settings{});
+}
+
+TEST_CASE("touch: floating button, hidden controls and per-control adjustments round-trip") {
+    touch::Settings s;
+    s.floating_button = false;
+    s.show_controls = false;
+    s.button_edge = touch::Edge::Bottom;
+    s.button_pos = 750;
+    s.adjust[static_cast<std::size_t>(Control::A)] = {120, -40, 150};
+    s.adjust[static_cast<std::size_t>(Control::DPad)] = {-30, 0, 80};
+    CHECK(touch::parse_settings(touch::format_settings(s)) == s);
+
+    const auto t = touch::parse_settings("ASize = 999\nDPadX = -5000\nButtonEdge = 9\nButtonPos = -3\nBogusX = 1\n");
+    CHECK(t.adjust[static_cast<std::size_t>(Control::A)].size == 200);
+    CHECK(t.adjust[static_cast<std::size_t>(Control::DPad)].x == -1000);
+    CHECK(t.button_edge == touch::Edge::Bottom);
+    CHECK(t.button_pos == 0);
+}
+
+TEST_CASE("touch: an adjusted control moves and grows, and stays inside the safe area") {
+    const touch::FRect safe{0, 0, 2400, 1080};
+    const auto base = touch::layout(2400, 1080, safe, {});
+    touch::Settings s;
+    s.adjust[static_cast<std::size_t>(Control::A)] = {-100, -100, 150};
+    const auto l = touch::layout(2400, 1080, safe, s);
+    const auto& a0 = base[Control::A];
+    const auto& a1 = l[Control::A];
+    CHECK(a1.w == doctest::Approx(a0.w * 1.5f));
+    CHECK(cx(a1) == doctest::Approx(cx(a0) - l.unit));
+    CHECK(cy(a1) == doctest::Approx(cy(a0) - l.unit));
+    CHECK(touch::buttons_at(l, cx(a1), cy(a1)) == kA);
+
+    s.adjust[static_cast<std::size_t>(Control::A)] = {1000, 1000, 200};
+    CHECK(within(touch::layout(2400, 1080, safe, s)[Control::A], safe));
+}
+
+TEST_CASE("touch: MENU only works without the floating button; hidden controls press nothing") {
+    const touch::FRect safe{0, 0, 2400, 1080};
+    touch::Settings s;
+    const auto floating = touch::layout(2400, 1080, safe, s);
+    const auto& m = floating[Control::Menu];
+    CHECK(touch::buttons_at(floating, cx(m), cy(m)) == 0);
+    CHECK(touch::control_at(floating, cx(m), cy(m)) != Control::Menu);
+
+    s.floating_button = false;
+    const auto classic = touch::layout(2400, 1080, safe, s);
+    CHECK(touch::buttons_at(classic, cx(m), cy(m)) == touch::kMenu);
+    CHECK(touch::control_at(classic, cx(m), cy(m)) == Control::Menu);
+
+    s.show_controls = false;
+    const auto hidden = touch::layout(2400, 1080, safe, s);
+    CHECK(touch::buttons_at(hidden, cx(hidden[Control::A]), cy(hidden[Control::A])) == 0);
+    CHECK(touch::buttons_at(hidden, cx(m), cy(m)) == touch::kMenu);
+    CHECK(touch::control_at(hidden, cx(hidden[Control::A]), cy(hidden[Control::A])) == Control::A);
+}
+
+TEST_CASE("touch: a widescreen picture keeps its aspect ratio") {
+    const auto l = touch::layout(2400, 1080, {0, 0, 2400, 1080}, {}, 284);
+    CHECK(l.picture.w / l.picture.h == doctest::Approx(284.0f / 160.0f));
+    CHECK(l.picture.w <= 2400);
 }

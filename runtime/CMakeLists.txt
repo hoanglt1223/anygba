@@ -52,6 +52,7 @@ add_library(anygba_runtime STATIC
   src/video/presenter.cpp
   src/video/settings.cpp
   src/player/touch.cpp
+  src/player/assist.cpp
   src/player/touch_overlay.cpp
   src/player/lifecycle.cpp
   src/control/json.cpp

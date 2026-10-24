@@ -21,12 +21,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
- * The touch controls dialog (long press on MENU): size, opacity, position and haptics,
+ * The touch controls dialog (hold MENU, or Setup in the quick menu): size, opacity, position and haptics,
  * written to getFilesDir()/anygba-touch.ini, which the game re-reads while running; plus
  * save export and import. Keys and ranges match runtime/src/player/touch.h.
  */
 final class TouchSettings {
     private TouchSettings() {}
+
+    private static final String[] DIALOG_KEYS = {"Size", "Opacity", "OffsetX", "OffsetY", "Haptics", "FloatingButton"};
 
     static File file(GameActivity activity) {
         return new File(activity.getFilesDir(), "anygba-touch.ini");
@@ -52,6 +54,15 @@ final class TouchSettings {
             save(activity, p);
         });
         column.addView(haptics);
+
+        final CheckBox floating = new CheckBox(activity);
+        floating.setText("Floating menu button (off: MENU button)");
+        floating.setChecked(!"0".equals(p.getProperty("FloatingButton", "1").trim()));
+        floating.setOnCheckedChangeListener((view, checked) -> {
+            p.setProperty("FloatingButton", checked ? "1" : "0");
+            save(activity, p);
+        });
+        column.addView(floating);
 
         Button export = new Button(activity);
         export.setText("Export saves");
@@ -118,11 +129,17 @@ final class TouchSettings {
         return p;
     }
 
+    // The game also writes this file (the floating button's place, the layout editor), so the
+    // dialog's keys are merged into what is on disk now rather than replacing it.
     private static void save(GameActivity activity, Properties p) {
-        StringBuilder text = new StringBuilder("# AnyGBA touch controls\n");
-        for (String key : new String[] {"Size", "Opacity", "OffsetX", "OffsetY", "Haptics"}) {
+        Properties merged = load(activity);
+        for (String key : DIALOG_KEYS) {
             String value = p.getProperty(key);
-            if (value != null) text.append(key).append(" = ").append(value.trim()).append('\n');
+            if (value != null) merged.setProperty(key, value.trim());
+        }
+        StringBuilder text = new StringBuilder("# AnyGBA touch controls\n");
+        for (String key : new java.util.TreeSet<>(merged.stringPropertyNames())) {
+            text.append(key).append(" = ").append(merged.getProperty(key).trim()).append('\n');
         }
         File f = file(activity);
         File tmp = new File(f.getPath() + ".tmp");
