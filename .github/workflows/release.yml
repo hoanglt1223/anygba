@@ -142,7 +142,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -l assets
-          gh release create "$GITHUB_REF_NAME" assets/* \
+          gh release create "$GITHUB_REF_NAME" assets/*.zip assets/*.tar.gz assets/*.apk\
             --repo "$GITHUB_REPOSITORY" \
             --title "AnyGBA $GITHUB_REF_NAME" \
             --generate-notes \
