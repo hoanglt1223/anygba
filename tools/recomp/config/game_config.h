@@ -44,6 +44,7 @@ struct GameConfig {
     std::vector<Patch> patches;
     std::string save_type;  // empty: detect at run time
     int rtc = -1;           // cartridge real-time clock: 1 on, 0 off, -1 let the runtime decide
+    std::string video;      // [video] settings, serialized (anygba/video_options.h); empty: defaults
     std::vector<Replacement> replacements;
     std::vector<std::filesystem::path> sources;  // C files compiled into the game, absolute
 };

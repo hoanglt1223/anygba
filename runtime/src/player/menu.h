@@ -3,6 +3,7 @@
 #include "cheats/cheat_list.h"
 #include "input_map.h"
 #include "player/osd.h"
+#include "anygba/video_options.h"
 
 #include <cstdint>
 #include <string>
@@ -23,7 +24,7 @@ struct MenuInput {
     bool menu_hotkey = false;            // the Menu hotkey was pressed this frame
 };
 
-enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged };
+enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged };
 
 class Menu {
 public:
@@ -33,6 +34,8 @@ public:
     void open();
     void close() { open_ = false; }
     bool is_open() const { return open_; }
+    // Shows the Video page, which edits these settings (owned by the caller).
+    void set_video(video::Options* options) { video_ = options; }
     // One host frame. Returns what the player has to do.
     std::vector<MenuAction> update(const MenuInput& in);
     void draw(Picture picture) const;
@@ -40,7 +43,7 @@ public:
     std::vector<std::string> lines() const;
 
 private:
-    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture };
+    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video };
     struct Row {
         std::string text;
         std::string value;  // right-aligned part
@@ -58,6 +61,7 @@ private:
     void update_entry(std::uint16_t press, const MenuInput& in, std::vector<MenuAction>& out);
     void update_controls(std::uint16_t press, std::vector<MenuAction>& out);
     void update_capture(const MenuInput& in, std::vector<MenuAction>& out);
+    void update_video(std::uint16_t press, std::vector<MenuAction>& out);
     void bind(input::Device device, const std::string& binding, std::vector<MenuAction>& out);
 
     // Cheat tree: children of `path_` ("" = root, else "Items/").
@@ -74,6 +78,7 @@ private:
     input::Mapping& mapping_;
     int& speed_;
     int& slot_;
+    video::Options* video_ = nullptr;
 
     bool open_ = false;
     Page page_ = Page::Main;

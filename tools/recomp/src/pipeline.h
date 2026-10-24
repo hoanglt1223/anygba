@@ -19,6 +19,7 @@ struct Analysis {
     std::uint32_t rom_size = 0;
     std::string save_type;
     int rtc = -1;
+    std::string video;
     std::map<std::uint32_t, std::string> replacements;
     std::vector<std::filesystem::path> sources;
     std::unique_ptr<analysis::Image> image;

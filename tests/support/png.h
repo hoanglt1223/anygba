@@ -14,6 +14,12 @@ void write_png(const std::filesystem::path& path, std::span<const std::uint16_t>
 // RGB555 by keeping the top 5 bits of each channel. Throws on anything else.
 std::vector<std::uint16_t> read_png_rgb555(const std::filesystem::path& path, int width, int height);
 
+// Writes 8-bit RGB pixels (3 bytes each, rows top to bottom) as a deflate-compressed PNG.
+void write_png_rgb(const std::filesystem::path& path, std::span<const std::uint8_t> rgb, int width, int height);
+
+// Reads an 8-bit RGB PNG of the given size back to 3 bytes per pixel. Throws on anything else.
+std::vector<std::uint8_t> read_png_rgb(const std::filesystem::path& path, int width, int height);
+
 // Decompresses a zlib stream (RFC 1950/1951). Throws on malformed input.
 std::vector<std::uint8_t> inflate_zlib(const std::vector<std::uint8_t>& data);
 

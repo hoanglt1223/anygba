@@ -1,5 +1,7 @@
 #include "config/game_config.h"
 
+#include "anygba/video_options.h"
+
 #define TOML_EXCEPTIONS 1
 #include <toml.hpp>
 
@@ -104,6 +106,31 @@ private:
     std::string_view source_;
 };
 
+// [video]: the game's default video settings, checked here so a typo fails the recompile.
+std::string parse_video(const Reader& r, const toml::node& node) {
+    const auto* table = node.as_table();
+    if (!table) {
+        r.fail(node, "[video] must be a table");
+    }
+    video::Options options;
+    for (const auto& [key, value] : *table) {
+        std::string text;
+        if (const auto* s = value.as_string()) {
+            text = s->get();
+        } else if (const auto* b = value.as_boolean()) {
+            text = b->get() ? "true" : "false";
+        } else if (const auto* f = value.as_floating_point()) {
+            text = std::to_string(f->get());
+        } else if (const auto* i = value.as_integer()) {
+            text = std::to_string(i->get());
+        }
+        if (const auto error = video::apply_setting(options, key.str(), text)) {
+            r.fail(value, "video." + std::string(key.str()) + ": " + *error);
+        }
+    }
+    return video::serialize(options);
+}
+
 }  // namespace
 
 GameConfig parse_game_config(std::string_view text, std::string_view source_name) {
@@ -117,7 +144,7 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
     }
 
     const Reader r(source_name);
-    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace"});
+    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace", "video"});
 
     GameConfig config;
     if (const toml::node* game = root.get("game")) {
@@ -160,6 +187,9 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
                 config.sources.emplace_back(name->get());
             }
         }
+    }
+    if (const toml::node* video = root.get("video")) {
+        config.video = parse_video(r, *video);
     }
     r.each_table(root, "entry", [&](const toml::table& t) {
         r.only_keys(t, "[[entry]]", {"addr", "mode"});

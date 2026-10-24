@@ -203,6 +203,66 @@ private:
     std::vector<std::uint8_t> out_;
 };
 
+std::uint32_t adler32(const std::vector<std::uint8_t>& data) {
+    std::uint32_t a = 1, b = 0;
+    for (std::uint8_t byte : data) {
+        a = (a + byte) % 65521;
+        b = (b + a) % 65521;
+    }
+    return (b << 16) | a;
+}
+
+// Deflate bit packing with the fixed Huffman code (RFC 1951 3.2.6).
+struct BitWriter {
+    std::vector<std::uint8_t> out;
+    std::uint32_t acc = 0;
+    int count = 0;
+
+    void bits(unsigned value, int n) {  // least significant bit first
+        for (int i = 0; i < n; ++i) {
+            acc |= ((value >> i) & 1u) << count;
+            if (++count == 8) {
+                out.push_back(static_cast<std::uint8_t>(acc));
+                acc = 0;
+                count = 0;
+            }
+        }
+    }
+    void code(unsigned value, int n) {  // Huffman codes go most significant bit first
+        for (int i = n - 1; i >= 0; --i) bits((value >> i) & 1u, 1);
+    }
+    void literal(unsigned sym) {
+        if (sym < 144) code(0x30 + sym, 8);
+        else if (sym < 256) code(0x190 + sym - 144, 9);
+        else if (sym < 280) code(sym - 256, 7);
+        else code(0xC0 + sym - 280, 8);
+    }
+    void length(unsigned len) {
+        static constexpr unsigned kBase[] = {3,  4,  5,  6,  7,  8,  9,  10, 11,  13,  15,  17,  19,  23, 27,
+                                             31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258};
+        static constexpr int kExtra[] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0};
+        int i = 28;
+        while (kBase[i] > len) --i;
+        literal(257 + static_cast<unsigned>(i));
+        bits(len - kBase[i], kExtra[i]);
+    }
+    void distance(unsigned dist) {
+        static constexpr unsigned kBase[] = {1,   2,   3,   4,   5,   7,    9,    13,   17,   25,   33,   49,   65,    97,    129,
+                                             193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+        int i = 29;
+        while (kBase[i] > dist) --i;
+        code(static_cast<unsigned>(i), 5);
+        bits(dist - kBase[i], i < 4 ? 0 : i / 2 - 1);
+    }
+    void flush() {
+        if (count) out.push_back(static_cast<std::uint8_t>(acc));
+        acc = 0;
+        count = 0;
+    }
+};
+
+void save_png(const std::filesystem::path& path, const std::vector<std::uint8_t>& z, int width, int height);
+
 }  // namespace
 
 std::vector<std::uint8_t> inflate_zlib(const std::vector<std::uint8_t>& data) { return Inflater(data).run(); }
@@ -232,13 +292,57 @@ void write_png(const std::filesystem::path& path, std::span<const std::uint16_t>
         z.insert(z.end(), raw.begin() + static_cast<std::ptrdiff_t>(pos), raw.begin() + static_cast<std::ptrdiff_t>(pos + len));
         pos += len;
     } while (pos < raw.size());
-    std::uint32_t a = 1, b = 0;
-    for (std::uint8_t byte : raw) {
-        a = (a + byte) % 65521;
-        b = (b + a) % 65521;
-    }
-    put32(z, (b << 16) | a);
+    put32(z, adler32(raw));
+    save_png(path, z, width, height);
+}
 
+void write_png_rgb(const std::filesystem::path& path, std::span<const std::uint8_t> rgb, int width, int height) {
+    const std::size_t stride = static_cast<std::size_t>(width) * 3;
+    if (rgb.size() != stride * static_cast<std::size_t>(height)) {
+        throw std::runtime_error("write_png_rgb: pixel data does not match the size");
+    }
+    std::vector<std::uint8_t> raw;
+    raw.reserve((stride + 1) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+        raw.push_back(0);
+        raw.insert(raw.end(), rgb.begin() + static_cast<std::ptrdiff_t>(stride * y),
+                   rgb.begin() + static_cast<std::ptrdiff_t>(stride * (y + 1)));
+    }
+    // One fixed-Huffman block. Matches are only tried at the previous pixel and the pixel
+    // above, which is enough for flat pixel-art images.
+    BitWriter w;
+    w.out = {0x78, 0x01};
+    w.bits(1, 1);
+    w.bits(1, 2);
+    const std::size_t up = stride + 1;
+    for (std::size_t i = 0; i < raw.size();) {
+        std::size_t best_len = 0, best_dist = 0;
+        for (const std::size_t dist : {std::size_t{3}, up}) {
+            if (dist > i || dist > 32768) continue;
+            std::size_t len = 0;
+            while (len < 258 && i + len < raw.size() && raw[i + len] == raw[i + len - dist]) ++len;
+            if (len > best_len) {
+                best_len = len;
+                best_dist = dist;
+            }
+        }
+        if (best_len >= 3) {
+            w.length(static_cast<unsigned>(best_len));
+            w.distance(static_cast<unsigned>(best_dist));
+            i += best_len;
+        } else {
+            w.literal(raw[i++]);
+        }
+    }
+    w.literal(256);
+    w.flush();
+    put32(w.out, adler32(raw));
+    save_png(path, w.out, width, height);
+}
+
+namespace {
+
+void save_png(const std::filesystem::path& path, const std::vector<std::uint8_t>& z, int width, int height) {
     std::vector<std::uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
     std::vector<std::uint8_t> ihdr;
     put32(ihdr, static_cast<std::uint32_t>(width));
@@ -254,7 +358,19 @@ void write_png(const std::filesystem::path& path, std::span<const std::uint16_t>
     f.write(reinterpret_cast<const char*>(png.data()), static_cast<std::streamsize>(png.size()));
 }
 
+}  // namespace
+
 std::vector<std::uint16_t> read_png_rgb555(const std::filesystem::path& path, int width, int height) {
+    const std::vector<std::uint8_t> rgb = read_png_rgb(path, width, height);
+    std::vector<std::uint16_t> out;
+    out.reserve(rgb.size() / 3);
+    for (std::size_t i = 0; i < rgb.size(); i += 3) {
+        out.push_back(static_cast<std::uint16_t>((rgb[i] >> 3) | ((rgb[i + 1] >> 3) << 5) | ((rgb[i + 2] >> 3) << 10)));
+    }
+    return out;
+}
+
+std::vector<std::uint8_t> read_png_rgb(const std::filesystem::path& path, int width, int height) {
     std::ifstream f(path, std::ios::binary);
     if (!f) {
         throw std::runtime_error("cannot open " + path.string());
@@ -272,7 +388,7 @@ std::vector<std::uint16_t> read_png_rgb555(const std::filesystem::path& path, in
         if (tag == "IHDR") {
             if (get32(d, pos + 8) != static_cast<std::uint32_t>(width) || get32(d, pos + 12) != static_cast<std::uint32_t>(height) ||
                 d[pos + 16] != 8 || d[pos + 17] != 2 || d[pos + 20] != 0) {
-                throw std::runtime_error(path.string() + ": expected a non-interlaced 8-bit RGB image of the screen size");
+                throw std::runtime_error(path.string() + ": expected a non-interlaced 8-bit RGB image of the expected size");
             }
         } else if (tag == "IDAT") {
             idat.insert(idat.end(), body, body + len);
@@ -285,8 +401,8 @@ std::vector<std::uint16_t> read_png_rgb555(const std::filesystem::path& path, in
         throw std::runtime_error(path.string() + ": unexpected image data size");
     }
     std::vector<std::uint8_t> prev(stride, 0), row(stride);
-    std::vector<std::uint16_t> out;
-    out.reserve(static_cast<std::size_t>(width * height));
+    std::vector<std::uint8_t> out;
+    out.reserve(stride * static_cast<std::size_t>(height));
     for (int y = 0; y < height; ++y) {
         const std::uint8_t* src = raw.data() + static_cast<std::size_t>(y) * (stride + 1);
         const unsigned filter = src[0];
@@ -312,10 +428,7 @@ std::vector<std::uint16_t> read_png_rgb555(const std::filesystem::path& path, in
             }
             row[i] = static_cast<std::uint8_t>(src[1 + i] + pred);
         }
-        for (int x = 0; x < width; ++x) {
-            const std::uint8_t* p = row.data() + static_cast<std::size_t>(x) * 3;
-            out.push_back(static_cast<std::uint16_t>((p[0] >> 3) | ((p[1] >> 3) << 5) | ((p[2] >> 3) << 10)));
-        }
+        out.insert(out.end(), row.begin(), row.end());
         prev = row;
     }
     return out;

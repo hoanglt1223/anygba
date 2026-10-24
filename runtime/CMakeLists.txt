@@ -41,6 +41,14 @@ add_library(anygba_runtime STATIC
   src/player/speed.cpp
   src/player/script.cpp
   src/player/menu.cpp
+  src/video/parallel.cpp
+  src/video/color.cpp
+  src/video/scalers.cpp
+  src/video/hqx.cpp
+  src/video/xbr.cpp
+  src/video/pipeline.cpp
+  src/video/presenter.cpp
+  src/video/settings.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

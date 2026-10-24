@@ -47,6 +47,8 @@ Options (`anygba help build`):
 - `--speed N`: start at 100, 200, 300 or 400% speed.
 - `--load-state FILE`: start from a save state.
 - `--cheat CODE`, `--cheats FILE`, `--cheat-db FILE`: cheats ([CHEATS.md](CHEATS.md)).
+- `--filter SPEC`, `--video SETTINGS`: graphics filters, colour correction and output resolution, also in
+  the menu's Video page ([VIDEO.md](VIDEO.md)).
 - `--headless --frames N --dump-frame-hash`: no window or audio; prints the SHA-256 of the last frame.
   Used by tests and the compatibility tracker.
 - `--exit-on-idle`: stop at the first branch-to-self (test ROMs end this way) and print the registers.
@@ -95,6 +97,8 @@ A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes
   the new key (with Ctrl, Alt or Shift for a hotkey chord) or gamepad button (hold another gamepad button
   first for a chord such as Back+Start). If that key was bound to something else, the two swap. Escape
   cancels. *Reset to defaults* restores the defaults. Changes are saved to the input mapping file at once.
+- **Video**: filter, screen effect, ghosting, colour, gamma, debanding, resolution, fullscreen and integer
+  scale; Left/Right changes them at once and they are kept for this game ([VIDEO.md](VIDEO.md)).
 
 ## Gamepads
 

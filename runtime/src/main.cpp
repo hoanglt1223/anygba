@@ -10,6 +10,8 @@
 #include "player/script.h"
 #include "player/speed.h"
 #include "save/save.h"
+#include "video/presenter.h"
+#include "video/settings.h"
 
 #include <anyport/platform/audio.h>
 #include <anyport/platform/context.h>
@@ -77,6 +79,7 @@ struct Args {
     std::vector<fs::path> cheat_files;
     std::vector<fs::path> cheat_dbs;
     std::vector<std::pair<std::string, fs::path>> dumps;
+    std::string video;  // --filter and --video, serialized
     anygba::Options runtime;
 };
 
@@ -89,6 +92,10 @@ const char* const kUsage =
     "  --fast              do not pace\n"
     "  --speed N           speed in percent: 100, 200, 300 or 400 (default: the input file's [player] Speed)\n"
     "  --scale N           initial window size as a multiple of 240x160 (default 3)\n"
+    "  --filter SPEC       video filter: a scaler, a screen effect and/or ghosting, e.g. xbrz4x+lcd-grid\n"
+    "                      (docs/user/VIDEO.md)\n"
+    "  --video SETTINGS    video settings key=value;...: filter, color, gamma, deband, output, fullscreen,\n"
+    "                      integer-scale\n"
     "  --frames N          stop after N frames\n"
     "  --seconds S         stop after S seconds of wall-clock time\n"
     "  --exit-on-idle      stop at the first branch-to-self and print the registers\n"
@@ -208,6 +215,8 @@ std::optional<Args> parse(int argc, char** argv) {
             a.scripts.emplace_back(argv[++i]);
         } else if (arg == "--keys" && has_value) {
             a.keys.emplace_back(argv[++i]);
+        } else if ((arg == "--filter" || arg == "--video") && has_value) {
+            a.video += (a.video.empty() ? "" : ";") + std::string(arg == "--filter" ? "filter=" : "") + argv[++i];
         } else if (!arg.starts_with("-") && a.rom.empty()) {
             a.rom = arg;
         } else {
@@ -334,6 +343,10 @@ public:
           osd_(args.headless),
           speed_(args.speed.value_or(mapping_.speed)),
           menu_(cheats_, mapping_, speed_, slot_) {
+        std::string video_warning;
+        video_options_ = anygba::video::resolve_settings(anygba_game_info.video, video_file(), args.video, &video_warning);
+        if (!video_warning.empty()) std::fprintf(stderr, "warning: %s\n", video_warning.c_str());
+        menu_.set_video(&video_options_);
         if (!args.headless) {
             context_ = std::make_unique<platform::Context>(platform::ContextOptions{false});
             platform::WindowConfig window;
@@ -343,6 +356,7 @@ public:
             window.scale = args.scale;
             window.vsync = false;  // pacing follows the audio clock, not the display
             window_ = std::make_unique<platform::Window>(window);
+            video_ = std::make_unique<anygba::video::Presenter>(*window_, video_options_);
             audio_ = std::make_unique<platform::AudioStream>(platform::AudioConfig{kSampleRate, 2});
             input_ = std::make_unique<platform::Input>();
             input_->clear_key_bindings();  // keys are read by name through the mapping
@@ -601,6 +615,7 @@ private:
                     save_cheats();
                     break;
                 case player::MenuAction::MappingChanged: save_mapping(); break;
+                case player::MenuAction::VideoChanged: apply_video(); break;
                 case player::MenuAction::Close: break;
                 }
             }
@@ -610,7 +625,7 @@ private:
                 frame_copy_ = sys_.framebuffer();
                 menu_.draw(frame_copy_);
                 osd_.draw(frame_copy_);
-                window_->present(frame_copy_);
+                show(frame_copy_);
                 platform::sleep_ns(16'000'000);
             }
             if (args_.headless && script_ && host_frame_ > script_end + 600) {
@@ -644,12 +659,35 @@ private:
         }
         last_present_ns_ = now;
         if (osd_.empty()) {
-            window_->present(sys_.framebuffer());
+            show(sys_.framebuffer());
             return;
         }
         frame_copy_ = sys_.framebuffer();
         osd_.draw(frame_copy_);
-        window_->present(frame_copy_);
+        show(frame_copy_);
+    }
+
+    void show(std::span<const std::uint16_t> frame) {
+        video_->present(frame, anygba::kScreenWidth, anygba::kScreenHeight);
+    }
+
+    std::optional<fs::path> video_file() const {
+        if (!state_dir_) return std::nullopt;
+        return *state_dir_ / (game_file_stem() + ".video");
+    }
+
+    // Menu changes apply at once and are kept for the next run of this game.
+    void apply_video() {
+        if (video_) {
+            try {
+                video_->set_options(video_options_);
+            } catch (const std::exception& e) {
+                osd_.show(e.what());
+            }
+        }
+        if (const auto file = video_file()) {
+            if (const auto error = anygba::video::save_settings(*file, video_options_)) osd_.show(*error);
+        }
     }
 
     // Audio-led pacing: the device consumes 32768 frames per second of sound (SDL resamples
@@ -684,6 +722,8 @@ private:
     player::Menu menu_;
     std::unique_ptr<platform::Context> context_;
     std::unique_ptr<platform::Window> window_;
+    anygba::video::Options video_options_;
+    std::unique_ptr<anygba::video::Presenter> video_;
     std::unique_ptr<platform::AudioStream> audio_;
     std::unique_ptr<platform::Input> input_;
     std::unique_ptr<anygba::input::DeviceSource> device_;

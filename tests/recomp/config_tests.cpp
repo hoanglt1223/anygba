@@ -137,6 +137,7 @@ TEST_CASE("generated project: replaced functions forward to the hand-written C, 
     info.rom_sha256 = "00";
     info.rom_size = 0x100;
     info.save_type = "eeprom8k";
+    info.video = "filter=hq2x";
     info.replacements[0x08000000] = "skip_intro";
     info.sources.push_back(hacks);
     const auto out = dir / "gen";
@@ -147,7 +148,7 @@ TEST_CASE("generated project: replaced functions forward to the hand-written C, 
     };
     CHECK(read(out / "game.h").find("void skip_intro(anygba_cpu* c);") != std::string::npos);
     CHECK(read(out / "funcs_000.c").find("void f_08000000(anygba_cpu* c) { skip_intro(c); }") != std::string::npos);
-    CHECK(read(out / "dispatch.c").find("\"eeprom8k\",") != std::string::npos);
+    CHECK(read(out / "dispatch.c").find("\"eeprom8k\",\n    -1,\n    \"filter=hq2x\",") != std::string::npos);
     CHECK(read(out / "hacks.c") == "/* user code */\n");
 
     info.replacements[0x08000040] = "nowhere";
@@ -173,4 +174,18 @@ TEST_CASE("generated function starts at its entry when code below it belongs to 
     const auto jump = c.find("goto L_08000004;");
     REQUIRE(jump != std::string::npos);
     CHECK(jump < c.find("L_08000000:"));
+}
+
+TEST_CASE("game config: [video] settings are checked and stored serialized") {
+    const GameConfig c = parse_game_config(
+        "[video]\nfilter = \"xbrz4x+lcd-grid\"\ncolor = \"gba-lcd\"\ngamma = 1.2\ndeband = true\n"
+        "output = \"1080p\"\ninteger-scale = true\n",
+        "game.toml");
+    CHECK(c.video == "filter=xbrz4x+lcd-grid;color=gba-lcd;gamma=1.2;deband=true;output=1080p;integer-scale=true");
+    CHECK(parse_game_config("[video]\ngamma = 2\n", "game.toml").video == "gamma=2");
+    CHECK(parse_game_config("", "game.toml").video.empty());
+    CHECK(error_of("[video]\nfilter = \"hq5x\"\n").starts_with("game.toml:2: video.filter: unknown filter 'hq5x'"));
+    CHECK(error_of("[video]\ndeband = \"yes\"\n") == "game.toml:2: video.deband: deband must be true or false");
+    CHECK(error_of("[video]\nsharpness = 1\n").starts_with("game.toml:2: video.sharpness: unknown video setting"));
+    CHECK(error_of("video = 1\n") == "game.toml:1: [video] must be a table");
 }

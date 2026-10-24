@@ -299,6 +299,7 @@ typedef struct anygba_game {
     uint32_t function_count;
     const char* save_type; /* per-game config override, or "" to detect from the ROM */
     int32_t rtc;           /* real-time clock: 1 on, 0 off, -1 decided by the runtime */
+    const char* video;     /* per-game [video] settings "key=value;...", "" or NULL for defaults */
 } anygba_game;
 
 #ifdef __cplusplus

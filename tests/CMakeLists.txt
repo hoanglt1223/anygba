@@ -41,6 +41,7 @@ add_executable(anygba-tests
   runtime/rtc_tests.cpp
   runtime/cheat_tests.cpp
   runtime/player_tests.cpp
+  runtime/video_tests.cpp
   driver/driver_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
@@ -60,6 +61,9 @@ target_compile_definitions(anygba-tests PRIVATE ANYGBA_CORPUS_DIR="${corpus}"
 anygba_configure_target(anygba-tests)
 
 add_test(NAME unit-tests COMMAND anygba-tests)
+# 4K video filter timings against the 60 fps frame budget, alone so other tests do not skew them.
+add_test(NAME video-timing COMMAND anygba-tests "-tc=*frame budget*")
+set_tests_properties(video-timing PROPERTIES ENVIRONMENT ANYGBA_VIDEO_TIMING=1 RUN_SERIAL TRUE)
 
 # Headless interpreter runs with screenshots and frame hashes, mirroring tests/oracle/mgba-oracle.py.
 add_executable(anygba-shot support/shot_main.cpp support/corpus.cpp support/png.cpp support/headless_run.cpp)
