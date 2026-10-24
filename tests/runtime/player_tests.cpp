@@ -533,6 +533,42 @@ TEST_CASE("MP2K: tempo and envelopes slowed by the speed, then put back") {
     CHECK(byte(chan + 7) == 128);
 }
 
+TEST_CASE("save folder: settings file and the Options page") {
+    const std::string folder = "C:\\Users\\me\\OneDrive\\Documents\\My Games\\AnyGBA\\saves";
+    auto m = anygba::input::parse_mapping("[player]\nSaveFolder = " + folder + "\r\n", "t.ini");
+    CHECK(m.save_folder == folder);
+    CHECK(anygba::input::parse_mapping(anygba::input::format_mapping(m), "rt").save_folder == folder);
+    CHECK(anygba::input::parse_mapping("[player]\nSaveFolder =\n", "t.ini").save_folder.empty());
+
+    anygba::cheats::CheatList list;
+    int speed = 100;
+    int slot = 1;
+    anygba::player::Menu menu(list, m, speed, slot);
+    using anygba::player::MenuAction;
+    std::vector<MenuAction> actions;
+    const auto press = [&](std::uint16_t buttons) {
+        menu.update({});
+        anygba::player::MenuInput in;
+        in.gba_held = buttons;
+        auto a = menu.update(in);
+        actions.insert(actions.end(), a.begin(), a.end());
+    };
+    constexpr std::uint16_t A = 1, Up = 64, Down = 128;
+    menu.open();
+    menu.update({});
+    press(Up);  // wraps to the last row: Options
+    press(A);
+    REQUIRE(menu.lines()[0] == "== Options ==");
+    CHECK(menu.lines()[1] == "> Save folder  ... Games\\AnyGBA\\saves");
+    press(A);
+    CHECK(actions == std::vector<MenuAction>{MenuAction::ChooseSaveFolder});
+    press(Down);
+    press(A);
+    CHECK(m.save_folder.empty());
+    CHECK(actions.back() == MenuAction::MappingChanged);
+    CHECK(menu.lines()[1] == "  Save folder  default");
+}
+
 TEST_CASE("stats overlay: hotkey, setting and lines") {
     const auto defaults = anygba::input::default_mapping();
     CHECK(defaults.hotkeys[static_cast<int>(Hotkey::Stats)] == std::vector<std::string>{"Ctrl+F"});

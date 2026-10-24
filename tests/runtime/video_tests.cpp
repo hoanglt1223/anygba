@@ -225,7 +225,8 @@ TEST_CASE("menu: the Video page steps every setting and reports the change") {
     };
     menu.open();
     menu.update({});
-    press(Up);  // wraps to the last row: Video
+    press(Up);  // wraps to the last row, Options
+    press(Up);  // Video
     press(A);
     REQUIRE(menu.lines()[0] == "== Video ==");
     CHECK(menu.lines()[1] == "> Filter  < nearest >");

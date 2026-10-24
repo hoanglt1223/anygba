@@ -253,11 +253,13 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
             } else if (key == "NormalSpeedMusic") {
                 if (value != "on" && value != "off") fail("NormalSpeedMusic must be on or off");
                 m.normal_speed_music = value == "on";
+            } else if (key == "SaveFolder") {
+                m.save_folder = std::string(value);
             } else if (key == "StickDeadzone") {
                 if (*end != '\0' || n < 0 || n > 32767) fail("StickDeadzone must be 0 to 32767");
                 m.stick_deadzone = static_cast<int>(n);
             } else {
-                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, NormalSpeedMusic, Stats, StickDeadzone)");
+                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, NormalSpeedMusic, Stats, StickDeadzone, SaveFolder)");
             }
             continue;
         }
@@ -346,7 +348,8 @@ std::string format_mapping(const Mapping& m) {
            "\nFastForwardSpeed = " + player::format_fast_forward(m.fast_forward, false) +
            "\nNormalSpeedMusic = " + (m.normal_speed_music ? "on" : "off") +
            "\nStats = " + (m.stats ? "on" : "off") +
-           "\nStickDeadzone = " + std::to_string(m.stick_deadzone) + "\n";
+           "\nStickDeadzone = " + std::to_string(m.stick_deadzone) +
+           "\nSaveFolder = " + m.save_folder + "\n";
     return out;
 }
 

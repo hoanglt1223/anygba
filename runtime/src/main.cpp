@@ -9,6 +9,7 @@
 #include "input_map.h"
 #include "player/lifecycle.h"
 #include "journal/journal.h"
+#include "player/dialog.h"
 #include "player/menu.h"
 #include "player/mp2k.h"
 #include "player/osd.h"
@@ -125,7 +126,7 @@ const char* const kUsage =
     "  --seconds S         stop after S seconds of wall-clock time\n"
     "  --exit-on-idle      stop at the first branch-to-self and print the registers\n"
     "  --dump-frame-hash   print the SHA-256 of the last frame (RGB555, little-endian) on exit\n"
-    "  --save-dir DIR      where the save file, save states and cheat file live (default: the per-user data folder)\n"
+    "  --save-dir DIR      where the save file, save states and cheat file live (default: [player] SaveFolder, else the data folder)\n"
     "  --save-type T       none, sram, flash64, flash128, eeprom, eeprom512 or eeprom8k (default: config, else detect)\n"
     "  --no-save           do not read or write a save file\n"
     "  --rtc on|off        cartridge real-time clock (default: config, else on for games that had one)\n"
@@ -317,6 +318,11 @@ void print_registers(const anygba_cpu& c) {
 
 fs::path utf8_path(const char* s) { return fs::path(std::u8string(reinterpret_cast<const char8_t*>(s))); }
 
+std::string path_utf8(const fs::path& p) {
+    const std::u8string s = p.u8string();
+    return {s.begin(), s.end()};
+}
+
 // Per-user data folder (created by SDL), e.g. %APPDATA%/anyport/anygba/ on Windows.
 // ANYGBA_DATA_DIR replaces it (tests use it to keep the user's own files out).
 std::optional<fs::path> data_dir() {
@@ -371,19 +377,7 @@ std::vector<std::uint8_t> read_bytes(const fs::path& path) {
 
 // Writes through a temporary file so a crash never leaves half a file. Returns an error.
 std::optional<std::string> write_file(const fs::path& path, const std::vector<std::uint8_t>& bytes) {
-    std::error_code ec;
-    fs::create_directories(path.parent_path(), ec);
-    fs::path tmp = path;
-    tmp += ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-        out.close();
-        if (!out) return "cannot write " + tmp.string();
-    }
-    fs::rename(tmp, path, ec);
-    if (ec) return "cannot replace " + path.string() + ": " + ec.message();
-    return std::nullopt;
+    return anygba::save::replace_file(path, bytes, false);
 }
 
 struct LoadedMapping {
@@ -581,6 +575,7 @@ public:
             pacer_->wait();
         }
         osd_.tick();
+        poll_dialog();
         if (menu_.is_open()) {
             run_menu();
         }
@@ -928,6 +923,32 @@ private:
         }
     }
 
+    void choose_save_folder() {
+        if (!window_) {
+            osd_.show("No folder picker without a window; set SaveFolder in the input file");
+            return;
+        }
+        const std::string start = state_dir_ ? path_utf8(*state_dir_) : std::string();
+        if (dialog_.show(player::FileDialog::Kind::Folder, start)) dialog_for_ = DialogFor::SaveFolder;
+    }
+
+    // Acts on a picker that has closed.
+    void poll_dialog() {
+        if (dialog_for_ == DialogFor::None) return;
+        const auto answer = dialog_.take();
+        if (!answer) return;
+        const DialogFor what = dialog_for_;
+        dialog_for_ = DialogFor::None;
+        if (answer->empty()) return;  // cancelled
+        if (what == DialogFor::SaveFolder) set_save_folder(*answer);
+    }
+
+    void set_save_folder(const std::string& folder) {
+        mapping_.save_folder = folder;
+        save_mapping();
+        osd_.show("Save folder: " + player::to_ascii(folder) + " (from the next start)");
+    }
+
     void save_mapping() {
         if (!mapping_path_) {
             osd_.show("No folder for anygba-input.ini");
@@ -984,9 +1005,11 @@ private:
                 case player::MenuAction::MappingChanged: save_mapping(); break;
                 case player::MenuAction::VideoChanged: apply_video(); break;
                 case player::MenuAction::SettingsChanged: apply_menu_settings(); break;
+                case player::MenuAction::ChooseSaveFolder: choose_save_folder(); break;
                 case player::MenuAction::Close: break;
                 }
             }
+            poll_dialog();
             trace_menu();
             osd_.tick();
             if (window_) {
@@ -1147,6 +1170,9 @@ private:
     player::TimeStretch stretch_;
     bool stretching_ = false;
     player::Mp2kTempo mp2k_;
+    enum class DialogFor : std::uint8_t { None, SaveFolder };
+    player::FileDialog dialog_;
+    DialogFor dialog_for_ = DialogFor::None;
     std::unique_ptr<WavWriter> wav_;
     std::vector<std::int16_t> sound_;
     std::vector<std::int16_t> squeezed_;
@@ -1300,7 +1326,12 @@ int main(int argc, char** argv) {
 
         system = std::make_unique<anygba::System>(std::move(rom), &anygba_game_info, args->runtime);
         anygba::System& sys = *system;
+        // --save-dir, else the settings file's SaveFolder (relative to that file), else the default.
         std::optional<fs::path> dir = args->save_dir;
+        if (!dir && !mapping.mapping.save_folder.empty()) {
+            dir = utf8_path(mapping.mapping.save_folder.c_str());
+            if (dir->is_relative() && mapping.path) dir = mapping.path->parent_path() / *dir;
+        }
         if (!dir) {
             dir = data_dir();
             if (dir) *dir /= "saves";

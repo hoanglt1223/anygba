@@ -81,7 +81,7 @@ set_target_properties(anygba_runtime PROPERTIES OUTPUT_NAME anygba)
 anygba_configure_target(anygba_runtime)
 
 # main() for generated games: loads the ROM and runs anygba_game_info from dispatch.c.
-add_library(anygba_game_main STATIC src/main.cpp)
+add_library(anygba_game_main STATIC src/main.cpp src/player/dialog.cpp)
 add_library(anygba::game_main ALIAS anygba_game_main)
 target_link_libraries(anygba_game_main PUBLIC anygba_runtime PRIVATE anygba::common)
 target_include_directories(anygba_game_main PRIVATE src)

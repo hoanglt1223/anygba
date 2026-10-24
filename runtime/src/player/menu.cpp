@@ -25,7 +25,8 @@ constexpr cheats::Format kEntryFormats[] = {cheats::Format::Auto,         cheats
 constexpr int kEntryFormatCount = static_cast<int>(sizeof kEntryFormats / sizeof kEntryFormats[0]);
 
 constexpr int kMainResume = 0, kMainSave = 1, kMainLoad = 2, kMainSpeed = 3, kMainCheats = 4, kMainControls = 5;
-constexpr int kMainVideo = 6, kMainSettings = 7;
+constexpr int kMainVideo = 6, kMainSettings = 7, kMainOptions = 8;
+constexpr int kOptionsFolder = 0, kOptionsDefaultFolder = 1;
 constexpr int kCustomGroup = -2;  // tree row: "My codes"
 constexpr int kAddCode = -3;      // tree row: "Add code..."
 constexpr int kReset = -4;        // controls row: reset to defaults
@@ -122,6 +123,7 @@ std::vector<MenuAction> Menu::update(const MenuInput& in) {
     case Page::Controls: update_controls(press, out); break;
     case Page::Video: update_video(press, out); break;
     case Page::Settings: update_settings(press, out); break;
+    case Page::Options: update_options(press, out); break;
     case Page::Speed: update_speed(press, out); break;
     default: break;
     }
@@ -169,6 +171,11 @@ void Menu::update_main(std::uint16_t press, std::vector<MenuAction>& out) {
     case kMainSpeed:
         cursor_stack_.push_back(cursor_);
         page_ = Page::Speed;
+        cursor_ = 0;
+        break;
+    case kMainOptions:
+        cursor_stack_.push_back(cursor_);
+        page_ = Page::Options;
         cursor_ = 0;
         break;
     case kMainCheats:
@@ -228,6 +235,25 @@ void Menu::update_speed(std::uint16_t press, std::vector<MenuAction>& out) {
     } else if (cursor_ == 2) {
         mapping_.normal_speed_music = !mapping_.normal_speed_music;
         out.push_back(MenuAction::MappingChanged);
+    }
+}
+
+void Menu::update_options(std::uint16_t press, std::vector<MenuAction>& out) {
+    if (press & kB) {
+        back_to_main();
+        return;
+    }
+    if (!(press & kA)) return;
+    switch (cursor_) {
+    case kOptionsFolder: out.push_back(MenuAction::ChooseSaveFolder); break;
+    case kOptionsDefaultFolder:
+        if (!mapping_.save_folder.empty()) {
+            mapping_.save_folder.clear();
+            say("Default save folder, from the next start");
+            out.push_back(MenuAction::MappingChanged);
+        }
+        break;
+    default: break;
     }
 }
 
@@ -517,6 +543,7 @@ std::string Menu::title() const {
     case Page::Capture: return "Rebind " + input::target_name(capture_target_);
     case Page::Video: return "Video";
     case Page::Settings: return "Settings";
+    case Page::Options: return "Options";
     case Page::Speed: return "Speed";
     }
     return {};
@@ -532,6 +559,7 @@ std::string Menu::help() const {
     case Page::Capture: return "Press a key or button  Esc cancel";
     case Page::Video: return "</> change  B back";
     case Page::Settings: return "A on/off  B back";
+    case Page::Options: return "A choose  B back";
     case Page::Speed: return "</> change  B back";
     }
     return {};
@@ -549,12 +577,21 @@ std::vector<Menu::Row> Menu::rows() const {
         out.push_back({"Controls", ">", kMainControls});
         if (video_) out.push_back({"Video", ">", kMainVideo});
         if (settings_) out.push_back({"Settings", ">", kMainSettings});
+        out.push_back({"Options", ">", kMainOptions});
         break;
     case Page::Speed:
         out.push_back({"Speed", "< " + std::to_string(speed_) + "% >", 0});
         out.push_back({"Fast-forward speed", "< " + format_fast_forward(mapping_.fast_forward) + " >", 1});
         out.push_back({"Normal-speed music", mapping_.normal_speed_music ? "On" : "Off", 2});
         break;
+    case Page::Options: {
+        // The end of a long path is the part that tells folders apart.
+        std::string folder = mapping_.save_folder.empty() ? "default" : to_ascii(mapping_.save_folder);
+        if (folder.size() > 22) folder = "..." + folder.substr(folder.size() - 19);
+        out.push_back({"Save folder", folder, kOptionsFolder});
+        out.push_back({"Use the default folder", "", kOptionsDefaultFolder});
+        break;
+    }
     case Page::Settings:
         if (settings_) {
             out.push_back({"AI control", settings_->ai_control ? "On" : "Off", 0});

@@ -135,6 +135,7 @@ A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes
   scale; Left/Right changes them at once and they are kept for this game ([VIDEO.md](VIDEO.md)).
 - **Settings**: AI control, Read-only agent and Journal switches ([AI-CONTROL.md](AI-CONTROL.md)). They
   take effect at once and last until the game ends.
+- **Options**: the save folder (see Saves).
 
 ## Gamepads
 
@@ -184,9 +185,18 @@ Save files live in the per-user data folder, under `saves/<title>-<hash>.sav`:
 The environment variable `ANYGBA_DATA_DIR` replaces the per-user data folder (saves, input mapping and
 settings), for a portable install or an isolated test run.
 
-`--save-dir DIR` uses another folder; `--no-save` disables saving. A save is written about half a second
+To keep saves elsewhere (a OneDrive folder such as
+`C:\Users\<you>\OneDrive\Documents\My Games\AnyGBA\saves`, for example), set the save folder in the menu
+(Options, *Save folder*: a folder picker) or as `SaveFolder = <folder>` in the input file's `[player]`
+section; a relative folder is taken from the input file's folder. It is used from the next start for the
+save file, save states, the cheat file and the video settings; move existing files there yourself.
+*Use the default folder* goes back to the per-user data folder.
+
+`--save-dir DIR` uses another folder for one run (it overrides `SaveFolder`); `--no-save` disables saving. A save is written about half a second
 after the game stops changing it, and again on exit. Each write goes to a temporary file first, and the
-previous save is kept as `<name>.sav.bak`. A save file whose size does not fit the chip stops the program
+previous save is kept as `<name>.sav.bak`. When another program has the file open for a moment (OneDrive
+syncing it, a virus scanner), each step is retried for about half a second before the write is reported
+as failed; a failed write is tried again on the next change and on exit. A save file whose size does not fit the chip stops the program
 with an error instead of being overwritten. The `.sav` files are raw chip contents, the same layout mGBA
 and most emulators use.
 

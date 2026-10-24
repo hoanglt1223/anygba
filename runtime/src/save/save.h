@@ -78,6 +78,13 @@ std::unique_ptr<Backup> make_flash(bool banks2);
 std::unique_ptr<Backup> make_eeprom(std::size_t size);  // 0 = decide later, else 512 or 8192
 std::unique_ptr<Backup> make(Type type);
 
+// Writes `bytes` to `path` through `<path>.tmp` and a rename, so a crash never leaves half a
+// file; with `keep_backup` the current file is first copied to `<path>.bak`. Each step is
+// retried for about half a second while the file is locked by another program (OneDrive or a
+// virus scanner syncing it). Returns an error message.
+std::optional<std::string> replace_file(const std::filesystem::path& path, std::span<const std::uint8_t> bytes,
+                                        bool keep_backup);
+
 // Save file next to the per-user data, written atomically: the new contents go to
 // `<path>.tmp`, the current file is copied to `<path>.bak`, then the temp file replaces it.
 // Writes happen once the contents have been stable for `debounce_frames` frames, and on

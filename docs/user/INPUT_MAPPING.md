@@ -70,6 +70,9 @@ NormalSpeedMusic = off
 Stats = off
 # Left stick travel ignored before it presses the d-pad (0-32767).
 StickDeadzone = 12000
+# Folder for saves, save states and the cheat file, e.g.
+# C:\Users\me\OneDrive\Documents\My Games\AnyGBA\saves (empty: the per-user data folder).
+SaveFolder =
 ```
 
 - Names are the GBA buttons `A`, `B`, `Select`, `Start`, `Right`, `Left`, `Up`, `Down`, `R`, `L` and the

@@ -24,7 +24,8 @@ struct MenuInput {
     bool menu_hotkey = false;            // the Menu hotkey was pressed this frame
 };
 
-enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged, SettingsChanged };
+enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged, SettingsChanged,
+                                       ChooseSaveFolder };
 
 // The Settings page's switches (docs/user/AI-CONTROL.md); the player applies them.
 struct MenuSettings {
@@ -52,7 +53,7 @@ public:
     std::vector<std::string> lines() const;
 
 private:
-    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video, Settings, Speed };
+    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video, Settings, Speed, Options };
     struct Row {
         std::string text;
         std::string value;  // right-aligned part
@@ -73,6 +74,7 @@ private:
     void update_capture(const MenuInput& in, std::vector<MenuAction>& out);
     void update_video(std::uint16_t press, std::vector<MenuAction>& out);
     void update_speed(std::uint16_t press, std::vector<MenuAction>& out);
+    void update_options(std::uint16_t press, std::vector<MenuAction>& out);
     void back_to_main();
     void bind(input::Device device, const std::string& binding, std::vector<MenuAction>& out);
 

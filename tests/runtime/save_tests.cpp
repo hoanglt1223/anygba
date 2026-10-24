@@ -13,6 +13,14 @@
 #include <string>
 #include <vector>
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <chrono>
+#include <thread>
+#endif
+
 namespace fs = std::filesystem;
 using namespace anygba::save;
 using anygba::test::TempDir;
@@ -187,6 +195,35 @@ TEST_CASE("EEPROM of unknown size refuses a CPU access and names the config fix"
     e->load(std::vector<std::uint8_t>(512, 0));
     CHECK(e->type() == Type::Eeprom512);
 }
+
+#if defined(_WIN32)
+// OneDrive holds a file it syncs open without delete sharing for a moment; the write waits.
+TEST_CASE("save file: a write retries while another program holds the file open") {
+    TempDir dir("anygba-save-lock test");  // a space, as in "My Games"
+    const fs::path path = dir.path / "game.sav";
+    REQUIRE_FALSE(replace_file(path, std::vector<std::uint8_t>{1, 2, 3}, true));
+    HANDLE held = CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    REQUIRE(held != INVALID_HANDLE_VALUE);
+    std::thread release([held] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        CloseHandle(held);
+    });
+    const auto error = replace_file(path, std::vector<std::uint8_t>{4, 5}, true);
+    release.join();
+    CHECK_FALSE(error);
+    CHECK(read_all(path) == std::vector<std::uint8_t>{4, 5});
+    CHECK(read_all(fs::path(path).concat(".bak")) == std::vector<std::uint8_t>{1, 2, 3});
+
+    // Held for longer than the retries last: an error naming the file, the old file intact.
+    held = CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    REQUIRE(held != INVALID_HANDLE_VALUE);
+    const auto stuck = replace_file(path, std::vector<std::uint8_t>{6}, true);
+    CloseHandle(held);
+    REQUIRE(stuck);
+    CHECK(stuck->find("game.sav") != std::string::npos);
+    CHECK(read_all(path) == std::vector<std::uint8_t>{4, 5});
+}
+#endif
 
 TEST_CASE("save file: debounced writes, backup of the previous file, reload") {
     TempDir dir("anygba-save-test");

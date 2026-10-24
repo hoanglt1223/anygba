@@ -49,6 +49,7 @@ struct Mapping {
     int fast_forward = 300;       // [player] FastForwardSpeed: percent, 0 = unlimited
     bool stats = false;           // [player] Stats: the stats overlay is shown
     bool normal_speed_music = false;  // [player] NormalSpeedMusic: music keeps 1x tempo and pitch when faster
+    std::string save_folder;      // [player] SaveFolder: saves, states and cheats (UTF-8); empty = default
     int stick_deadzone = 12000;   // [player] StickDeadzone: left stick travel ignored (0-32767)
 };
 
