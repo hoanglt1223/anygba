@@ -95,6 +95,9 @@ public:
     // Refresh rate of the display the window is on (it changes when the window moves to
     // another monitor), or 0 when unknown.
     double refresh_rate() const;
+    // Waits for `interval` vblanks per present (0: no wait). False when the renderer cannot
+    // (the setting is then unchanged).
+    bool set_vsync(int interval);
     // The primary display's desktop mode, or (0, 0) when unknown.
     static std::pair<int, int> desktop_size();
     // While an overlay is set it places the picture instead of the integer-scale letterbox.

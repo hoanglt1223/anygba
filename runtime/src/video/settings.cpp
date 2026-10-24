@@ -92,6 +92,11 @@ std::vector<MenuItem> menu_items(const Options& o) {
         {"AI model", std::string(name(o.ai_model))},
         {"Widescreen", std::string(name(o.widescreen))},
         {"Smoothing", on_off(o.smoothing)},
+        {"Refresh", o.refresh == 0 ? std::string("Auto (match monitor)") : std::to_string(o.refresh) + " Hz"},
+        {"Variable refresh", on_off(o.vrr)},
+        {"Sync game to monitor", on_off(o.sync_to_monitor)},
+        {"Menu FPS", std::to_string(o.menu_fps)},
+        {"FPS cap", o.fps_cap == 0 ? std::string("off") : std::to_string(o.fps_cap)},
     };
 }
 
@@ -121,6 +126,11 @@ void menu_step(Options& o, int item, int dir) {
     case 15: cycle(o.ai_model, all_ai_models(), dir); break;
     case 16: cycle(o.widescreen, all_widescreens(), dir); break;
     case 17: o.smoothing = !o.smoothing; break;
+    case 18: cycle(o.refresh, std::span<const int>(kRefreshRates), dir); break;
+    case 19: o.vrr = !o.vrr; break;
+    case 20: o.sync_to_monitor = !o.sync_to_monitor; break;
+    case 21: cycle(o.menu_fps, std::span<const int>(kMenuFps), dir); break;
+    case 22: cycle(o.fps_cap, std::span<const int>(kFpsCaps), dir); break;
     default: break;
     }
 }

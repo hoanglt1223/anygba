@@ -108,7 +108,7 @@ Emerald dump.
 ## Stats overlay
 
 Ctrl+F (the `Stats` hotkey) shows figures in the top-left corner, updated every second: pictures shown
-and GBA frames emulated per second, the measured speed against its target (`(FF)` while fast-forward is
+and GBA frames emulated per second, the monitor refresh and frame pacing ([VIDEO.md](VIDEO.md#refresh-and-frame-pacing)), the measured speed against its target (`(FF)` while fast-forward is
 held), the host time to emulate one frame, how full the sound queue is and how many times the game's
 sound DMA fell behind (FIFO underruns), the share of emulated time spent in the interpreter (code the
 recompiler missed; see "When something is missing"), the video filter and output resolution, the

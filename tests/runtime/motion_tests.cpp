@@ -94,7 +94,7 @@ TEST_CASE("smoothing: setting, menu row and default") {
     CHECK(o.smoothing);
     CHECK(anygba::video::serialize(o) == "smoothing=true");
     const auto items = anygba::video::menu_items(o);
-    REQUIRE(items.size() == 18);
+    REQUIRE(items.size() == 23);
     CHECK(items[17].label == "Smoothing");
     anygba::video::menu_step(o, 17, 1);
     CHECK_FALSE(o.smoothing);

@@ -25,6 +25,7 @@ double speed_percent(double gba_fps) { return gba_fps * 100.0 / kGbaFramesPerSec
 std::vector<std::string> stats_lines(const Stats& s) {
     std::vector<std::string> out;
     out.push_back(format("FPS %.1f host, %.1f GBA", s.host_fps, s.gba_fps));
+    if (!s.display.empty()) out.push_back("Monitor " + s.display);
     const std::string target = s.target_speed == kUnlimited ? "unlimited" : std::to_string(s.target_speed) + "%";
     out.push_back(format("Speed %.0f%% of %s%s", speed_percent(s.gba_fps), target.c_str(), s.fast_forward ? " (FF)" : ""));
     out.push_back(format("Frame %.2f ms", s.frame_ms));

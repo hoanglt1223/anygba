@@ -541,7 +541,7 @@ TEST_CASE("video options: HD settings parse, serialize and step in the menu") {
 
     video::Options m;
     const auto items = video::menu_items(m);
-    REQUIRE(items.size() == 18);
+    REQUIRE(items.size() == 23);
     CHECK(items[9].label == "Internal scale");
     CHECK(items[16].value == "off");
     video::menu_step(m, 9, -1);

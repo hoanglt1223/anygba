@@ -66,6 +66,12 @@ struct Options {
     Widescreen widescreen = Widescreen::Off;
     // Pictures between frames on high-refresh displays, from the PPU's scroll and sprite motion.
     bool smoothing = false;
+    // Refresh and frame pacing (docs/user/VIDEO.md#refresh-and-frame-pacing).
+    int refresh = 0;               // monitor refresh in Hz the pacing assumes; 0 = detect
+    bool vrr = false;              // variable refresh monitor: present each frame when it is ready
+    bool sync_to_monitor = false;  // run the game at the monitor's rate when within 1%
+    int menu_fps = 30;             // pictures per second while the menu is open
+    int fps_cap = 0;               // most pictures per second shown; 0 = no cap
 
     bool operator==(const Options&) const = default;
 };
@@ -73,6 +79,9 @@ struct Options {
 inline constexpr double kMinGamma = 0.5;
 inline constexpr double kMaxGamma = 2.5;
 inline constexpr int kMaxInternalScale = 8;
+inline constexpr int kRefreshRates[] = {0, 60, 75, 90, 120, 144, 165, 240};
+inline constexpr int kMenuFps[] = {30, 60};
+inline constexpr int kFpsCaps[] = {0, 30, 60, 120};
 
 std::span<const Scaler> all_scalers();
 std::span<const Effect> all_effects();
@@ -106,7 +115,8 @@ std::string filter_spec(const Options& options);
 
 // One setting by key, as on the command line and in the game TOML: filter, color, gamma, deband,
 // output, fullscreen, integer-scale, internal-scale, layer-filter, smooth-affine, hd-pack, hd-dump,
-// ai, ai-model, widescreen, smoothing. Booleans take true/false/on/off/1/0. Returns an error message.
+// ai, ai-model, widescreen, smoothing, refresh (auto or Hz), vrr, sync-to-monitor, menu-fps,
+// fps-cap (off or fps). Booleans take true/false/on/off/1/0. Returns an error message.
 std::optional<std::string> apply_setting(Options& options, std::string_view key, std::string_view value);
 
 // "key=value;key=value" with every setting that differs from the defaults (embedded in generated

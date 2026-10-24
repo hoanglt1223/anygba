@@ -21,6 +21,7 @@ struct Stats {
     double interpreted = 0;            // percent of emulated cycles run in the interpreter
     std::string filter;                // video filter spec
     std::string output;                // output resolution ("720x480") or "headless"
+    std::string display;               // monitor refresh and pacing, "144 Hz auto, vsync"
     std::size_t cheats = 0;
     std::string save;                  // save type name
     bool rtc = false;

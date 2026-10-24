@@ -327,6 +327,8 @@ bool Window::accelerated() const {
     return name && std::strcmp(name, SDL_SOFTWARE_RENDERER) != 0;
 }
 
+bool Window::set_vsync(int interval) { return SDL_SetRenderVSync(renderer_, interval); }
+
 double Window::refresh_rate() const {
     const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window_));
     if (!mode) return 0;

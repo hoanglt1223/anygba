@@ -16,6 +16,7 @@
 #include "player/script.h"
 #include "player/speed.h"
 #include "player/stats.h"
+#include "player/display_timing.h"
 #include "video/motion.h"
 #include "player/touch_overlay.h"
 #include "save/save.h"
@@ -638,6 +639,7 @@ public:
 
         fast_forward_held_ = anygba::input::has(held, Hotkey::FastForward) || fast_forward_latched_;
         if (effective_speed() != pacer_speed_) reset_pacer();
+        update_pacing();
         const bool unthrottled = this->unthrottled();
         present(unthrottled);
         if (mapping_.normal_speed_music || mp2k_.scaled()) {
@@ -662,6 +664,7 @@ public:
             pacer_->wait();
         }
         show_between(true);
+        if (cadence_) present_paced();
         osd_.tick();
         if (touch_ && touch_->paused()) run_touch_pause();
         poll_dialog();
@@ -906,10 +909,11 @@ private:
                     show(frame_copy_);
                 }
             }
-            platform::sleep_ns(16'000'000);
+            platform::sleep_ns(1'000'000'000ull / static_cast<unsigned>(video_options_.menu_fps));
         }
         hotkeys_prev_ = hotkeys_held();
         reset_audio();
+        cadence_.reset();
     }
 
     // A PNG of the game picture (filters included) in <data>/screenshots, which the Android
@@ -1021,6 +1025,19 @@ private:
             s.output = std::to_string(w) + "x" + std::to_string(h);
         } else {
             s.output = "headless";
+        }
+        if (window_) {
+            char display[96];
+            const double hz = monitor_hz();
+            std::snprintf(display, sizeof display, "%.0f Hz %s, %s", hz, video_options_.refresh ? "set" : "auto",
+                          cadence_ ? (vsync_set_ ? "vsync" : "timer") : video_options_.vrr ? "VRR" : "free");
+            s.display = display;
+            if (cadence_ && sync_factor_ != 1.0) {
+                std::snprintf(display, sizeof display, ", synced %.2f fps", cadence_->game_hz());
+                s.display += display;
+            }
+        } else {
+            s.display = "none";
         }
         s.cheats = cheats_.active().size();
         s.save = anygba::save::name(sys_.backup().type());
@@ -1344,6 +1361,7 @@ private:
     void run_menu() {
         std::uint32_t pad_prev = source().pad().buttons;
         const std::uint64_t script_end = script_ ? script_->last_frame() : 0;
+        platform::FramePacer menu_pacer(video_options_.menu_fps);
         while (menu_.is_open()) {
             if (!poll()) {
                 stop();
@@ -1399,7 +1417,7 @@ private:
                 osd_.draw(frame_copy_);
                 draw_indicator();
                 show(frame_copy_);
-                platform::sleep_ns(16'000'000);
+                menu_pacer.wait();
             }
             if (args_.headless && script_ && host_frame_ > script_end + 600) {
                 std::fprintf(stderr, "warning: the script ended with the menu open; closing it\n");
@@ -1412,6 +1430,7 @@ private:
         trace_menu();
         hotkeys_prev_ = hotkeys_held();
         reset_audio();
+        cadence_.reset();
     }
 
     // Headless runs print the menu whenever it changes, for scripted tests and debugging.
@@ -1426,12 +1445,16 @@ private:
 
     void present(bool unthrottled) {
         const std::uint64_t now = platform::now_ns();
+        if (smoothing_wanted()) motion_->end_frame();
+        if (cadence_) return;  // present_paced shows it on the display's vblanks
         if (smoothing_wanted()) {
-            motion_->end_frame();
             if (!unthrottled && effective_speed() == 100 && !hd_->picture() && plan_between(now)) return;
         }
         if ((unthrottled || effective_speed() > 100) && now - last_present_ns_ < 15'000'000) {
             return;  // fast play: show at most about 60 pictures a second
+        }
+        if (video_options_.fps_cap && now - last_present_ns_ < 950'000'000ull / static_cast<unsigned>(video_options_.fps_cap)) {
+            return;
         }
         last_present_ns_ = now;
         ++presents_;  // counted headless too, as the pictures a window would show
@@ -1452,14 +1475,111 @@ private:
 
     bool smoothing_wanted() const { return video_options_.smoothing && window_; }
 
+    // The monitor's refresh (checked once a second, so moving the window to another monitor
+    // is noticed), or the rate set in the Video page.
+    double monitor_hz() {
+        const std::uint64_t now = platform::now_ns();
+        if (window_ && (refresh_checked_ns_ == 0 || now - refresh_checked_ns_ > 1'000'000'000ull)) {
+            refresh_checked_ns_ = now;
+            detected_hz_ = window_->refresh_rate();
+        }
+        if (video_options_.refresh) return video_options_.refresh;
+        return detected_hz_ > 0 ? detected_hz_ : 60.0;
+    }
+
+    // Frames are paced by the display (cadence_ set) at 100% speed in a window, unless the
+    // monitor has variable refresh: then each frame is presented when ready (audio-led).
+    bool display_paced() const {
+        return window_ && args_.pace && !unthrottled() && effective_speed() == 100 && !video_options_.vrr;
+    }
+
+    void update_pacing() {
+        if (!window_) return;
+        const double hz = monitor_hz();
+        const bool paced = display_paced();
+        const int interval = player::vsync_interval(hz, video_options_.fps_cap);
+        // VSync only keeps time when the rate pacing assumes is the monitor's real one.
+        int vsync = paced && player::same_rate(hz, detected_hz_) ? interval : 0;
+        if (vsync != vsync_set_) {
+            if (!window_->set_vsync(vsync)) {
+                vsync = 0;
+                window_->set_vsync(0);
+            }
+            vsync_set_ = vsync;
+        }
+        if (!paced) {
+            cadence_.reset();
+            sync_factor_ = 1.0;
+            audio_ratio_ = 1.0;
+            return;
+        }
+        const double shown = hz / interval;
+        const double game = video_options_.sync_to_monitor ? player::synced_game_hz(anygba::kFramesPerSecond, shown)
+                                                           : anygba::kFramesPerSecond;
+        if (!cadence_ || cadence_->game_hz() != game || cadence_->display_hz() != shown) {
+            cadence_.emplace(game, shown);
+            cad_frame_ = cad_vblank_ = 0;
+            cad_base_ns_ = 0;
+        }
+        sync_factor_ = game / anygba::kFramesPerSecond;
+    }
+
+    // Shows the display vblanks that fall between the previous frame's time and this one's:
+    // this frame (or, with smoothing, pictures between the two). Each present waits for its
+    // vblank; without working vsync a timer keeps the same schedule.
+    void present_paced() {
+        ++cad_frame_;
+        const std::uint64_t until = cadence_->first_vblank(cad_frame_);
+        const double period = 1e9 / cadence_->display_hz();
+        const bool smooth = smoothing_wanted() && motion_->smooth() && !hd_->picture() && !prev_frame_.empty();
+        if (smooth) between_vram_ = sys_.memory().vram;
+        const auto due = [&](std::uint64_t vblank) {
+            return cad_base_ns_ + static_cast<std::uint64_t>(period * static_cast<double>(vblank));
+        };
+        while (cad_vblank_ < until) {
+            std::uint64_t now = platform::now_ns();
+            if (cad_base_ns_ == 0 || now > due(cad_vblank_) + 250'000'000ull) {
+                // Start, or a long stall (window dragged): restart the schedule from now.
+                cad_base_ns_ = now - static_cast<std::uint64_t>(period * static_cast<double>(cad_vblank_));
+            }
+            if (cad_vblank_ + 1 < until && now > due(cad_vblank_ + 1)) {
+                ++cad_vblank_;  // this vblank has passed: skip its picture, keep the game's speed
+                continue;
+            }
+            const double t = cadence_->position(cad_vblank_) - static_cast<double>(cad_frame_ - 1);
+            if (const anygba::video::Image* hd = hd_picture()) {
+                video_->present(*hd, hd_->logical_width(), hd_->logical_height());
+            } else {
+                if (smooth && t <= 0.0) {
+                    std::copy(prev_frame_.begin(), prev_frame_.end(), frame_copy_.begin());
+                } else if (smooth && t < 1.0) {
+                    frame_copy_ = motion_->render(t, between_vram_);
+                } else {
+                    frame_copy_ = sys_.framebuffer();
+                }
+                decorate();
+                show(frame_copy_);
+            }
+            ++presents_;
+            ++cad_vblank_;
+            now = platform::now_ns();
+            const std::uint64_t next = due(cad_vblank_);
+            if (now < next && (vsync_set_ == 0 || static_cast<double>(next - now) > period / 2)) {
+                platform::sleep_ns(next - now);  // no vsync, or the present did not wait for it
+            } else if (vsync_set_ != 0 && static_cast<double>(now) < static_cast<double>(next) + period / 2) {
+                // VSync keeps the time: follow the display's clock rather than the timer's.
+                cad_base_ns_ = now - static_cast<std::uint64_t>(period * static_cast<double>(cad_vblank_));
+            }
+        }
+        prev_frame_.assign(sys_.framebuffer().begin(), sys_.framebuffer().end());
+        last_present_ns_ = platform::now_ns();
+    }
+
     // Pictures this many times the GBA frame rate fit the display (1: no room for any).
     int pictures_per_frame() {
-        const std::uint64_t now = platform::now_ns();
-        if (now - refresh_checked_ns_ > 1'000'000'000ull) {
-            refresh_checked_ns_ = now;
-            display_hz_ = window_->refresh_rate();
-        }
-        return std::max(1, static_cast<int>(display_hz_ / anygba::kFramesPerSecond + 0.1));
+        double hz = monitor_hz();
+        if (video_options_.fps_cap) hz = std::min(hz, static_cast<double>(video_options_.fps_cap));
+        return std::max(1, static_cast<int>(hz / anygba::kFramesPerSecond + 0.1));
     }
 
     // Queues the pictures between the previous frame and this one, spread over one GBA
@@ -1616,9 +1736,9 @@ private:
             stretching_ = stretch;
         }
         if (stretch) {
-            stretch_.process(sound_, audio_speed() / 100.0, squeezed_);
+            stretch_.process(sound_, audio_speed() / 100.0 * audio_ratio_, squeezed_);
         } else {
-            resampler_.process(sound_, audio_speed() / 100.0, squeezed_);
+            resampler_.process(sound_, audio_speed() / 100.0 * audio_ratio_, squeezed_);
         }
         if (wav_) wav_->write(squeezed_);
     }
@@ -1635,6 +1755,14 @@ private:
     // at a set rate works the same way; only unlimited fast-forward drops sound.
     void feed_audio_and_wait(bool unthrottled) {
         const std::size_t target = 2 * kSampleRate / 60;
+        if (cadence_) {
+            // Paced by the display: the queue absorbs the difference between the display's and
+            // the sound card's clocks, steered by resampling (audio_ratio_) instead of waiting.
+            const std::size_t paced_target = 3 * target / 2;
+            if (audio_->queued_frames() < 4 * paced_target) audio_->push(squeezed_);
+            audio_ratio_ = player::audio_ratio(sync_factor_, audio_->queued_frames(), paced_target);
+            return;
+        }
         if (unthrottled && audio_->queued_frames() > target) {
             return;  // drop what the device cannot play
         }
@@ -1683,7 +1811,13 @@ private:
     std::vector<Between> between_;
     std::vector<std::uint8_t> between_vram_;
     std::vector<std::uint16_t> between_frame_;
-    double display_hz_ = 0;
+    double detected_hz_ = 0;
+    std::optional<player::Cadence> cadence_;
+    std::uint64_t cad_frame_ = 0, cad_vblank_ = 0, cad_base_ns_ = 0;
+    int vsync_set_ = 0;
+    double sync_factor_ = 1.0;  // game rate over the GBA's while synced to the monitor
+    double audio_ratio_ = 1.0;
+    std::vector<std::uint16_t> prev_frame_;
     std::uint64_t refresh_checked_ns_ = 0;
     player::Resampler resampler_;
     player::TimeStretch stretch_;

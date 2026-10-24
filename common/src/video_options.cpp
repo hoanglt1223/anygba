@@ -1,7 +1,9 @@
 #include "anygba/video_options.h"
 
 #include <array>
+#include <algorithm>
 #include <charconv>
+#include <span>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -263,6 +265,26 @@ std::optional<std::string> apply_setting(Options& options, std::string_view key,
         options.ai_model = *m;
         return std::nullopt;
     }
+    if (key == "refresh" || key == "menu-fps" || key == "fps-cap") {
+        const bool zero_ok = key != "menu-fps";
+        const std::span<const int> allowed = key == "refresh" ? std::span<const int>(kRefreshRates)
+                                             : key == "menu-fps" ? std::span<const int>(kMenuFps)
+                                                                 : std::span<const int>(kFpsCaps);
+        int n = -1;
+        if (zero_ok && (value == "auto" || value == "off")) {
+            n = 0;
+        } else {
+            const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), n);
+            if (ec != std::errc{} || end != value.data() + value.size()) n = -1;
+        }
+        if (std::find(allowed.begin(), allowed.end(), n) == allowed.end()) {
+            std::string list;
+            for (const int a : allowed) list += (list.empty() ? "" : ", ") + (a == 0 ? std::string(key == "refresh" ? "auto" : "off") : std::to_string(a));
+            return std::string(key) + " must be one of " + list;
+        }
+        (key == "refresh" ? options.refresh : key == "menu-fps" ? options.menu_fps : options.fps_cap) = n;
+        return std::nullopt;
+    }
     if (key == "widescreen") {
         const auto w = find(kWidescreens, value);
         if (!w) return "widescreen must be one of " + names(kWidescreens);
@@ -276,11 +298,14 @@ std::optional<std::string> apply_setting(Options& options, std::string_view key,
                  : key == "hd-pack"       ? &options.hd_pack
                  : key == "hd-dump"       ? &options.hd_dump
                  : key == "smoothing"     ? &options.smoothing
+                 : key == "vrr"           ? &options.vrr
+                 : key == "sync-to-monitor" ? &options.sync_to_monitor
                                           : nullptr;
     if (!flag) {
         return "unknown video setting '" + std::string(key) +
                "' (filter, color, gamma, deband, output, fullscreen, integer-scale, internal-scale, layer-filter, "
-               "smooth-affine, hd-pack, hd-dump, ai, ai-model, widescreen, smoothing)";
+               "smooth-affine, hd-pack, hd-dump, ai, ai-model, widescreen, smoothing, refresh, vrr, sync-to-monitor, "
+               "menu-fps, fps-cap)";
     }
     const auto b = parse_bool(value);
     if (!b) return std::string(key) + " must be true or false";
@@ -311,6 +336,11 @@ std::string serialize(const Options& o) {
     if (o.ai_model != d.ai_model) add("ai-model", std::string(name(o.ai_model)));
     if (o.widescreen != d.widescreen) add("widescreen", std::string(name(o.widescreen)));
     if (o.smoothing != d.smoothing) add("smoothing", o.smoothing ? "true" : "false");
+    if (o.refresh != d.refresh) add("refresh", std::to_string(o.refresh));
+    if (o.vrr != d.vrr) add("vrr", o.vrr ? "true" : "false");
+    if (o.sync_to_monitor != d.sync_to_monitor) add("sync-to-monitor", o.sync_to_monitor ? "true" : "false");
+    if (o.menu_fps != d.menu_fps) add("menu-fps", std::to_string(o.menu_fps));
+    if (o.fps_cap != d.fps_cap) add("fps-cap", std::to_string(o.fps_cap));
     return out;
 }
 

@@ -62,6 +62,11 @@ ports of the reference code, so their output is close to but not identical with 
 | `internal-scale`, `layer-filter`, `smooth-affine`, `hd-pack`, `hd-dump`, `ai`, `ai-model` | HD rendering, packs and AI upscaling: [HD-PACKS.md](HD-PACKS.md) | off |
 | `widescreen` | `off`, `16:10`, `16:9`: [WIDESCREEN.md](WIDESCREEN.md) | `off` |
 | `smoothing` | `true`/`false`: pictures between frames on high-refresh monitors (below) | false |
+| `refresh` | `auto` (match the monitor) or 60, 75, 90, 120, 144, 165, 240 Hz | `auto` |
+| `vrr` | `true`/`false`: the monitor has variable refresh (G-Sync, FreeSync) | false |
+| `sync-to-monitor` | `true`/`false`: run the game at the monitor's rate when within 1% | false |
+| `menu-fps` | 30 or 60: pictures per second while the menu or the quick menu is open | 30 |
+| `fps-cap` | `off`, 30, 60, 120: most pictures per second shown while playing | `off` |
 
 ```sh
 <Title> --video "color=gba-lcd;gamma=1.2;output=1080p;fullscreen=true"
@@ -70,6 +75,38 @@ ports of the reference code, so their output is close to but not identical with 
 `window` renders at the window's own size. The fixed outputs render at that resolution and scale the
 result to the window or screen, keeping 3:2 with black bars; in a window they also resize the window
 when it fits on the desktop. Output is always 32-bit colour.
+
+## Refresh and frame pacing
+
+The game runs at the GBA's 59.73 frames per second whatever the monitor does: a higher refresh
+makes the picture smoother, never the game faster (only fast-forward and the speed hotkeys do that).
+
+- **Refresh** `auto` (the default) reads the refresh rate of the monitor the window is on, again
+  every second, so moving the window to another monitor is followed. A number overrides it when
+  the reported rate is wrong.
+- **Frame pacing**: at 100% speed each GBA frame is shown from the first monitor refresh at or after
+  its time, waiting for the monitor's vblank (vsync). Frames therefore stay up for evenly spread
+  numbers of refreshes: on 60 Hz one each, with one frame in about 220 shown twice (every 3.7 s); on
+  75 Hz 1-1-1-2; on 120 Hz two each with an occasional three; on 144 Hz 2-3-2-2-3. When the refresh
+  is set to a rate the monitor does not run at, a timer keeps the same schedule without vsync. If a
+  picture would be late, its refresh is skipped rather than slowing the game. Sound follows the
+  display's clock through resampling of at most 0.5%.
+- **Variable refresh** (`vrr`): for G-Sync/FreeSync monitors. Vsync is off (tearing allowed where
+  the driver supports it) and each frame is presented the moment it is ready, timed by the sound
+  card at exactly 59.73 per second, so the monitor refreshes at the game's own rate. AnyGBA cannot
+  ask the monitor whether it has variable refresh, so this is a setting, off by default.
+- **Sync game to monitor**: when the monitor's rate (or a half, third or quarter of it) is within
+  1% of 59.73, the game runs at that rate instead (60 Hz: 0.46% faster), so every frame gets the
+  same number of refreshes and the 3.7-second repeat disappears. Sound is resampled to match, which
+  raises its pitch by the same 0.46%. Off by default because it is not the GBA's exact speed; it has
+  no effect on 75, 144 or 165 Hz.
+- **Menu FPS** limits the picture rate while the menu or the quick menu is open (30 by default, to
+  save power); **FPS cap** limits pictures while playing (every second or third refresh with vsync).
+  The game itself only runs faster than 59.73 through fast-forward or the speed setting.
+
+Ctrl+F shows the monitor rate, `auto` or `set`, and how frames are paced (`vsync`, `timer`, `VRR`, or
+`free` during fast-forward and other speeds) on its `Monitor` line, the game's frame rate and the
+pictures shown per second on the `FPS` line.
 
 ## Smoothing
 
@@ -80,7 +117,8 @@ background scroll, rotation reference points and sprite positions moved part of 
 previous frame. It does this only when the two frames differ by small movement alone (at most 16
 pixels, no palette, register, sprite size or visibility changes, no bitmap modes); every other frame
 is shown as it is, so smoothing never shows pixels the game would not draw. It is off with the HD
-renderer, fast-forward and speeds other than 100%, and on monitors below 120 Hz.
+renderer, fast-forward and speeds other than 100%, and on monitors below 120 Hz (or with an FPS cap
+below 120).
 
 Smoothing adds up to one GBA frame (about 17 ms) of input latency, because the pictures between
 two frames can only be drawn once the second one exists. Turn it on in the Video page or with
