@@ -22,7 +22,7 @@ from html.parser import HTMLParser
 
 SITE = pathlib.Path(__file__).resolve().parent
 ROOT = SITE.parent
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 REPO = "https://github.com/hoanglt1223/anygba"
 
 NAV = [

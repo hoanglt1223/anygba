@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 project(anygba
-  VERSION 0.1.0
+  VERSION 0.2.0
   DESCRIPTION "Static recompiler that turns GBA ROMs into native executables"
   LANGUAGES C CXX)
 
