@@ -338,3 +338,15 @@ TEST_CASE("menu: the Settings page switches AI control, read-only and the journa
     press(2);
     CHECK(menu.lines()[0] == "== AnyGBA ==");
 }
+
+TEST_CASE("shipped symbol files parse") {
+    const fs::path dir = fs::path(ANYGBA_GOLDEN_DIR).parent_path().parent_path() / "compat" / "symbols";
+    int files = 0;
+    for (const auto& e : fs::directory_iterator(dir)) {
+        if (e.path().extension() != ".toml") continue;
+        CAPTURE(e.path().string());
+        CHECK_FALSE(Symbols::load(e.path()).empty());
+        ++files;
+    }
+    CHECK(files >= 1);
+}

@@ -45,3 +45,6 @@ install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" 
 # Curated cheat databases; `anygba build` copies the ones for the ROM next to the game.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/cheats/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/cheats
   FILES_MATCHING PATTERN "*.toml")
+# Named memory for AI agents; `anygba build` copies the file for the ROM next to the game.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/compat/symbols/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/symbols
+  FILES_MATCHING PATTERN "*.toml")

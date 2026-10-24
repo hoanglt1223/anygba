@@ -234,7 +234,9 @@ Symbols Symbols::parse(std::string_view toml_text, std::string_view source_name)
                 s.fields.push_back(std::move(field));
             }
             // TOML tables have no order; memory order reads naturally.
-            std::stable_sort(s.fields.begin(), s.fields.end(), [](const SymField& x, const SymField& y) { return x.offset < y.offset; });
+            std::stable_sort(s.fields.begin(), s.fields.end(), [](const SymField& x, const SymField& y) {
+                return x.offset != y.offset ? x.offset < y.offset : x.bit < y.bit;
+            });
         } else if (t->get("fields")) {
             r.fail(*t, ctx + ".fields needs type = \"struct\"");
         }

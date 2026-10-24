@@ -6,6 +6,9 @@
 #include "cli.h"
 #include "pipeline.h"
 
+#define TOML_EXCEPTIONS 1
+#include <toml.hpp>
+
 #include <cctype>
 #include <cstdio>
 #include <fstream>
@@ -98,9 +101,10 @@ fs::path default_prefix() {
     return exe->parent_path().parent_path();  // <prefix>/bin/anygba
 }
 
-// Cheat databases for this ROM shipped in <prefix>/share/anygba/cheats: <game code>.toml and
-// <crc32>.toml; build() copies them where the game looks for them (docs/user/CHEATS.md).
-std::vector<fs::path> cheat_databases(const fs::path& prefix, const std::vector<std::uint8_t>& rom) {
+// Per-game files for this ROM shipped in <prefix>/share/anygba/<kind> (cheats, symbols): <game
+// code>.toml and <crc32>.toml; build() copies them where the game looks for them
+// (docs/user/CHEATS.md, docs/user/AI-CONTROL.md).
+std::vector<fs::path> shipped_files(const fs::path& prefix, const std::vector<std::uint8_t>& rom, const char* kind) {
     std::vector<fs::path> found;
     if (rom.size() < 0xB0) return found;
     std::string code(rom.begin() + 0xAC, rom.begin() + 0xB0);
@@ -110,10 +114,19 @@ std::vector<fs::path> cheat_databases(const fs::path& prefix, const std::vector<
     char crc[16];
     std::snprintf(crc, sizeof crc, "%08x", anygba::crc32(rom));
     for (const std::string& name : {code + ".toml", std::string(crc) + ".toml"}) {
-        const fs::path p = prefix / "share" / "anygba" / "cheats" / name;
+        const fs::path p = prefix / "share" / "anygba" / kind / name;
         if (fs::exists(p)) found.push_back(p);
     }
     return found;
+}
+
+// A [symbols] table (agent control) in the per-game config.
+bool config_has_symbols(const fs::path& config) {
+    try {
+        return toml::parse_file(config.string()).contains("symbols");
+    } catch (const toml::parse_error&) {
+        return false;  // the recompiler reports config errors with line numbers
+    }
 }
 
 std::vector<std::uint8_t> read_file(const fs::path& p) {
@@ -279,13 +292,29 @@ fs::path build(const BuildOptions& o) {
 
     const std::string name = o.name ? *o.name : program_name(analysis.title);
     fs::create_directories(o.output_dir);
-    const std::vector<fs::path> databases = cheat_databases(prefix, read_file(o.rom));
-    const auto copy_databases = [&databases](const fs::path& dir) {
-        if (databases.empty()) return;
-        fs::create_directories(dir);
+    const std::vector<std::uint8_t> rom = read_file(o.rom);
+    const std::vector<fs::path> databases = shipped_files(prefix, rom, "cheats");
+    std::vector<std::pair<fs::path, std::string>> symbols;  // source, file name
+    for (const auto& f : shipped_files(prefix, rom, "symbols")) symbols.emplace_back(f, f.filename().string());
+    if (o.config && config_has_symbols(*o.config)) {
+        // The game's own [symbols] table replaces the shipped one for its game code.
+        std::string code(rom.begin() + 0xAC, rom.begin() + 0xB0);
+        for (char& ch : code) {
+            if (!std::isalnum(static_cast<unsigned char>(ch))) ch = '_';
+        }
+        std::erase_if(symbols, [&](const auto& s) { return s.second == code + ".toml"; });
+        symbols.emplace_back(*o.config, code + ".toml");
+    }
+    const auto copy_databases = [&databases, &symbols](const fs::path& dir) {
+        if (!databases.empty()) fs::create_directories(dir / "cheats");
         for (const auto& db : databases) {
-            fs::copy_file(db, dir / db.filename(), fs::copy_options::overwrite_existing);
-            std::printf("anygba: cheat database %s\n", path_string(dir / db.filename()).c_str());
+            fs::copy_file(db, dir / "cheats" / db.filename(), fs::copy_options::overwrite_existing);
+            std::printf("anygba: cheat database %s\n", path_string(dir / "cheats" / db.filename()).c_str());
+        }
+        if (!symbols.empty()) fs::create_directories(dir / "symbols");
+        for (const auto& [src, name] : symbols) {
+            fs::copy_file(src, dir / "symbols" / name, fs::copy_options::overwrite_existing);
+            std::printf("anygba: symbols %s\n", path_string(dir / "symbols" / name).c_str());
         }
     };
 #if defined(__APPLE__)
@@ -310,7 +339,7 @@ fs::path build(const BuildOptions& o) {
     if (!plist) {
         throw std::runtime_error("cannot write " + path_string(app / "Contents" / "Info.plist"));
     }
-    copy_databases(app / "Contents" / "Resources" / "cheats");  // SDL_GetBasePath() of a bundle
+    copy_databases(app / "Contents" / "Resources");  // SDL_GetBasePath() of a bundle
     run_checked({"codesign", "--force", "--deep", "--sign", "-", path_string(app)}, "ad-hoc signing");
     return app;
 #else
@@ -319,7 +348,7 @@ fs::path build(const BuildOptions& o) {
     if (o.embed_rom) {
         append_rom(exe, read_file(o.rom));
     }
-    copy_databases(o.output_dir / "cheats");
+    copy_databases(o.output_dir);
     return exe;
 #endif
 }
