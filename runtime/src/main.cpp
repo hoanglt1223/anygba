@@ -239,7 +239,14 @@ void print_registers(const anygba_cpu& c) {
 fs::path utf8_path(const char* s) { return fs::path(std::u8string(reinterpret_cast<const char8_t*>(s))); }
 
 // Per-user data folder (created by SDL), e.g. %APPDATA%/anyport/anygba/ on Windows.
+// ANYGBA_DATA_DIR replaces it (tests use it to keep the user's own files out).
 std::optional<fs::path> data_dir() {
+    if (const char* forced = SDL_getenv("ANYGBA_DATA_DIR"); forced && *forced) {
+        fs::path dir = utf8_path(forced);
+        std::error_code ec;
+        fs::create_directories(dir, ec);
+        return dir;
+    }
     char* path = SDL_GetPrefPath("anyport", "anygba");
     if (!path) {
         return std::nullopt;

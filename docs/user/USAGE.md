@@ -145,6 +145,9 @@ Save files live in the per-user data folder, under `saves/<title>-<hash>.sav`:
 | Linux | `~/.local/share/anyport/anygba/saves/` |
 | macOS | `~/Library/Application Support/anyport/anygba/saves/` |
 
+The environment variable `ANYGBA_DATA_DIR` replaces the per-user data folder (saves, input mapping and
+settings), for a portable install or an isolated test run.
+
 `--save-dir DIR` uses another folder; `--no-save` disables saving. A save is written about half a second
 after the game stops changing it, and again on exit. Each write goes to a temporary file first, and the
 previous save is kept as `<name>.sav.bak`. A save file whose size does not fit the chip stops the program

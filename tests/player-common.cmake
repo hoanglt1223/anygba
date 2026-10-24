@@ -7,9 +7,11 @@ foreach(var GAME ROM WORK)
 endforeach()
 
 # run_game(<out var> args...): runs GAME ROM --headless --no-miss-log args...; fails on a non-zero exit.
+# The per-user data folder points into WORK, so the user's own input mapping and settings never
+# leak into a test.
 function(run_game out_var)
   execute_process(
-    COMMAND "${GAME}" "${ROM}" --headless --no-miss-log ${ARGN}
+    COMMAND "${CMAKE_COMMAND}" -E env "ANYGBA_DATA_DIR=${WORK}/data" "${GAME}" "${ROM}" --headless --no-miss-log ${ARGN}
     WORKING_DIRECTORY "${WORK}"
     RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
   if(NOT rc EQUAL 0)
