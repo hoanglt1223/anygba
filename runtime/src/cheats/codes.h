@@ -14,7 +14,11 @@ namespace anygba::cheats {
 
 enum class Format : std::uint8_t {
     Auto,        // decided from the code's shape and which decoding makes sense
-    Raw,         // "AAAAAAAA:VV", ":VVVV" or ":VVVVVVVV" (also with a space): plain writes
+    // "AAAAAAAA:VV", ":VVVV" or ":VVVVVVVV" (also with a space): plain writes. AnyGBA also
+    // accepts a pointer target "[PPPPPPPP]+OFFSET:VALUE" (written at the 32-bit pointer plus
+    // OFFSET, skipped while the pointer is 0) and a value XORed with memory "VALUE^TARGET", for
+    // games that encrypt values with a per-save key.
+    Raw,
     GameShark,   // GameShark / Action Replay v1 and v2, encrypted (as printed)
     GameSharkRaw,
     ActionReplay,  // Pro Action Replay v3 / GameShark SP, encrypted (as printed)
@@ -62,6 +66,13 @@ struct Op {
     std::uint32_t addr_step = 0;
     std::uint32_t value_step = 0;
     std::vector<std::uint8_t> bytes;
+
+    // Raw extensions (Write only): the target is [pointer] + addr when pointer != 0, and the
+    // value is XORed with the `size` bytes at xor_addr (or [xor_pointer] + xor_addr).
+    std::uint32_t pointer = 0;
+    bool xor_value = false;
+    std::uint32_t xor_pointer = 0;
+    std::uint32_t xor_addr = 0;
 
     // If
     Cond cond = Cond::Eq;

@@ -42,3 +42,6 @@ install(FILES
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/anygba)
 
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" DESTINATION .)
+# Curated cheat databases; `anygba build` copies the ones for the ROM next to the game.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/cheats/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/cheats
+  FILES_MATCHING PATTERN "*.toml")

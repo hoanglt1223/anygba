@@ -1,0 +1,110 @@
+# Pokemon Emerald (USA, Europe): curated cheat database for AnyGBA.
+#
+# Emerald moves its save data around in EWRAM and encrypts money, coins and bag quantities
+# with a key chosen for each saved game, so fixed-address device codes stop working after a
+# map change. These cheats use AnyGBA's raw format instead: "[PTR]+OFFSET" writes through the
+# save-block pointers the game keeps in IWRAM (SaveBlock1 at 0x03005D8C, SaveBlock2 at
+# 0x03005D90), and "VALUE^[PTR]+00AC" encrypts with the key at SaveBlock2 + 0xAC. Offsets are
+# those of the pret/pokeemerald decompilation; every entry was checked on a US/EU ROM by
+# reading memory after the cheat ran (docs/user/CHEATS.md).
+#
+# Item slots: the pickers write slot 1 of a pocket, the fixed entries slot 2, so both can be on.
+
+[game]
+title = "Pokemon - Emerald Version (USA, Europe)"
+code = "BPEE"
+crc32 = ["1F1C08FB"]
+source = "AnyGBA (self-authored, verified on the ROM)"
+
+[lists]
+balls = [
+  "1 Master Ball", "2 Ultra Ball", "3 Great Ball", "4 Poke Ball", "5 Safari Ball", "6 Net Ball",
+  "7 Dive Ball", "8 Nest Ball", "9 Repeat Ball", "10 Timer Ball", "11 Luxury Ball", "12 Premier Ball",
+]
+items = [
+  "13 Potion", "14 Antidote", "15 Burn Heal", "16 Ice Heal", "17 Awakening", "18 Parlyz Heal",
+  "19 Full Restore", "20 Max Potion", "21 Hyper Potion", "22 Super Potion", "23 Full Heal", "24 Revive",
+  "25 Max Revive", "26 Fresh Water", "27 Soda Pop", "28 Lemonade", "29 Moomoo Milk", "30 EnergyPowder",
+  "31 Energy Root", "32 Heal Powder", "33 Revival Herb", "34 Ether", "35 Max Ether", "36 Elixir",
+  "37 Max Elixir", "38 Lava Cookie", "44 Berry Juice", "45 Sacred Ash",
+  "63 HP Up", "64 Protein", "65 Iron", "66 Carbos", "67 Calcium", "68 Rare Candy", "69 PP Up", "70 Zinc",
+  "71 PP Max", "73 Guard Spec.", "74 Dire Hit", "75 X Attack", "76 X Defend", "77 X Speed", "78 X Accuracy",
+  "79 X Special", "83 Super Repel", "84 Max Repel", "85 Escape Rope", "86 Repel",
+  "93 Sun Stone", "94 Moon Stone", "95 Fire Stone", "96 Thunderstone", "97 Water Stone", "98 Leaf Stone",
+  "103 TinyMushroom", "104 Big Mushroom", "106 Pearl", "107 Big Pearl", "108 Stardust", "109 Star Piece",
+  "110 Nugget", "111 Heart Scale",
+]
+vitamins = ["63 HP Up", "64 Protein", "65 Iron", "66 Carbos", "67 Calcium", "70 Zinc"]
+
+# ---- Player ----
+
+[[cheat]]
+name = "Player/Max money (999999)"
+format = "raw"
+code = ["[03005D8C]+0490:000F423F^[03005D90]+00AC"]
+
+[[cheat]]
+name = "Player/Money"
+format = "raw"
+code = ["[03005D8C]+0490:{v:8}^[03005D90]+00AC"]
+param = { label = "Amount", min = 0, max = 999999 }
+default = 100000
+
+[[cheat]]
+name = "Player/Max Game Corner coins (9999)"
+format = "raw"
+code = ["[03005D8C]+0494:270F^[03005D90]+00AC"]
+
+# ---- Items ----
+
+[[cheat]]
+name = "Items/Master Ball x99"
+note = "Poke Balls pocket, slot 2"
+format = "raw"
+code = ["[03005D8C]+0654:0001", "[03005D8C]+0656:0063^[03005D90]+00AC"]
+
+[[cheat]]
+name = "Items/Poke Ball of your choice x99"
+note = "Poke Balls pocket, slot 1"
+format = "raw"
+code = ["[03005D8C]+0650:{v:4}", "[03005D8C]+0652:0063^[03005D90]+00AC"]
+param = { label = "Ball", list = "balls" }
+default = 2
+
+[[cheat]]
+name = "Items/Item of your choice x99"
+note = "Items pocket, slot 1"
+format = "raw"
+code = ["[03005D8C]+0560:{v:4}", "[03005D8C]+0562:0063^[03005D90]+00AC"]
+param = { label = "Item", list = "items" }
+default = 19
+
+[[cheat]]
+name = "Items/Item of your choice x99 in the PC"
+note = "PC item storage, slot 1 (withdraw it at a PC)"
+format = "raw"
+code = ["[03005D8C]+0498:{v:4}", "[03005D8C]+049A:0063"]
+param = { label = "Item", list = "items" }
+default = 110
+
+# ---- Level ----
+
+[[cheat]]
+name = "Level/Rare Candy x99"
+note = "Items pocket, slot 2: each one raises a Pokemon one level"
+format = "raw"
+code = ["[03005D8C]+0564:0044", "[03005D8C]+0566:0063^[03005D90]+00AC"]
+
+[[cheat]]
+name = "Level/PP Up x99"
+note = "Items pocket, slot 3"
+format = "raw"
+code = ["[03005D8C]+0568:0045", "[03005D8C]+056A:0063^[03005D90]+00AC"]
+
+[[cheat]]
+name = "Level/Vitamin of your choice x99"
+note = "Items pocket, slot 4"
+format = "raw"
+code = ["[03005D8C]+056C:{v:4}", "[03005D8C]+056E:0063^[03005D90]+00AC"]
+param = { label = "Vitamin", list = "vitamins" }
+default = 63

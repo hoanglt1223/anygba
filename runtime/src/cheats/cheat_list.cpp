@@ -235,13 +235,16 @@ bool CheatList::load_database(const fs::path& path, std::uint32_t rom_crc) {
             if (slotted != c.param.has_value()) {
                 r.fail(*t, slotted ? "code has a {v:N} slot but no param" : "param given but the code has no {v:N} slot");
             }
-            // Check the code now, so a broken entry is reported when the file loads.
+            // Check the code now: a broken entry (community lists have some) is reported and
+            // left out, and the rest of the file still loads.
             try {
                 std::vector<std::string> lines;
                 for (const auto& l : c.code) lines.push_back(expand(l, c.value));
                 cheats::compile(c.format, lines);
             } catch (const CodeError& e) {
-                r.fail(*t, "cheat '" + c.name + "': " + e.what());
+                warnings_.push_back(path.string() + ":" + std::to_string(t->source().begin.line) + ": cheat '" +
+                                    c.name + "' skipped: " + e.what());
+                continue;
             }
             added.push_back(std::move(c));
         }

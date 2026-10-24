@@ -1,5 +1,6 @@
 #include "cheats/codes.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <utility>
@@ -206,6 +207,9 @@ void decode_action_replay(const std::vector<Line>& lines, Program& p) {
         if (l.v == kIdMarker) {
             continue;
         }
+        if (l.a == 0x80000000 && l.v == 0) {
+            continue;  // "add 0 to address 0": the filler GBATEK advises after an increment slide
+        }
         const auto next = [&]() -> const Line& {
             if (++i >= lines.size()) fail(l, "code needs a second line");
             return lines[i];
@@ -384,13 +388,72 @@ std::vector<Line> read_lines(std::span<const std::string> text, std::size_t valu
     return lines;
 }
 
+// "[PPPPPPPP]+OFF" or "AAAAAAAA" -> (pointer, address or offset).
+std::pair<std::uint32_t, std::uint32_t> parse_target(std::string_view s, std::size_t number) {
+    const auto bad = [&] {
+        throw CodeError("line " + std::to_string(number) + ": expected AAAAAAAA or [PPPPPPPP]+OFFSET, got '" +
+                        std::string(s) + "'");
+    };
+    const auto hex = [&](std::string_view digits, std::size_t max) {
+        if (digits.empty() || digits.size() > max ||
+            !std::all_of(digits.begin(), digits.end(), [](char ch) { return is_hex(ch); })) {
+            bad();
+        }
+        return hex_value(digits);
+    };
+    if (!s.empty() && s.front() == '[') {
+        const auto close = s.find(']');
+        if (close == std::string_view::npos || close + 1 >= s.size() || s[close + 1] != '+') bad();
+        const std::uint32_t pointer = hex(s.substr(1, close - 1), 8);
+        if (pointer == 0) bad();
+        return {pointer, hex(s.substr(close + 2), 8)};
+    }
+    if (s.size() != 8) bad();
+    return {0, hex(s, 8)};
+}
+
+Op parse_extended_raw(std::string text, std::size_t number) {
+    std::erase_if(text, [](char ch) { return ch == ' ' || ch == '\t' || ch == '\r'; });
+    const auto colon = text.find(':');
+    if (colon == std::string::npos) {
+        throw CodeError("line " + std::to_string(number) + ": expected TARGET:VALUE, got '" + text + "'");
+    }
+    const auto [pointer, addr] = parse_target(std::string_view(text).substr(0, colon), number);
+    std::string value = text.substr(colon + 1);
+    Op op;
+    op.pointer = pointer;
+    op.addr = addr;
+    if (const auto caret = value.find('^'); caret != std::string::npos) {
+        const auto [xp, xa] = parse_target(std::string_view(value).substr(caret + 1), number);
+        op.xor_value = true;
+        op.xor_pointer = xp;
+        op.xor_addr = xa;
+        value.resize(caret);
+    }
+    if ((value.size() != 2 && value.size() != 4 && value.size() != 8) ||
+        !std::all_of(value.begin(), value.end(), [](char ch) { return is_hex(ch); })) {
+        throw CodeError("line " + std::to_string(number) + ": the value must have 2, 4 or 8 hex digits, got '" + value + "'");
+    }
+    op.size = static_cast<std::uint8_t>(value.size() / 2);
+    op.value = hex_value(value);
+    return op;
+}
+
 Program compile_known(Format format, std::span<const std::string> text) {
     Program p;
     p.format = format;
     switch (format) {
     case Format::Raw:
-        for (const Line& l : read_lines(text, 0)) {
+        for (std::size_t i = 0; i < text.size(); ++i) {
+            if (text[i].find_first_of("[^") != std::string::npos) {
+                p.ops.push_back(parse_extended_raw(text[i], i + 1));
+                continue;
+            }
+            const Line l = split_line(text[i], i + 1, 0);
             p.ops.push_back(write(static_cast<std::uint8_t>(l.value_digits / 2), l.a, l.v));
+        }
+        if (p.ops.empty()) {
+            throw CodeError("the code is empty");
         }
         break;
     case Format::GameShark:
@@ -649,23 +712,34 @@ std::vector<std::string> split_lines(std::string_view text) {
     // into lines when a line holds nothing but '+'-joined hex words.
     std::vector<std::string> lines;
     for (const std::string& w : words) {
-        if (w.find('+') == std::string::npos) {
+        const bool joined = w.find('+') != std::string::npos &&
+                            std::all_of(w.begin(), w.end(), [](char ch) { return is_hex(ch) || ch == '+' || ch == ' '; });
+        if (!joined) {
             lines.push_back(w);
             continue;
         }
         std::vector<std::string> parts;
         std::string part;
-        for (const char ch : w) {
+        for (const char ch : w + "+") {
             if (ch == '+') {
-                parts.push_back(part);
+                if (!part.empty()) parts.push_back(part);  // "++" in some lists
                 part.clear();
             } else if (ch != ' ') {
                 part += ch;
             }
         }
-        parts.push_back(part);
-        for (std::size_t i = 0; i < parts.size(); i += 2) {
-            lines.push_back(i + 1 < parts.size() ? parts[i] + " " + parts[i + 1] : parts[i]);
+        // Words pair up into lines, except a 12-digit word, which is a whole CodeBreaker line.
+        for (std::size_t i = 0; i < parts.size();) {
+            if (parts[i].size() == 12) {
+                lines.push_back(parts[i].substr(0, 8) + " " + parts[i].substr(8));
+                ++i;
+            } else if (i + 1 < parts.size() && parts[i + 1].size() != 12) {
+                lines.push_back(parts[i] + " " + parts[i + 1]);
+                i += 2;
+            } else {
+                lines.push_back(parts[i]);
+                ++i;
+            }
         }
     }
     return lines;

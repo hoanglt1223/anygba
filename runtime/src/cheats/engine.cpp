@@ -76,6 +76,20 @@ void run(const Program& program, System& sys, const FrameKeys& keys) {
         case Kind::Write: {
             std::uint32_t addr = op.addr;
             std::uint32_t value = op.value;
+            if (op.pointer) {
+                const std::uint32_t base = sys.read32(op.pointer);
+                if (base == 0) break;  // the game has not set the pointer up yet
+                addr += base;
+            }
+            if (op.xor_value) {
+                std::uint32_t key_addr = op.xor_addr;
+                if (op.xor_pointer) {
+                    const std::uint32_t base = sys.read32(op.xor_pointer);
+                    if (base == 0) break;
+                    key_addr += base;
+                }
+                value ^= read(sys, key_addr, op.size);
+            }
             for (std::uint32_t n = 0; n < op.count; ++n) {
                 store(sys, addr, op.size, value);
                 addr += op.addr_step;

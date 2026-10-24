@@ -57,6 +57,14 @@ TEST_CASE("auto-detection picks the device from the code's shape and decoding") 
     CHECK(p.ops[0].addr == 0x080B3D6C);
     CHECK(p.ops[0].value == 0xE038);
     CHECK_THROWS_AS(code(Format::Auto, {"DEADFACE 00001234"}), CodeError);
+    // Emerald "Have all Poke Balls" from libretro: a 32-bit increment slide plus GBATEK's filler.
+    const Program slide = code(Format::Auto, {"00000000 84226050", "00630001 010C0001", "80000000 00000000"});
+    CHECK(slide.format == Format::ActionReplayRaw);
+    REQUIRE(slide.ops.size() == 1);
+    CHECK(slide.ops[0].addr == 0x02026050);
+    CHECK(slide.ops[0].count == 12);
+    CHECK(slide.ops[0].addr_step == 4);
+    CHECK(slide.ops[0].value_step == 1);
 }
 
 TEST_CASE("split_lines accepts typed, pasted and libretro-joined codes") {
@@ -64,6 +72,10 @@ TEST_CASE("split_lines accepts typed, pasted and libretro-joined codes") {
     CHECK(split_lines("D8BAE4D9+4864DCE5+A86CDBA5+19BA49B3") ==
           std::vector<std::string>{"D8BAE4D9 4864DCE5", "A86CDBA5 19BA49B3"});
     CHECK(split_lines(" 02000000:12 ; 02000001:34 ,") == std::vector<std::string>{"02000000:12", "02000001:34"});
+    CHECK(split_lines("D0000020+0004++83000E48+1ED2") == std::vector<std::string>{"D0000020 0004", "83000E48 1ED2"});
+    CHECK(split_lines("A745569AA9B6+FD228345FE5F") == std::vector<std::string>{"A745569A A9B6", "FD228345 FE5F"});
+    CHECK(split_lines("[03005D8C]+0490:000F423F^[03005D90]+00AC") ==
+          std::vector<std::string>{"[03005D8C]+0490:000F423F^[03005D90]+00AC"});
 }
 
 TEST_CASE("raw codes write 8, 16 and 32 bits") {
@@ -72,6 +84,22 @@ TEST_CASE("raw codes write 8, 16 and 32 bits") {
     CHECK(sys.read8(0x02000000) == 0x12);
     CHECK(sys.read16(0x02000010) == 0x3456);
     CHECK(sys.read32(0x03000020) == 0x789ABCDE);
+}
+
+TEST_CASE("raw codes through a pointer and XORed with a per-save key") {
+    auto sys = make_system();
+    const Program p = code(Format::Raw, {"[03000010]+0490:000F423F^[03000014]+00AC", "[03000010]+0494:270F^[03000014]+00AC"});
+    run(p, sys, {});  // pointers still 0: nothing is written
+    CHECK(sys.read32(0x02000490) == 0);
+    sys.write32(0x03000010, 0x02000000);  // the save block
+    sys.write32(0x03000014, 0x02001000);  // the block holding the key
+    sys.write32(0x020010AC, 0x4B4F0C13);
+    run(p, sys, {});
+    CHECK((sys.read32(0x02000490) ^ 0x4B4F0C13u) == 999999);
+    CHECK((sys.read16(0x02000494) ^ 0x0C13u) == 9999);
+    CHECK(code(Format::Auto, {"[03005D8C]+0490:000F423F"}).format == Format::Raw);
+    CHECK_THROWS_AS(code(Format::Raw, {"[00000000]+10:12"}), CodeError);
+    CHECK_THROWS_AS(code(Format::Raw, {"[03005D8C]+0490:123"}), CodeError);
 }
 
 TEST_CASE("CodeBreaker writes, arithmetic, slides, byte lists and conditions") {

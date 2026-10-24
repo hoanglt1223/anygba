@@ -101,7 +101,8 @@ const char* const kUsage =
     "                      arv3, arv3raw, cb); repeatable\n"
     "  --cheats FILE       enable the cheats of a cheat file for this run; repeatable\n"
     "  --cheat-db FILE     use a cheat database besides the ones found in cheats/ folders; repeatable\n"
-    "  --dump REGION:FILE  write memory on exit; REGION is ewram, iwram, io, palette, vram or oam; repeatable\n"
+    "  --dump REGION:FILE  write memory on exit; REGION is ewram, iwram, io, palette, vram, oam, or frame (the\n"
+    "                      last picture, 240x160 RGB555 little-endian); repeatable\n"
     "  --input FILE        input mapping (default: anygba-input.ini next to the program, else in the data folder)\n"
     "  --write-input FILE  write the current input mapping to FILE and exit\n"
     "  --script FILE       scripted input (keys, gamepad, menu use) by host frame; repeatable\n"
@@ -183,7 +184,7 @@ std::optional<Args> parse(int argc, char** argv) {
             if (colon == std::string::npos) return std::nullopt;
             const std::string region = spec.substr(0, colon);
             if (region != "ewram" && region != "iwram" && region != "io" && region != "palette" && region != "vram" &&
-                region != "oam") {
+                region != "oam" && region != "frame") {
                 return std::nullopt;
             }
             a.dumps.emplace_back(region, fs::path(spec.substr(colon + 1)));
@@ -717,13 +718,27 @@ void load_cheat_databases(const Args& args, const std::vector<std::uint8_t>& rom
     }
     char crc_name[16];
     std::snprintf(crc_name, sizeof crc_name, "%08x", crc);
+    // <code>.toml, <crc32>.toml, and numbered variants such as <crc32>-2.toml.
+    const auto ours = [&](const fs::path& p) {
+        if (p.extension() != ".toml") return false;
+        const std::string stem = p.stem().string();
+        for (const std::string& key : {code, std::string(crc_name)}) {
+            if (stem == key || (stem.size() > key.size() + 1 && stem.compare(0, key.size() + 1, key + "-") == 0)) {
+                return true;
+            }
+        }
+        return false;
+    };
     std::vector<fs::path> files;
     for (const auto& dir : {program_dir(), data_dir()}) {
-        if (!dir) continue;
-        for (const std::string& name : {code + ".toml", std::string(crc_name) + ".toml"}) {
-            std::error_code ec;
-            if (fs::exists(*dir / "cheats" / name, ec)) files.push_back(*dir / "cheats" / name);
+        std::error_code ec;
+        if (!dir || !fs::is_directory(*dir / "cheats", ec)) continue;
+        std::vector<fs::path> found;
+        for (const auto& entry : fs::directory_iterator(*dir / "cheats", ec)) {
+            if (entry.is_regular_file(ec) && ours(entry.path())) found.push_back(entry.path());
         }
+        std::sort(found.begin(), found.end());
+        files.insert(files.end(), found.begin(), found.end());
     }
     files.insert(files.end(), args.cheat_dbs.begin(), args.cheat_dbs.end());
     for (const fs::path& f : files) {
@@ -850,6 +865,15 @@ int main(int argc, char** argv) {
                         anygba::sha256_hex({reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()}).c_str());
         }
         for (const auto& [region, path] : args->dumps) {
+            if (region == "frame") {
+                const auto bytes = std::as_bytes(std::span(sys.framebuffer()));
+                const auto* p = reinterpret_cast<const std::uint8_t*>(bytes.data());
+                if (const auto error = write_file(path, std::vector<std::uint8_t>(p, p + bytes.size()))) {
+                    std::fprintf(stderr, "error: %s\n", error->c_str());
+                    status = 1;
+                }
+                continue;
+            }
             const anygba::Memory& mem = sys.memory();
             const std::vector<std::uint8_t>& data = region == "ewram"     ? mem.ewram
                                                     : region == "iwram"   ? mem.iwram

@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <numbers>
@@ -234,10 +235,41 @@ TEST_CASE("cheat database, value slots, and the per-game cheat file round trip")
     // A database for other ROMs is skipped; broken entries name their line.
     write_file(dir.path / "other.toml", "[game]\ncrc32 = [\"DEADBEEF\"]\n");
     CHECK(!list.load_database(dir.path / "other.toml", 0x12345678));
-    write_file(dir.path / "bad.toml", "[[cheat]]\nname = \"x\"\ncode = [\"DEADFACE 00001234\"]\n");
-    CHECK_THROWS_WITH(list.load_database(dir.path / "bad.toml", 0), doctest::Contains("bad.toml:1"));
+    write_file(dir.path / "bad.toml", "[[cheat]]\nname = \"x\"\ncode = [\"DEADFACE 00001234\"]\n"
+                                      "[[cheat]]\nname = \"y\"\ncode = [\"0203F000:12\"]\n");
+    anygba::cheats::CheatList tolerant;
+    CHECK(tolerant.load_database(dir.path / "bad.toml", 0));
+    REQUIRE(tolerant.cheats().size() == 1);  // the broken entry is skipped, the good one kept
+    CHECK(tolerant.cheats()[0].name == "y");
+    REQUIRE(tolerant.warnings().size() == 1);
+    CHECK(tolerant.warnings()[0].find("bad.toml:1") != std::string::npos);
+    write_file(dir.path / "broken.toml", "[[cheat]\nname = \"x\"\n");
+    CHECK_THROWS_WITH(list.load_database(dir.path / "broken.toml", 0), doctest::Contains("broken.toml:1"));
     write_file(dir.path / "slot.toml", "[[cheat]]\nname = \"x\"\ncode = [\"8203F020 {v:4}\"]\n");
     CHECK_THROWS_WITH(list.load_database(dir.path / "slot.toml", 0), doctest::Contains("no param"));
+}
+
+// Databases from tools/cheats/import-libretro.py, when ANYGBA_CHEAT_DB_DIR names their folder:
+// every file must load, and the share of codes that decode is reported.
+TEST_CASE("imported cheat databases load") {
+    const char* dir = std::getenv("ANYGBA_CHEAT_DB_DIR");
+    if (!dir) {
+        MESSAGE("ANYGBA_CHEAT_DB_DIR not set; skipping");
+        return;
+    }
+    std::size_t files = 0, loaded = 0, skipped = 0;
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        if (entry.path().extension() != ".toml") continue;
+        const std::uint32_t crc = static_cast<std::uint32_t>(std::stoul(entry.path().stem().string().substr(0, 8), nullptr, 16));
+        anygba::cheats::CheatList list;
+        CAPTURE(entry.path().string());
+        REQUIRE(list.load_database(entry.path(), crc));
+        ++files;
+        loaded += list.cheats().size();
+        skipped += list.warnings().size();
+    }
+    MESSAGE(files << " databases, " << loaded << " cheats decoded, " << skipped << " skipped");
+    CHECK(files > 0);
 }
 
 TEST_CASE("menu: cheat tree, value picker, typed code and rebinding") {

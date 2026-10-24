@@ -1,9 +1,12 @@
 #include "build.h"
 
+#include "anygba/crc32.h"
+
 #include "anygba/embedded_rom.h"
 #include "cli.h"
 #include "pipeline.h"
 
+#include <cctype>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -93,6 +96,24 @@ fs::path default_prefix() {
         throw std::runtime_error("cannot locate this program; pass --prefix <anygba install prefix>");
     }
     return exe->parent_path().parent_path();  // <prefix>/bin/anygba
+}
+
+// Cheat databases for this ROM shipped in <prefix>/share/anygba/cheats: <game code>.toml and
+// <crc32>.toml, copied to `dest` where the game looks for them (docs/user/CHEATS.md).
+std::vector<fs::path> cheat_databases(const fs::path& prefix, const std::vector<std::uint8_t>& rom) {
+    std::vector<fs::path> found;
+    if (rom.size() < 0xB0) return found;
+    std::string code(rom.begin() + 0xAC, rom.begin() + 0xB0);
+    for (char& ch : code) {
+        if (!std::isalnum(static_cast<unsigned char>(ch))) ch = '_';
+    }
+    char crc[16];
+    std::snprintf(crc, sizeof crc, "%08x", anygba::crc32(rom));
+    for (const std::string& name : {code + ".toml", std::string(crc) + ".toml"}) {
+        const fs::path p = prefix / "share" / "anygba" / "cheats" / name;
+        if (fs::exists(p)) found.push_back(p);
+    }
+    return found;
 }
 
 std::vector<std::uint8_t> read_file(const fs::path& p) {
@@ -258,6 +279,15 @@ fs::path build(const BuildOptions& o) {
 
     const std::string name = o.name ? *o.name : program_name(analysis.title);
     fs::create_directories(o.output_dir);
+    const std::vector<fs::path> databases = cheat_databases(prefix, read_file(o.rom));
+    const auto copy_databases = [&databases](const fs::path& dir) {
+        if (databases.empty()) return;
+        fs::create_directories(dir);
+        for (const auto& db : databases) {
+            fs::copy_file(db, dir / db.filename(), fs::copy_options::overwrite_existing);
+            std::printf("anygba: cheat database %s\n", path_string(dir / db.filename()).c_str());
+        }
+    };
 #if defined(__APPLE__)
     const fs::path app = o.output_dir / (name + ".app");
     fs::remove_all(app);
@@ -280,6 +310,7 @@ fs::path build(const BuildOptions& o) {
     if (!plist) {
         throw std::runtime_error("cannot write " + path_string(app / "Contents" / "Info.plist"));
     }
+    copy_databases(app / "Contents" / "Resources" / "cheats");  // SDL_GetBasePath() of a bundle
     run_checked({"codesign", "--force", "--deep", "--sign", "-", path_string(app)}, "ad-hoc signing");
     return app;
 #else
@@ -288,6 +319,7 @@ fs::path build(const BuildOptions& o) {
     if (o.embed_rom) {
         append_rom(exe, read_file(o.rom));
     }
+    copy_databases(o.output_dir / "cheats");
     return exe;
 #endif
 }
