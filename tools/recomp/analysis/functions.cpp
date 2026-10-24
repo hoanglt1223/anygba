@@ -46,7 +46,9 @@ bool is_return(const decode::Insn& in) {
 // Literal-pool values point at data far more often than at code, and Thumb decodes almost
 // any halfword. A candidate must decode cleanly, return somewhere, and start the way
 // compiled code does: unconditionally in ARM, and with PUSH {.., lr} unless it is a short
-// Thumb leaf.
+// Thumb leaf. A value the code loads from its literal pool is a stronger hint than a word
+// found anywhere in data, so it may name a longer leaf (IRQ and HBlank callbacks are often
+// leaves of a dozen instructions).
 bool plausible_function(const Function& fn, const EntryPoint& c) {
     const auto first = fn.insns.find(c.addr);
     if (fn.hit_undefined || first == fn.insns.end()) {
@@ -64,7 +66,8 @@ bool plausible_function(const Function& fn, const EntryPoint& c) {
     }
     const auto& in = first->second;
     const bool push_lr = in.op == decode::Op::STM && in.rn == decode::kSP && ((in.reglist >> decode::kLR) & 1u);
-    return push_lr || fn.insns.size() <= 8;
+    const std::size_t max_leaf = c.source == EntrySource::LiteralPool ? 32 : 8;
+    return push_lr || fn.insns.size() <= max_leaf;
 }
 
 class Discoverer {

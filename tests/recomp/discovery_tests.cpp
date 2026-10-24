@@ -2,13 +2,17 @@
 #include "io/miss_log.h"
 #include "support/corpus.h"
 #include "support/elf_symbols.h"
+#include "support/headless_run.h"
 
 #include <doctest.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <map>
+#include <set>
 #include <vector>
 
 using namespace anygba::analysis;
@@ -393,4 +397,73 @@ TEST_CASE("discovery on armwrestler against its ELF symbols") {
     }
     CHECK(c.code_bytes > 0);
     CHECK(pct >= 95.0);
+}
+
+// tonc-bin ships no ELFs; this measures ROM/ELF pairs built from the tonc sources
+// (devkitARM). Point ANYGBA_ELF_DIR at a tree of `<name>.elf` + `<name>.gba` files.
+// Linked libraries bring many functions nothing calls, so the ground truth is the set of
+// ELF functions the interpreter actually called in a 300-frame run.
+TEST_CASE("discovery on ELF/ROM pairs from ANYGBA_ELF_DIR") {
+    const char* dir = std::getenv("ANYGBA_ELF_DIR");
+    if (!dir) {
+        MESSAGE("SKIPPED: ANYGBA_ELF_DIR not set");
+        return;
+    }
+    std::size_t executed_total = 0;
+    std::size_t static_total = 0;
+    std::size_t feedback_total = 0;
+    std::size_t pairs = 0;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
+        if (entry.path().extension() != ".elf") {
+            continue;
+        }
+        auto gba = entry.path();
+        gba.replace_extension(".gba");
+        if (!std::filesystem::exists(gba)) {
+            continue;
+        }
+        const auto elf = anygba::test::parse_elf(anygba::test::read_file(entry.path()));
+        const auto rom = anygba::test::read_file(gba);
+        std::set<std::uint32_t> called;
+        try {
+            anygba::test::run_headless(rom, 300, {}, [&](std::uint64_t, anygba::System& s) { called = s.misses(); });
+        } catch (const std::exception& e) {
+            MESSAGE(gba.stem().string() << ": interpreter stopped: " << e.what());
+        }
+        const Image image(rom);
+        const Discovery d = run(image);
+        std::vector<EntryPoint> feedback;
+        for (const auto& s : elf.symbols) {
+            if (s.type == anygba::test::kSttFunc && s.value >= kRomBase && called.contains(s.value & ~1u)) {
+                feedback.push_back({s.value & ~1u, (s.value & 1) ? Mode::Thumb : Mode::Arm, EntrySource::MissLog});
+            }
+        }
+        const Discovery after = run(image, feedback);
+        std::size_t found = 0;
+        std::size_t found_after = 0;
+        for (const auto& e : feedback) {
+            found += d.functions.contains(e.addr) ? 1 : 0;
+            found_after += after.functions.contains(e.addr) ? 1 : 0;
+            if (!d.functions.contains(e.addr)) {
+                char addr[16];
+                std::snprintf(addr, sizeof addr, "0x%08x", e.addr);
+                MESSAGE(gba.stem().string() << ": called but not discovered statically: " << addr);
+            }
+        }
+        MESSAGE(gba.stem().string() << ": called ROM functions found " << found << "/" << feedback.size()
+                                    << " statically, " << found_after << " after feedback");
+        executed_total += feedback.size();
+        static_total += found;
+        feedback_total += found_after;
+        ++pairs;
+    }
+    REQUIRE(pairs > 0);
+    REQUIRE(executed_total > 0);
+    const double pct = 100.0 * static_cast<double>(static_total) / static_cast<double>(executed_total);
+    MESSAGE(pairs << " programs: called ROM functions found " << static_total << "/" << executed_total << " (" << pct
+                  << "%) statically, " << feedback_total << " after one feedback pass");
+    // Measured 83.8% on the 34 tonc programs (devkitARM, GCC 16.1): the rest are reached only
+    // through pointers built at run time or from RAM code, which is what feedback is for.
+    CHECK(pct >= 80.0);
+    CHECK(feedback_total == executed_total);
 }
