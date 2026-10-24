@@ -5,6 +5,20 @@ executable. The ROM's ARM/Thumb code is translated to C ahead of time and linked
 high-level runtime that provides the BIOS, video, audio, and I/O. There is no emulator loop; an
 interpreter exists only as a fallback for code the recompiler missed.
 
+## Why this exists
+
+I grew up with the Game Boy Advance. In primary school, the games I couldn't afford I played on a family
+PC through VisualBoyAdvance: Pokémon, a cheat code scribbled in a notebook, a save state before every hard
+fight. Those evenings are a big part of why I write software today.
+
+AnyGBA is my way of giving something back to that childhood. I want to bring those games back to life,
+make them run better than they ever did on that old PC (native code, sharp at 4K, instant saves), make up
+for what that kid couldn't have, and carry the feeling forward for the next person who opens their old
+cartridges. VBA kept these games alive for a generation; this project hopes to carry them a little further.
+
+> *Mình làm AnyGBA vì tuổi thơ, vì tình yêu với GBA và VBA từ những ngày tiểu học: để hồi sinh, cải thiện,
+> bù đắp và tiếp nối tuổi thơ ấy.*
+
 Status: every plan phase is implemented and tested on Windows; Linux/macOS CI and one commercial title
 (from the user's own dump) are still to come. Compatibility: [compat/](compat/) (page:
 `python tools/compat-site/generate.py`).
