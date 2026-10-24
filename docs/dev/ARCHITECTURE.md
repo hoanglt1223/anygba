@@ -21,9 +21,14 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 |---|---|---|
 | `cmake/` | | `toolchain` (language levels, output dirs, MSVC flags), `warnings`, `sanitizers`, `dependencies` (pinned FetchContent) |
 | `platform/` | `anyport_platform` (`anyport::platform`) | Host layer on SDL3: context, window, audio, input, timing, log |
-| `common/` | `anygba_common` | SHA-256 (ties generated code to its ROM), embedded-ROM trailer |
+| `common/` | `anygba_common` | SHA-256 (ties generated code to its ROM), CRC-32, embedded-ROM trailer |
 | `runtime/` | `anygba_runtime` (`anygba::runtime`, file `anygba`) | `libanygba`: `System` (bus, IO, scheduler, IRQ, DMA, timers, dispatch, fallback interpreter); C ABI for generated code in `include/anygba/cpu.h` |
-| `runtime/src/save/`, `input_map.cpp` | `anygba_runtime` | Backup memory (SRAM, Flash, EEPROM), save files, `anygba-input.ini` |
+| `runtime/src/save/`, `input_map.cpp` | `anygba_runtime` | Backup memory (SRAM, Flash, EEPROM), save files, `anygba-input.ini` (buttons, hotkeys, gamepad chords) |
+| `runtime/src/state/` | `anygba_runtime` | Save states: file format and per-component serialization ([SAVE-STATES.md](SAVE-STATES.md)) |
+| `runtime/src/cheats/`, `rom_patch.cpp` | `anygba_runtime` | Cheat decoding, decryption and the per-frame engine, cheat databases and files, ROM patches ([CHEATS.md](CHEATS.md)) |
+| `runtime/src/player/` | `anygba_runtime` | Player front end pieces: menu, on-screen text, speed and resampler, scripted input |
+| `cheats/` | | Curated cheat databases, installed to `share/anygba/cheats/` |
+| `tools/cheats/` | | `import-libretro.py`: converts libretro-database cheat lists to cheat databases |
 | `runtime/src/main.cpp` | `anygba_game_main` (`anygba::game_main`) | `main()` for generated games |
 | `tools/recomp/decode/` | `anygba_decode` | ARMv4T ARM/Thumb decoder (`Insn`) and Capstone-syntax disassembler; shared with the runtime interpreter |
 | `tools/recomp/analysis/` | `anygba_recomp_lib` | ROM image with RAM regions, CFG walker with constant tracking, jump tables, function discovery |
@@ -59,6 +64,9 @@ Control flow between functions:
 - Indirect jumps set `r[15]` and return, except bounded jump tables, which become a `switch` of
   `goto`s, and jumps with LR already pointing at the next instruction, which are indirect calls.
 - A branch to itself calls `anygba_idle_loop`, which skips to the next scheduled event.
+- Every ROM function starts with `AG_ENTER`, which costs one load and branch unless a ROM patch cheat
+  is active; the function table records each function's ROM code footprint so patched functions can be
+  sent to the interpreter ([CHEATS.md](CHEATS.md)).
 
 Cycle accounting: each instruction costs the WAITCNT-derived fetch cost of its region plus a small extra
 for loads, multiplies and block transfers. Costs are batched and charged at labels and before control
@@ -126,10 +134,14 @@ code that has no recompiled function and is the oracle for the differential test
 where it starts and every call target it reaches without recompiled code, so one feedback pass covers
 code that only ever ran inside it.
 
-`runtime/src/main.cpp` is the host loop for generated games, driven from VBlank: present the framebuffer,
-feed the audio stream (silence until the APU exists) and wait while more than two frames of audio are
-queued, so the sound card's clock sets the speed; Tab skips the wait. Headless runs use `FramePacer`
-at 59.7275 Hz when `--pace` is given.
+`runtime/src/main.cpp` is the player for generated games, driven from VBlank: read input (devices or a
+`--script`), handle hotkeys, run the enabled cheats, present the framebuffer with on-screen messages, feed
+the audio stream and wait while more than two frames of audio are queued, so the sound card's clock sets the
+speed. At 200-400% each frame's sound is resampled by the speed factor (`player::Resampler`), so the queue
+drains at the same rate and the game runs that much faster without gaps; holding fast-forward skips the
+wait and drops sound. Headless runs use `FramePacer` at 59.7275 Hz times the speed when `--pace` is given.
+The menu (`player::Menu`) runs inside the VBlank hook while the game is paused. Save and load requests go
+through `System::request_safe_point` ([SAVE-STATES.md](SAVE-STATES.md)).
 
 ## Install package
 
@@ -150,7 +162,7 @@ reported by throwing `anyport::platform::Error` with the failing SDL call and `S
 | `context.h` | `Context`: owns `SDL_Init` for video, audio, gamepads. One at a time; destroy other platform objects first. `headless` selects SDL's dummy video and audio drivers and the software renderer. |
 | `window.h` | `Window`: resizable window showing one framebuffer through a streaming texture, nearest-neighbour filtering, and SDL's integer-scale logical presentation (largest whole factor that fits, black letterbox). Formats: `PixelFormat::Rgb555` (red in bits 0-4). `present()` can read the composed output back as RGBA for tests. |
 | `audio.h` | `AudioStream`: signed 16-bit interleaved stream at any source rate and 1-8 channels; SDL resamples to the device. `push()` takes whole frames; `queued_frames()` drives audio-led pacing. |
-| `input.h` | `Input`: virtual pad in SDL gamepad terms (South/East/West/North, d-pad, shoulders, triggers as buttons above half travel, sticks), merged from the keyboard and all connected gamepads. Keys bind by SDL key name. `pump_events()` feeds it and reports quit. |
+| `input.h` | `Input`: virtual pad in SDL gamepad terms (South/East/West/North, d-pad, shoulders, triggers as buttons above half travel, sticks), merged from the keyboard and all connected gamepads. Keys bind by SDL key name. `pump_events()` feeds it and reports quit; `take_key_presses()` and `take_gamepad_events()` report presses and hot-plugged controllers by name; `add_gamepad_mappings()` loads a `gamecontrollerdb.txt`. |
 | `timing.h` | `now_ns`, `sleep_ns`, and `FramePacer`, which never returns early and restarts its schedule after falling more than one period behind. |
 | `log.h` | printf-style `log(level, ...)` on SDL's log. |
 
@@ -162,7 +174,7 @@ belong to the project using the layer (for AnyGBA: 240x160 RGB555, 32768 Hz ster
 All third-party code arrives through `cmake/dependencies.cmake` at an exact release with a SHA-256:
 
 - SDL 3.4.18 (zlib), built static.
-- toml++ 3.4.0 (MIT), single header, recompiler config parsing.
+- toml++ 3.4.0 (MIT), single header, recompiler config and cheat databases (compiled into the runtime library).
 - doctest 2.5.3 (MIT), single header, tests only.
 - Capstone 5.0.6 (BSD-3-Clause), ARM only, tests only: the disassembler oracle. Nothing shipped links it.
 
@@ -184,6 +196,10 @@ To build against a local checkout, set `FETCHCONTENT_SOURCE_DIR_SDL3` or `FETCHC
 - `install-runtime` + `feedback-irq_demo`, `feedback-dma_demo` (label `slow`): install the package, then
   `tests/feedback-pass.cmake` recompiles a tonc demo, builds it against the package, runs it headless,
   recompiles with the miss log, and fails if the second run still interprets anything.
+- `player-states`, `player-cheats`, `player-menu`, `player-speed`: generated tonc demos driven headless
+  through the player: save/load round trips compared by frame hash, every cheat format plus a ROM patch on
+  compiled code (checked with `--dump`), the menu by scripted keys (cheat file and input file checked after),
+  and paced timing at 200% and 400%.
 - `varooom-3d`, `tonc-*` targets (not built by default): larger generated programs for manual checks.
 - Corpus: `tests/corpus.lock` lists `kind sha256 path url` per line. `file` entries are saved as-is;
   `zip` entries are verified, cached under `.archives/`, and extracted into a directory stamped with the

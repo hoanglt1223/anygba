@@ -19,9 +19,9 @@ cartridges. VBA kept these games alive for a generation; this project hopes to c
 > *Mình làm AnyGBA vì tuổi thơ, vì tình yêu với GBA và VBA từ những ngày tiểu học: để hồi sinh, cải thiện,
 > bù đắp và tiếp nối tuổi thơ ấy.*
 
-Status: every plan phase is implemented and tested on Windows; Linux/macOS CI and one commercial title
-(from the user's own dump) are still to come. Compatibility: [compat/](compat/) (page:
-`python tools/compat-site/generate.py`).
+Status: every plan phase is implemented and tested on Windows, including one commercial title from the
+user's own cartridge dump (Pokemon Emerald reaches gameplay and saves); Linux/macOS CI is still to come.
+Compatibility: [compat/](compat/) (page: `python tools/compat-site/generate.py`).
 
 What works:
 
@@ -48,11 +48,26 @@ What works:
 - `anygba build game.gba`: one command from ROM to a program with the ROM embedded
   ([docs/user/USAGE.md](docs/user/USAGE.md)). Controls come from `anygba-input.ini`
   ([docs/user/INPUT_MAPPING.md](docs/user/INPUT_MAPPING.md)).
+- VisualBoyAdvance-style player features in every generated game:
+  - Save states in nine slots (Shift+F1-F9 save, F1-F9 load). A state saved and loaded later, in the
+    same run or a new one, continues with the same frames, even though the game is native code
+    ([docs/dev/SAVE-STATES.md](docs/dev/SAVE-STATES.md)).
+  - Speed 100/200/300/400% with the sound resampled instead of broken up, plus a hold-to-fast-forward key.
+  - Cheats: GameShark v1/v2, Action Replay v3 (GameShark SP), CodeBreaker and raw codes, encrypted
+    forms included, with conditions, button codes and ROM patches. They come from an in-game menu with
+    categories and value pickers, typed codes, a per-game cheat file, or the command line
+    ([docs/user/CHEATS.md](docs/user/CHEATS.md)). A curated Pokemon Emerald database ships with AnyGBA;
+    `tools/cheats/import-libretro.py` converts the libretro community lists for about 490 more games.
+  - An in-game menu (Escape or Back+Start) for states, speed, cheats and rebinding keys and gamepad
+    buttons; on-screen messages; gamepad hot-plug with SDL's controller database and the left stick.
 
 What does not work yet:
 
 - Audio and windows: never run on a real sound device or window on the development PC (headless
-  only), so windowed playback, keyboard/gamepad input, audio-led pacing and fast-forward are untested.
+  only), so windowed playback, real keyboard/gamepad input, audio-led pacing at every speed and the
+  drawn menu are untested; the same code paths run headless with scripted input in the tests.
+- The real-time clock some cartridges have (Pokemon Ruby, Sapphire, Emerald) is not emulated: those
+  games report a dry battery and skip time-based events.
 - EEPROM is checked by unit tests only; no open-source test ROM in the corpus uses it.
 - The macOS `.app` bundle and its ad-hoc signing are written but have not been run on a Mac.
 - The sprite-per-line cycle limit is implemented but no test content reaches it.
@@ -114,12 +129,13 @@ GitHub Release.
   CLI. Writes a C project to the output directory; `--list` prints the discovered functions with
   disassembly instead. Config schema and the miss-log format: [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
 - `anygba build <rom.gba> [options]`: recompile, compile and package in one step (`anygba help build`).
-- A generated game: `game [rom.gba] [--headless] [--pace | --fast] [--frames N] [--seconds S]
-  [--exit-on-idle] [--dump-frame-hash] [--save-dir DIR | --no-save] [--save-type T] [--input FILE]
-  [--miss-log FILE | --no-miss-log] [--scale N]`. It only accepts the ROM it was generated from (SHA-256);
-  without a ROM argument it uses the one `anygba build` embedded. With a window it paces to the audio
-  device and Tab fast-forwards; headless runs are unpaced unless `--pace`. Addresses it had to interpret
-  are appended to `anygba-miss.log`.
+- A generated game: `game [rom.gba] [--headless] [--pace | --fast] [--speed N] [--frames N] [--seconds S]
+  [--exit-on-idle] [--dump-frame-hash] [--save-dir DIR | --no-save] [--save-type T] [--load-state FILE]
+  [--cheat CODE] [--cheats FILE] [--cheat-db FILE] [--input FILE] [--script FILE] [--keys SPEC]
+  [--dump REGION:FILE] [--miss-log FILE | --no-miss-log] [--scale N]` (`--help` explains each). It only
+  accepts the ROM it was generated from (SHA-256); without a ROM argument it uses the one `anygba build`
+  embedded. With a window it paces to the audio device and Space fast-forwards; headless runs are unpaced
+  unless `--pace`. Addresses it had to interpret are appended to `anygba-miss.log`.
 - `platform-smoke`: opens a window with a test pattern and plays a 440/660 Hz tone. Held buttons light up
   along the bottom; Escape quits. `--headless` runs on SDL's dummy drivers, checks the scaled output, the
   audio drain, and keyboard routing, and exits non-zero on a mismatch. CTest runs it this way.
