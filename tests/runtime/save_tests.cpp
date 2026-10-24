@@ -2,6 +2,7 @@
 #include "anygba/embedded_rom.h"
 #include "input_map.h"
 #include "save/save.h"
+#include "support/temp_dir.h"
 
 #include <doctest.h>
 
@@ -14,6 +15,7 @@
 
 namespace fs = std::filesystem;
 using namespace anygba::save;
+using anygba::test::TempDir;
 
 namespace {
 
@@ -28,18 +30,6 @@ anygba::Options quiet() {
     o.log_misses = false;
     return o;
 }
-
-struct TempDir {
-    fs::path path;
-    explicit TempDir(const char* name) : path(fs::temp_directory_path() / name) {
-        fs::remove_all(path);
-        fs::create_directories(path);
-    }
-    ~TempDir() {
-        std::error_code ec;
-        fs::remove_all(path, ec);
-    }
-};
 
 std::vector<std::uint8_t> read_all(const fs::path& p) {
     std::ifstream in(p, std::ios::binary);

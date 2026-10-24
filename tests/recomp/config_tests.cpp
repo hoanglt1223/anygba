@@ -1,5 +1,6 @@
 #include "codegen/c_emitter.h"
 #include "config/game_config.h"
+#include "support/temp_dir.h"
 
 #include <doctest.h>
 
@@ -118,9 +119,8 @@ TEST_CASE("game config: save type, replacement functions, and their sources") {
 }
 
 TEST_CASE("generated project: replaced functions forward to the hand-written C, save type and sources") {
-    const auto dir = std::filesystem::temp_directory_path() / "anygba-replace-test";
-    std::filesystem::remove_all(dir);
-    std::filesystem::create_directories(dir);
+    const anygba::test::TempDir temp("anygba-replace-test");
+    const auto& dir = temp.path;
     const auto hacks = dir / "hacks.c";
     std::ofstream(hacks, std::ios::binary) << "/* user code */\n";
 
@@ -152,7 +152,6 @@ TEST_CASE("generated project: replaced functions forward to the hand-written C, 
 
     info.replacements[0x08000040] = "nowhere";
     CHECK_THROWS_WITH(anygba::codegen::write_project(out, image, discovery, info), doctest::Contains("0x08000040"));
-    std::filesystem::remove_all(dir);
 }
 
 TEST_CASE("generated function starts at its entry when code below it belongs to it") {

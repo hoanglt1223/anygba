@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "support/temp_dir.h"
 
 #include <doctest.h>
 
@@ -50,8 +51,8 @@ TEST_CASE("recomp CLI errors") {
 }
 
 TEST_CASE("recomp CLI input validation") {
-    const auto dir = std::filesystem::temp_directory_path() / "anygba-cli-test";
-    std::filesystem::create_directories(dir);
+    const anygba::test::TempDir temp("anygba-cli-test");
+    const auto& dir = temp.path;
     const auto rom = dir / "fake.gba";
     std::ofstream(rom) << "not a rom";
 
@@ -70,6 +71,4 @@ TEST_CASE("recomp CLI input validation") {
 
     options.rom = dir;
     CHECK(validate_inputs(options)->starts_with("ROM not found"));
-
-    std::filesystem::remove_all(dir);
 }
