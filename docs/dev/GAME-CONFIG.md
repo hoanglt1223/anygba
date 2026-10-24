@@ -144,6 +144,11 @@ Each address becomes an entry point; a RAM address that no region covers gets a 
 reported ROM bytes, reaching to the end of that RAM area or of the ROM, whichever comes first. Lines
 starting with `#` are comments; duplicates are ignored.
 
+Games put different code at the same RAM address (overlays, routines built on the stack), so a
+compiled RAM function only runs while RAM still holds the bytes it was compiled from: the dispatch table
+records their ROM source (`code_src`), and both the dispatcher and the function's `AG_ENTER_RAM` compare
+them on every entry. Anything else at that address is interpreted.
+
 ## How functions are found
 
 Discovery starts at the ROM entry (0x08000000, ARM) plus the config and miss-log entries, then walks each
