@@ -4,7 +4,10 @@
 #include "anygba/system.hpp"
 #include "cheats/cheat_list.h"
 #include "cheats/engine.h"
+#include "control/controller.h"
+#include "control/net.h"
 #include "input_map.h"
+#include "journal/journal.h"
 #include "player/menu.h"
 #include "player/osd.h"
 #include "player/script.h"
@@ -78,6 +81,17 @@ struct Args {
     std::vector<fs::path> cheat_dbs;
     std::vector<std::pair<std::string, fs::path>> dumps;
     anygba::Options runtime;
+    // Agent control and the play journal (docs/user/AI-CONTROL.md).
+    bool control = false;
+    bool control_readonly = false;
+    std::string control_host = "127.0.0.1";
+    std::uint16_t control_port = 0;
+    std::optional<fs::path> control_dir;
+    int takeover_frames = 180;
+    bool journal = false;
+    std::optional<fs::path> journal_dir;
+    anygba::journal::Settings journal_settings;
+    std::vector<fs::path> symbol_files;
 };
 
 const char* const kUsage =
@@ -108,7 +122,22 @@ const char* const kUsage =
     "  --script FILE       scripted input (keys, gamepad, menu use) by host frame; repeatable\n"
     "  --keys SPEC         GBA buttons held over frame ranges, e.g. a:10-20,start:30-31\n"
     "  --miss-log FILE     where to append addresses the recompiled code missed (default anygba-miss.log)\n"
-    "  --no-miss-log       do not write the miss log\n";
+    "  --no-miss-log       do not write the miss log\n"
+    "\n"
+    "AI agent control and the play journal (both can also be switched in the menu: Settings):\n"
+    "  --control           start the control server (127.0.0.1 only, token in the per-user control folder)\n"
+    "  --control-port N    port for the control server (default: any free port)\n"
+    "  --control-host H    127.0.0.1 or localhost; any other address is refused\n"
+    "  --control-dir DIR   where the token file is written (default: <data folder>/control)\n"
+    "  --control-readonly  agents may only observe and debug\n"
+    "  --takeover-frames N a user keypress pauses agent input for N frames (default 180)\n"
+    "  --journal           record the play journal from the start\n"
+    "  --journal-dir DIR   journal folder (default: <data folder>/journal)\n"
+    "  --journal-snapshot S  named-symbol snapshots every S emulated seconds (default 10, 0 = off)\n"
+    "  --journal-thumbnail S pictures every S emulated seconds (default 30, 0 = only on events)\n"
+    "  --journal-max-mb N  keep at most N MB of journals (default 512)\n"
+    "  --journal-days N    delete journals older than N days (default 30, 0 = never)\n"
+    "  --symbols FILE      named memory for agents ([symbols] table); repeatable\n";
 
 std::optional<CheatArg> parse_cheat_arg(std::string text) {
     CheatArg c;
@@ -199,6 +228,39 @@ std::optional<Args> parse(int argc, char** argv) {
             a.scripts.emplace_back(argv[++i]);
         } else if (arg == "--keys" && has_value) {
             a.keys.emplace_back(argv[++i]);
+        } else if (arg == "--control") {
+            a.control = true;
+        } else if (arg == "--control-readonly") {
+            a.control_readonly = true;
+        } else if (arg == "--control-host" && has_value) {
+            a.control_host = argv[++i];
+        } else if (arg == "--control-port" && has_value) {
+            const long n = std::strtol(argv[++i], &end, 10);
+            if (*end != '\0' || n < 1 || n > 65535) return std::nullopt;
+            a.control_port = static_cast<std::uint16_t>(n);
+        } else if (arg == "--control-dir" && has_value) {
+            a.control_dir = fs::path(argv[++i]);
+        } else if (arg == "--takeover-frames" && has_value) {
+            const long n = std::strtol(argv[++i], &end, 10);
+            if (*end != '\0' || n < 0 || n > 36000) return std::nullopt;
+            a.takeover_frames = static_cast<int>(n);
+        } else if (arg == "--journal") {
+            a.journal = true;
+        } else if (arg == "--journal-dir" && has_value) {
+            a.journal_dir = fs::path(argv[++i]);
+        } else if ((arg == "--journal-snapshot" || arg == "--journal-thumbnail" || arg == "--journal-days" ||
+                    arg == "--journal-max-mb") && has_value) {
+            const long n = std::strtol(argv[++i], &end, 10);
+            if (*end != '\0' || n < 0 || n > 1000000) return std::nullopt;
+            if (arg == "--journal-snapshot") a.journal_settings.snapshot_seconds = static_cast<int>(n);
+            if (arg == "--journal-thumbnail") a.journal_settings.thumbnail_seconds = static_cast<int>(n);
+            if (arg == "--journal-days") a.journal_settings.max_days = static_cast<int>(n);
+            if (arg == "--journal-max-mb") {
+                if (n == 0) return std::nullopt;
+                a.journal_settings.max_mb = static_cast<std::uint64_t>(n);
+            }
+        } else if (arg == "--symbols" && has_value) {
+            a.symbol_files.emplace_back(argv[++i]);
         } else if (!arg.starts_with("-") && a.rom.empty()) {
             a.rom = arg;
         } else {
@@ -361,25 +423,27 @@ public:
 
     void on_vblank() {
         if (args_.frames && sys_.frames() >= *args_.frames) {
-            sys_.stop();
+            stop();
         }
         if (args_.seconds && static_cast<double>(platform::now_ns() - start_ns_) / 1e9 >= *args_.seconds) {
-            sys_.stop();
+            stop();
         }
+        measure_fps();
         if (save_) {
             if (const auto error = save_->on_frame()) {
                 std::fprintf(stderr, "warning: %s\n", error->c_str());
             }
         }
         if (!poll()) {
-            sys_.stop();
+            stop();
             return;
         }
         const std::uint32_t held = anygba::input::hotkeys_held(mapping_, source());
         const std::uint32_t pressed = held & ~hotkeys_prev_;
         hotkeys_prev_ = held;
         handle_hotkeys(pressed);
-        const std::uint16_t keys = gba_keys();
+        std::uint16_t keys = gba_keys();
+        if (control_) keys = control_->keys(keys);
         sys_.set_keys(keys);
 
         if (cheats_.generation() != cheats_seen_) {
@@ -402,6 +466,43 @@ public:
         osd_.tick();
         if (menu_.is_open()) {
             run_menu();
+        }
+        if (control_ && !stopping_) {
+            control_->service_frame();
+        }
+    }
+
+    void stop() {
+        stopping_ = true;
+        sys_.stop();
+    }
+
+    // Agent control and the journal. Both start off unless `control_on` / `journal_on`.
+    void attach_agent_features(anygba::control::Settings settings, anygba::control::Symbols symbols,
+                               std::unique_ptr<anygba::journal::Journal> journal, bool control_on, bool journal_on) {
+        anygba::control::Hooks hooks;
+        hooks.speed = [this] { return speed_; };
+        hooks.set_speed = [this](int speed) { apply_speed(speed); };
+        hooks.state_dir = [this] { return state_dir_; };
+        hooks.state_stem = [] { return game_file_stem(); };
+        hooks.after_load = [this] { resampler_.reset(); };
+        hooks.osd = [this](const std::string& text) { osd_.show(text); };
+        hooks.cheats_changed = [this] {
+            sync_rom_patches();
+            save_cheats();
+        };
+        hooks.idle = [this](std::uint16_t& user) { return idle(user); };
+        hooks.fps = [this] { return fps_; };
+        hooks.pad_name = [this] { return pad_name_; };
+        hooks.quit = [this] { stop(); };
+        control_ = std::make_unique<anygba::control::Controller>(sys_, cheats_, std::move(hooks), std::move(settings),
+                                                                 std::move(symbols), std::move(journal));
+        menu_.set_settings(&menu_settings_);
+        if (journal_on) control_->set_journal(true, "user");
+        if (control_on) {
+            if (const auto error = control_->set_control(true, "user")) {
+                throw std::runtime_error(*error);
+            }
         }
     }
 
@@ -448,6 +549,8 @@ private:
         }
         for (const auto& e : events) {
             osd_.show(std::string(e.connected ? "Gamepad connected: " : "Gamepad removed: ") + e.name);
+            if (e.connected) pad_name_ = e.name;
+            else if (pad_name_ == e.name) pad_name_.clear();
         }
         return keep;
     }
@@ -460,15 +563,85 @@ private:
         if (anygba::input::has(pressed, Hotkey::SpeedUp)) set_speed(player::next_speed(speed_, 1));
         if (anygba::input::has(pressed, Hotkey::SpeedDown)) set_speed(player::next_speed(speed_, -1));
         if (anygba::input::has(pressed, Hotkey::Menu)) {
+            sync_menu_settings();
             menu_.open();
             menu_trace_.clear();
         }
+        if (control_ && anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
+        if (control_ && anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
     }
 
     void set_speed(int speed) {
+        apply_speed(speed);
+        user_event("speed", anygba::control::Json(anygba::control::Json::Object{{"percent", speed}}));
+    }
+
+    void apply_speed(int speed) {
         speed_ = speed;
         reset_pacer();
         osd_.show("Speed " + std::to_string(speed_) + "%");
+    }
+
+    void user_event(std::string_view kind, anygba::control::Json data) {
+        if (control_) control_->user_event(kind, std::move(data));
+    }
+
+    void sync_menu_settings() {
+        if (!control_) return;
+        menu_settings_.ai_control = control_->control_on();
+        menu_settings_.readonly_agent = control_->readonly();
+        menu_settings_.journal = control_->journal_on();
+    }
+
+    void apply_menu_settings() {
+        if (!control_) return;
+        if (menu_settings_.ai_control != control_->control_on()) control_->set_control(menu_settings_.ai_control, "user");
+        if (menu_settings_.readonly_agent != control_->readonly()) control_->set_readonly(menu_settings_.readonly_agent, "user");
+        if (menu_settings_.journal != control_->journal_on()) control_->set_journal(menu_settings_.journal, "user");
+        sync_menu_settings();  // a switch that failed to turn on shows Off again
+    }
+
+    void measure_fps() {
+        const std::uint64_t now = platform::now_ns();
+        if (fps_frames_++ == 0) {
+            fps_start_ns_ = now;
+        } else if (now - fps_start_ns_ >= 1'000'000'000ull) {
+            fps_ = static_cast<double>(fps_frames_ - 1) * 1e9 / static_cast<double>(now - fps_start_ns_);
+            fps_frames_ = 1;
+            fps_start_ns_ = now;
+        }
+    }
+
+    // One host frame while an agent keeps the game paused.
+    bool idle(std::uint16_t& user) {
+        user = 0;
+        if (!window_) return true;
+        if (!platform::pump_events(*input_)) return false;
+        input_->take_key_presses();
+        for (const auto& e : input_->take_gamepad_events()) {
+            if (e.connected) pad_name_ = e.name;
+            osd_.show(std::string(e.connected ? "Gamepad connected: " : "Gamepad removed: ") + e.name);
+        }
+        const std::uint32_t held = anygba::input::hotkeys_held(mapping_, *device_);
+        const std::uint32_t pressed = held & ~hotkeys_prev_;
+        hotkeys_prev_ = held;
+        if (anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
+        if (anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
+        user = anygba::input::gba_keys(mapping_, *device_);
+        frame_copy_ = sys_.framebuffer();
+        osd_.draw(frame_copy_);
+        draw_indicator();
+        window_->present(frame_copy_);
+        osd_.tick();
+        return true;
+    }
+
+    void draw_indicator() {
+        const std::string text = control_ ? control_->indicator() : std::string();
+        if (text.empty()) return;
+        const int width = static_cast<int>(text.size()) * player::kCellWidth;
+        player::shade(frame_copy_, anygba::kScreenWidth - width - 4, 0, width + 4, player::kCellHeight + 1);
+        player::draw_text(frame_copy_, anygba::kScreenWidth - width - 2, 1, text, player::color::kCyan);
     }
 
     void reset_pacer() {
@@ -495,6 +668,7 @@ private:
                     osd_.show("Save state " + std::to_string(slot) + " failed: " + *error);
                 } else {
                     osd_.show("Saved state " + std::to_string(slot));
+                    user_event("state_save", anygba::control::Json(anygba::control::Json::Object{{"slot", slot}}));
                 }
             } catch (const std::exception& e) {
                 osd_.show("Save state " + std::to_string(slot) + " failed: " + e.what());
@@ -521,6 +695,7 @@ private:
                 s.load_state(*bytes);
                 resampler_.reset();
                 osd_.show("Loaded state " + std::to_string(slot));
+                user_event("state_load", anygba::control::Json(anygba::control::Json::Object{{"slot", slot}}));
             } catch (const std::exception& e) {
                 osd_.show("Load state " + std::to_string(slot) + " failed: " + e.what());
             }
@@ -558,7 +733,7 @@ private:
         const std::uint64_t script_end = script_ ? script_->last_frame() : 0;
         while (menu_.is_open()) {
             if (!poll()) {
-                sys_.stop();
+                stop();
                 return;
             }
             const std::uint32_t held = anygba::input::hotkeys_held(mapping_, source());
@@ -590,8 +765,10 @@ private:
                 case player::MenuAction::CheatsChanged:
                     sync_rom_patches();
                     save_cheats();
+                    user_event("cheats", active_cheats_json());
                     break;
                 case player::MenuAction::MappingChanged: save_mapping(); break;
+                case player::MenuAction::SettingsChanged: apply_menu_settings(); break;
                 case player::MenuAction::Close: break;
                 }
             }
@@ -601,6 +778,7 @@ private:
                 frame_copy_ = sys_.framebuffer();
                 menu_.draw(frame_copy_);
                 osd_.draw(frame_copy_);
+                draw_indicator();
                 window_->present(frame_copy_);
                 platform::sleep_ns(16'000'000);
             }
@@ -634,13 +812,22 @@ private:
             return;  // fast play: show at most about 60 pictures a second
         }
         last_present_ns_ = now;
-        if (osd_.empty()) {
+        if (osd_.empty() && (!control_ || control_->indicator().empty())) {
             window_->present(sys_.framebuffer());
             return;
         }
         frame_copy_ = sys_.framebuffer();
         osd_.draw(frame_copy_);
+        draw_indicator();
         window_->present(frame_copy_);
+    }
+
+    anygba::control::Json active_cheats_json() const {
+        anygba::control::Json names = anygba::control::Json::array();
+        for (const auto& c : cheats_.cheats()) {
+            if (c.enabled) names.push_back(c.name);
+        }
+        return anygba::control::Json(anygba::control::Json::Object{{"active", std::move(names)}});
     }
 
     // Audio-led pacing: the device consumes 32768 frames per second of sound (SDL resamples
@@ -691,6 +878,14 @@ private:
     std::uint64_t cheats_seen_ = ~std::uint64_t{0};
     std::uint64_t start_ns_ = 0;
     std::uint64_t last_present_ns_ = 0;
+    bool stopping_ = false;
+    std::string pad_name_;
+    double fps_ = 0;
+    std::uint64_t fps_frames_ = 0;
+    std::uint64_t fps_start_ns_ = 0;
+    player::MenuSettings menu_settings_;
+    // Declared last: destroyed first, while everything its hooks use still exists.
+    std::unique_ptr<anygba::control::Controller> control_;
 };
 
 std::vector<std::uint8_t> read_rom(const Args& args) {
@@ -708,17 +903,15 @@ std::vector<std::uint8_t> read_rom(const Args& args) {
     return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 }
 
-// Cheat databases for this ROM: <code>.toml and <crc32>.toml in cheats/ next to the program
-// and in the data folder, then --cheat-db files.
-void load_cheat_databases(const Args& args, const std::vector<std::uint8_t>& rom, cheats::CheatList& list) {
-    const std::uint32_t crc = anygba::crc32(rom);
+// Per-game files for this ROM in `subdir` (cheats/, symbols/) next to the program and in the
+// data folder: <code>.toml, <crc32>.toml, and numbered variants such as <crc32>-2.toml.
+std::vector<fs::path> game_files(const std::vector<std::uint8_t>& rom, std::uint32_t crc, std::string_view subdir) {
     std::string code(rom.begin() + 0xAC, rom.begin() + 0xB0);
     for (char& ch : code) {
         if (!std::isalnum(static_cast<unsigned char>(ch))) ch = '_';
     }
     char crc_name[16];
     std::snprintf(crc_name, sizeof crc_name, "%08x", crc);
-    // <code>.toml, <crc32>.toml, and numbered variants such as <crc32>-2.toml.
     const auto ours = [&](const fs::path& p) {
         if (p.extension() != ".toml") return false;
         const std::string stem = p.stem().string();
@@ -732,14 +925,21 @@ void load_cheat_databases(const Args& args, const std::vector<std::uint8_t>& rom
     std::vector<fs::path> files;
     for (const auto& dir : {program_dir(), data_dir()}) {
         std::error_code ec;
-        if (!dir || !fs::is_directory(*dir / "cheats", ec)) continue;
+        if (!dir || !fs::is_directory(*dir / subdir, ec)) continue;
         std::vector<fs::path> found;
-        for (const auto& entry : fs::directory_iterator(*dir / "cheats", ec)) {
+        for (const auto& entry : fs::directory_iterator(*dir / subdir, ec)) {
             if (entry.is_regular_file(ec) && ours(entry.path())) found.push_back(entry.path());
         }
         std::sort(found.begin(), found.end());
         files.insert(files.end(), found.begin(), found.end());
     }
+    return files;
+}
+
+// Cheat databases for this ROM (game_files in cheats/), then --cheat-db files.
+void load_cheat_databases(const Args& args, const std::vector<std::uint8_t>& rom, cheats::CheatList& list) {
+    const std::uint32_t crc = anygba::crc32(rom);
+    std::vector<fs::path> files = game_files(rom, crc, "cheats");
     files.insert(files.end(), args.cheat_dbs.begin(), args.cheat_dbs.end());
     for (const fs::path& f : files) {
         if (!list.load_database(f, crc)) {
@@ -749,12 +949,28 @@ void load_cheat_databases(const Args& args, const std::vector<std::uint8_t>& rom
     }
 }
 
+// Named memory for agents: symbols/ files for this ROM, then --symbols files (later ones win).
+anygba::control::Symbols load_symbols(const Args& args, const std::vector<std::uint8_t>& rom) {
+    std::vector<fs::path> files = game_files(rom, anygba::crc32(rom), "symbols");
+    files.insert(files.end(), args.symbol_files.begin(), args.symbol_files.end());
+    anygba::control::Symbols symbols;
+    for (const fs::path& f : files) {
+        symbols.merge(anygba::control::Symbols::load(f));
+    }
+    return symbols;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     const auto args = parse(argc, argv);
     if (!args) {
         std::fputs(kUsage, stderr);
+        return 2;
+    }
+    if (!anygba::control::net::is_loopback_host(args->control_host)) {
+        std::fprintf(stderr, "error: --control-host %s: the control server only listens on 127.0.0.1 (or localhost)\n",
+                     args->control_host.c_str());
         return 2;
     }
 
@@ -792,6 +1008,7 @@ int main(int argc, char** argv) {
 
         cheats::CheatList cheat_list;
         load_cheat_databases(*args, rom, cheat_list);
+        anygba::control::Symbols symbols = load_symbols(*args, rom);
 
         system = std::make_unique<anygba::System>(std::move(rom), &anygba_game_info, args->runtime);
         anygba::System& sys = *system;
@@ -829,6 +1046,29 @@ int main(int argc, char** argv) {
         }
 
         Player player(*args, sys, std::move(mapping), save.get(), dir, cheat_list, cheat_file, std::move(script));
+        {
+            anygba::control::Settings control;
+            control.host = args->control_host;
+            control.port = args->control_port;
+            control.readonly = args->control_readonly;
+            control.takeover_frames = args->takeover_frames;
+            const std::optional<fs::path> data = data_dir();
+            const std::optional<fs::path> control_dir = args->control_dir ? args->control_dir
+                                                        : data             ? std::optional<fs::path>(*data / "control")
+                                                                           : std::nullopt;
+            control.token_file = control_dir ? *control_dir / (game_file_stem() + ".json") : fs::path("anygba-control.json");
+            control.info["title"] = anygba_game_info.title;
+            control.info["game"] = game_file_stem();
+            control.info["rom_sha256"] = anygba_game_info.rom_sha256;
+            std::error_code ec;
+            control.info["exe"] = fs::absolute(utf8_path(argv[0]), ec).string();
+            std::unique_ptr<anygba::journal::Journal> journal;
+            if (const auto root = args->journal_dir ? args->journal_dir : data ? std::optional<fs::path>(*data / "journal") : std::nullopt) {
+                journal = std::make_unique<anygba::journal::Journal>(*root, game_file_stem());
+                journal->settings() = args->journal_settings;
+            }
+            player.attach_agent_features(std::move(control), std::move(symbols), std::move(journal), args->control, args->journal);
+        }
         if (args->load_state) {
             player.load_state_file(*args->load_state);
         }
