@@ -193,6 +193,7 @@ void System::interpret() {
                 }
             }
         }
+        if (!breakpoints_.empty()) hit_breakpoint(pc);
         const decode::Insn in = interp::fetch(*this, pc, cpu_.t != 0);
         interp::execute(*this, in);
         expected_next = in.next();

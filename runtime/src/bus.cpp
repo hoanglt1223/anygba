@@ -47,6 +47,14 @@ void System::map_pages() {
         cpu_.read_page[i] = mem_.rom.data();
         cpu_.read_mask[i] = Memory::kRomMax - 1;
     }
+    for (int region = 0; region < 16; ++region) {
+        if ((watched_regions_ >> region) & 1u) cpu_.read_page[region] = cpu_.write_page[region] = nullptr;
+    }
+}
+
+void System::set_watched_regions(std::uint16_t mask) {
+    watched_regions_ = mask;
+    map_pages();
 }
 
 std::uint32_t System::open_bus() const {
@@ -73,7 +81,7 @@ void System::eeprom_write(std::uint32_t value) {
     fail(std::move(error));  // longjmp only after the exception object is gone
 }
 
-std::uint32_t System::read32(std::uint32_t addr) {
+std::uint32_t System::bus_read32(std::uint32_t addr) {
     const std::uint32_t unaligned = addr;  // SRAM sits on an 8-bit bus and reads the exact byte
     addr &= ~3u;
     switch (addr >> 24) {
@@ -98,7 +106,7 @@ std::uint32_t System::read32(std::uint32_t addr) {
     }
 }
 
-std::uint32_t System::read16(std::uint32_t addr) {
+std::uint32_t System::bus_read16(std::uint32_t addr) {
     const std::uint32_t unaligned = addr;
     addr &= ~1u;
     switch (addr >> 24) {
@@ -123,7 +131,7 @@ std::uint32_t System::read16(std::uint32_t addr) {
     }
 }
 
-std::uint32_t System::read8(std::uint32_t addr) {
+std::uint32_t System::bus_read8(std::uint32_t addr) {
     switch (addr >> 24) {
     case 0x00:
         return addr < Memory::kBiosSize ? (last_bios_opcode_ >> ((addr & 3) * 8)) & 0xFF : open_bus() & 0xFF;
@@ -144,7 +152,7 @@ std::uint32_t System::read8(std::uint32_t addr) {
     }
 }
 
-void System::write32(std::uint32_t addr, std::uint32_t value) {
+void System::bus_write32(std::uint32_t addr, std::uint32_t value) {
     const std::uint32_t unaligned = addr;
     addr &= ~3u;
     switch (addr >> 24) {
@@ -167,7 +175,7 @@ void System::write32(std::uint32_t addr, std::uint32_t value) {
     }
 }
 
-void System::write16(std::uint32_t addr, std::uint32_t value) {
+void System::bus_write16(std::uint32_t addr, std::uint32_t value) {
     const std::uint32_t unaligned = addr;
     addr &= ~1u;
     switch (addr >> 24) {
@@ -193,7 +201,7 @@ void System::write16(std::uint32_t addr, std::uint32_t value) {
     }
 }
 
-void System::write8(std::uint32_t addr, std::uint32_t value) {
+void System::bus_write8(std::uint32_t addr, std::uint32_t value) {
     const auto byte = static_cast<std::uint8_t>(value);
     switch (addr >> 24) {
     case 0x02: mem_.ewram[addr & (Memory::kEwramSize - 1)] = byte; break;
