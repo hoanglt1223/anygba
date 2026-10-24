@@ -125,6 +125,14 @@ public:
 
     std::function<void(System&)> on_vblank;       // start of every VBlank
     std::function<void(System&)> on_idle_loop;    // a branch-to-self was reached
+    // A visible line (0-159) was just rendered, with the IO registers, palette, OAM and VRAM it
+    // used still in memory(); the HD renderer snapshots them here.
+    std::function<void(System&, unsigned line)> on_line_rendered;
+    // Internal BG2X, BG2Y, BG3X, BG3Y reference points (20.8 fixed) the last rendered line used.
+    std::array<std::int32_t, 4> affine_reference() const;
+    // Changes whenever VRAM may have changed (a write, a reset or a state load).
+    std::uint64_t vram_writes() const { return vram_writes_; }
+    void mark_vram_written() { ++vram_writes_; }
 
     // Addresses the interpreter had to run because no recompiled function started there.
     const std::set<std::uint32_t>& misses() const { return misses_; }
@@ -239,6 +247,7 @@ private:
     std::uint32_t line_ = 0;
     bool hblank_ = false;
     std::uint64_t frames_ = 0;
+    std::uint64_t vram_writes_ = 0;
     bool halted_ = false;
     bool in_irq_ = false;
 

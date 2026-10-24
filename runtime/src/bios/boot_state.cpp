@@ -47,6 +47,7 @@ void System::reset() {
     std::fill(mem_.io.begin(), mem_.io.end(), 0);
     std::fill(mem_.palette.begin(), mem_.palette.end(), 0);
     std::fill(mem_.vram.begin(), mem_.vram.end(), 0);
+    ++vram_writes_;
     std::fill(mem_.oam.begin(), mem_.oam.end(), 0);
 
     dma_ = {};
@@ -119,7 +120,10 @@ void register_ram_reset(System& sys, std::uint32_t flags) {
     if (flags & 0x01) std::fill(m.ewram.begin(), m.ewram.end(), 0);
     if (flags & 0x02) std::fill(m.iwram.begin(), m.iwram.end() - 0x200, 0);
     if (flags & 0x04) std::fill(m.palette.begin(), m.palette.end(), 0);
-    if (flags & 0x08) std::fill(m.vram.begin(), m.vram.end(), 0);
+    if (flags & 0x08) {
+        std::fill(m.vram.begin(), m.vram.end(), 0);
+        sys.mark_vram_written();
+    }
     if (flags & 0x10) std::fill(m.oam.begin(), m.oam.end(), 0);
     if (flags & 0x20) {  // serial: general-purpose mode
         io_zero(sys, 0x120, 0x12C);

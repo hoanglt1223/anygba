@@ -63,6 +63,8 @@ void System::drain_audio(std::vector<std::int16_t>& out) {
 
 std::uint64_t System::fifo_underruns() const { return apu_->fifo_underruns(); }
 
+std::array<std::int32_t, 4> System::affine_reference() const { return ppu_->line_reference(); }
+
 System::~System() {
     if (miss_file_) {
         std::fclose(miss_file_);

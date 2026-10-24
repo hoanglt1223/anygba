@@ -41,6 +41,8 @@ add_executable(anygba-tests
   runtime/cheat_tests.cpp
   runtime/player_tests.cpp
   runtime/video_tests.cpp
+  runtime/hd_tests.cpp
+  runtime/hd_pack_tests.cpp
   driver/driver_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform

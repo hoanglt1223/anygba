@@ -48,6 +48,14 @@ add_library(anygba_runtime STATIC
   src/video/pipeline.cpp
   src/video/presenter.cpp
   src/video/settings.cpp
+  src/video/hd/keys.cpp
+  src/video/hd/frame.cpp
+  src/video/hd/renderer.cpp
+  src/video/hd/layer_scale.cpp
+  src/video/hd/png_io.cpp
+  src/video/hd/pack.cpp
+  src/video/hd/json.cpp
+  src/video/hd/dump.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

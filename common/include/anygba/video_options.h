@@ -38,6 +38,12 @@ enum class Effect : std::uint8_t { None, LcdGrid, Scanlines, Crt };
 enum class Color : std::uint8_t { Raw, GbaLcd };
 // Render resolution: Window follows the window's own size; the rest are fixed 16:9 targets.
 enum class Output : std::uint8_t { Window, P720, P1080, P1440, P2160, Desktop };
+// Real-time AI upscaling (docs/user/HD-PACKS.md): none, the final frame, or each layer.
+enum class Ai : std::uint8_t { Off, Frame, Layers };
+// Upscaling models, downloaded on first use (docs/user/HD-PACKS.md).
+enum class AiModel : std::uint8_t { GeneralX4v3, X4Plus };
+// Picture shape (docs/user/WIDESCREEN.md): the GBA's 3:2, or wider through extra columns.
+enum class Widescreen : std::uint8_t { Off, W16x10, W16x9 };
 
 struct Options {
     Scaler scaler = Scaler::Nearest;
@@ -49,22 +55,42 @@ struct Options {
     Output output = Output::Window;
     bool fullscreen = false;
     bool integer_scale = false;
+    // HD rendering (docs/user/HD-PACKS.md): the PPU composes the layers at internal_scale x.
+    int internal_scale = 1;
+    Scaler layer_filter = Scaler::Nearest;  // scaler applied to each layer before compositing
+    bool smooth_affine = true;  // rotated and scaled layers/sprites sampled at the internal resolution
+    bool hd_pack = true;        // replace art from hdpacks/<game code>/ when that folder exists
+    bool hd_dump = false;       // write every new tile, sprite and bitmap to the dump folder
+    Ai ai = Ai::Off;
+    AiModel ai_model = AiModel::GeneralX4v3;
+    Widescreen widescreen = Widescreen::Off;
 
     bool operator==(const Options&) const = default;
 };
 
 inline constexpr double kMinGamma = 0.5;
 inline constexpr double kMaxGamma = 2.5;
+inline constexpr int kMaxInternalScale = 8;
 
 std::span<const Scaler> all_scalers();
 std::span<const Effect> all_effects();
 std::span<const Color> all_colors();
 std::span<const Output> all_outputs();
+std::span<const Ai> all_ai_modes();
+std::span<const AiModel> all_ai_models();
+std::span<const Widescreen> all_widescreens();
 
 std::string_view name(Scaler s);
 std::string_view name(Effect e);
 std::string_view name(Color c);
 std::string_view name(Output o);
+std::string_view name(Ai a);
+std::string_view name(AiModel m);
+std::string_view name(Widescreen w);
+
+// Columns added on each side of the 240-pixel picture by a widescreen mode (0 when off): the
+// picture becomes (240 + 2 * extra) x 160.
+int widescreen_extra(Widescreen w);
 
 // Integer factor a pixel-art scaler produces (1 for nearest, bilinear and sharp-bilinear).
 int factor(Scaler s);
@@ -77,7 +103,8 @@ std::optional<std::string> parse_filter(std::string_view spec, Options& options)
 std::string filter_spec(const Options& options);
 
 // One setting by key, as on the command line and in the game TOML: filter, color, gamma, deband,
-// output, fullscreen, integer-scale. Booleans take true/false/on/off/1/0. Returns an error message.
+// output, fullscreen, integer-scale, internal-scale, layer-filter, smooth-affine, hd-pack, hd-dump,
+// ai, ai-model, widescreen. Booleans take true/false/on/off/1/0. Returns an error message.
 std::optional<std::string> apply_setting(Options& options, std::string_view key, std::string_view value);
 
 // "key=value;key=value" with every setting that differs from the defaults (embedded in generated
