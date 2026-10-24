@@ -93,7 +93,7 @@ def body(project: str, entries: list[dict], generated: str) -> str:
     order = {s: i for i, s in enumerate(STAGES)}
     for e in sorted(entries, key=lambda e: (-order[e["stage"]], e["kind"], e["title"].lower())):
         title = html.escape(e["title"])
-        if e.get("source"):
+        if e.get("source", "").startswith(("https://", "http://")):  # commercial titles name a dump, not a link
             title = f'<a href="{html.escape(e["source"])}">{title}</a>'
         blockers = "<br>".join(html.escape(b) for b in e.get("blockers", [])) or "&ndash;"
         misses = e.get("misses")
