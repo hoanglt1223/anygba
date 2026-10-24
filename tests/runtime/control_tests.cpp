@@ -247,6 +247,18 @@ TEST_CASE("journal: records, summary, search, retention, export, clear") {
     CHECK(anygba::journal::list_sessions(dir.path / "journal").empty());
 }
 
+TEST_CASE("journal: off and on again within a second starts a second session") {
+    anygba::test::TempDir dir("anygba-journal-restart-test");
+    anygba::journal::Journal j(dir.path, "g");
+    j.start(1, Json::object());
+    const std::string first = j.session_id();
+    j.stop(2);
+    j.start(3, Json::object());
+    CHECK(j.session_id() != first);
+    j.stop(4);
+    CHECK(anygba::journal::list_sessions(dir.path).size() == 2);
+}
+
 TEST_CASE("control server: loopback only, token handshake, one request at a time") {
     anygba::test::TempDir dir("anygba-server-test");
     namespace net = anygba::control::net;

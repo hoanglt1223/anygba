@@ -94,9 +94,12 @@ Journal::~Journal() {
 
 void Journal::start(std::uint64_t frame, Json info) {
     if (active()) return;
-    session_ = new_session_id();
-    const fs::path dir = session_dir();
+    const std::string base = new_session_id();
+    session_ = base;
     std::error_code ec;
+    // Switching the journal off and on within a second must still start a new session.
+    for (int n = 2; fs::exists(session_dir(), ec); ++n) session_ = base + "-" + std::to_string(n);
+    const fs::path dir = session_dir();
     fs::create_directories(dir, ec);
     if (ec) throw std::runtime_error("cannot create the journal folder " + dir.string() + ": " + ec.message());
     apply_retention(root_, settings_.max_mb, settings_.max_days, dir);
