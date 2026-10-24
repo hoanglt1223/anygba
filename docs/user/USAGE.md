@@ -49,6 +49,11 @@ Options (`anygba help build`):
 - `--cheat CODE`, `--cheats FILE`, `--cheat-db FILE`: cheats ([CHEATS.md](CHEATS.md)).
 - `--filter SPEC`, `--video SETTINGS`: graphics filters, colour correction and output resolution, also in
   the menu's Video page ([VIDEO.md](VIDEO.md)).
+- `--hd-pack DIR`, `--hd-dump DIR`, `--hd-dump-filter F`, `--ai-device D`: HD packs, art dumps and AI
+  upscaling ([HD-PACKS.md](HD-PACKS.md)); `--video widescreen=16:9` for widescreen
+  ([WIDESCREEN.md](WIDESCREEN.md)).
+- `--screenshot N:FILE`, `--screenshot-size WxH`: save frame N as a PNG as the window would show it
+  (filters, HD and widescreen included), also with `--headless`.
 - `--headless --frames N --dump-frame-hash`: no window or audio; prints the SHA-256 of the last frame.
   Used by tests and the compatibility tracker.
 - `--exit-on-idle`: stop at the first branch-to-self (test ROMs end this way) and print the registers.

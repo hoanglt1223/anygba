@@ -16,8 +16,14 @@ misses = 0                           # interpreter fallbacks in the checkpoint r
 checkpoint_frames = 3600
 checkpoint_hash = "9f2c..."          # SHA-256 of the last frame, RGB555 little-endian (video only)
 shards = 2                           # optional: funcs_NNN.c files when CI recompiles it
+widescreen = "partial"               # optional: none | partial | full (docs/user/WIDESCREEN.md)
+widescreen_notes = "overworld widened; battles pillarboxed"   # optional: which scenes, which rules
 updated = 2026-10-24
 ```
+
+`widescreen` says how far the game's widescreen rules (`widescreen/<rom_id>.toml`) go: `none` (no
+rules, or every scene pillarboxed), `partial` (some scenes widened without visible errors, the rest
+pillarboxed), `full` (every scene widened).
 
 Commercial titles never name a ROM file or hash: they carry only `rom_id` (the 4-character game code from
 the ROM header) and are checked by hand by whoever owns the game, so they have no `rom` or checkpoint.

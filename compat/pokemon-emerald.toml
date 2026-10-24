@@ -6,4 +6,6 @@ stage = "in-game"
 evidence = "anygba build, Windows, headless: intro, new game, naming and the moving-truck scene to player control (frame 10000); in-game save to the 128 KB Flash, then CONTINUE after a restart; save states reload to the same frame hash; Start menu, bag and the cheats in cheats/BPEE.toml checked in memory and on screen. 332 functions found statically; 240-490 frames/s unpaced"
 blockers = ["no real-time clock: the game reports 'The internal battery has run dry' at boot and time-based events do not run", "a trace-feedback pass compiles code the game copies onto its stack (0x03007Dxx); that code changes between calls and the stale copy stops the game, so builds must skip the feedback pass for now", "pictures not compared with mGBA"]
 misses = 284
+widescreen = "partial"
+widescreen_notes = "widescreen/BPEE.toml: overworld widened at 16:9 and 16:10 with the map rebuilt beyond the game's tile buffer (pokeemerald-field provider), text boxes and menus kept in the middle; other scenes (title, intro, battles, bag, party) pillarboxed. Checked headless with screenshots."
 updated = 2026-10-24

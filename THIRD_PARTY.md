@@ -20,6 +20,22 @@ or translated from the implementations named here, several of which are under co
 | GBA LCD colour | Talarubi and Near (byuu), colour emulation for higan | The published formula: LCD gamma 4.0, a channel-mixing matrix, output gamma 2.2 at 255/280 | Formula reimplemented; the higan code (ISC) is not used. |
 | Sharp bilinear, LCD grid, scanlines, CRT, ghosting, debanding | Common techniques | — | Written for AnyGBA. |
 
+## HD rendering and AI upscaling (`runtime/src/video/hd/`, `tools/hdpack/`)
+
+- The HD renderer, pack format, dumper, widescreen rules and the `pokeemerald-field` provider are
+  written for AnyGBA. The provider follows the map, tileset and metatile layout documented by the
+  [pret/pokeemerald](https://github.com/pret/pokeemerald) decompilation; no decompilation code is
+  copied, and the addresses in `widescreen/BPEE.toml` were checked by reading a running game's memory.
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT): the C API headers
+  `onnxruntime_c_api.h` and `onnxruntime_ep_c_api.h` of v1.24.4 are downloaded at configure time
+  (SHA-256 pinned in `cmake/dependencies.cmake`); the library is loaded at run time and, on Windows,
+  downloaded on first use from nuget.org (Microsoft.ML.OnnxRuntime.DirectML 1.24.4, pinned), never
+  committed. `anygba hdpack fetch-runtime --directml` can also fetch Microsoft.AI.DirectML 1.15.4
+  (Microsoft's DirectML licence).
+- Models: Real-ESRGAN weights (BSD-3-Clause, Xintao Wang et al.), as ONNX exports by Qualcomm AI Hub;
+  downloaded on first use, SHA-256 pinned, never committed ([HD-PACKS.md](docs/user/HD-PACKS.md#ai-upscaling)).
+- PNG files are read and written with SDL 3.4 (zlib licence), already a dependency.
+
 ## Test pictures
 
 The golden images in `tests/golden/video/` come from a test frame drawn by code in

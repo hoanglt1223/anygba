@@ -59,6 +59,8 @@ ports of the reference code, so their output is close to but not identical with 
 | `output` | `window`, `720p`, `1080p`, `1440p`, `4k`, `desktop` | `window` |
 | `fullscreen` | `true`/`false` | false |
 | `integer-scale` | `true`/`false`: only whole multiples of 240x160 | false |
+| `internal-scale`, `layer-filter`, `smooth-affine`, `hd-pack`, `hd-dump`, `ai`, `ai-model` | HD rendering, packs and AI upscaling: [HD-PACKS.md](HD-PACKS.md) | off |
+| `widescreen` | `off`, `16:10`, `16:9`: [WIDESCREEN.md](WIDESCREEN.md) | `off` |
 
 ```sh
 <Title> --video "color=gba-lcd;gamma=1.2;output=1080p;fullscreen=true"
