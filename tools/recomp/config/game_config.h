@@ -43,6 +43,7 @@ struct GameConfig {
     std::vector<analysis::AddressRange> skip;
     std::vector<Patch> patches;
     std::string save_type;  // empty: detect at run time
+    std::string video;      // [video] settings, serialized (anygba/video_options.h); empty: defaults
     std::vector<Replacement> replacements;
     std::vector<std::filesystem::path> sources;  // C files compiled into the game, absolute
 };

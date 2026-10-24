@@ -1,6 +1,7 @@
 #include "player/menu.h"
 
 #include "player/speed.h"
+#include "video/settings.h"
 
 #include <algorithm>
 #include <cctype>
@@ -24,6 +25,7 @@ constexpr cheats::Format kEntryFormats[] = {cheats::Format::Auto,         cheats
 constexpr int kEntryFormatCount = static_cast<int>(sizeof kEntryFormats / sizeof kEntryFormats[0]);
 
 constexpr int kMainResume = 0, kMainSave = 1, kMainLoad = 2, kMainSpeed = 3, kMainCheats = 4, kMainControls = 5;
+constexpr int kMainVideo = 6;
 constexpr int kCustomGroup = -2;  // tree row: "My codes"
 constexpr int kAddCode = -3;      // tree row: "Add code..."
 constexpr int kReset = -4;        // controls row: reset to defaults
@@ -118,6 +120,7 @@ std::vector<MenuAction> Menu::update(const MenuInput& in) {
     case Page::Cheats: update_cheats(press, in, out); break;
     case Page::Picker: update_picker(press, in, out); break;
     case Page::Controls: update_controls(press, out); break;
+    case Page::Video: update_video(press, out); break;
     default: break;
     }
     const int rows_now = static_cast<int>(rows().size());
@@ -167,6 +170,11 @@ void Menu::update_main(std::uint16_t press, std::vector<MenuAction>& out) {
     case kMainControls:
         cursor_stack_.push_back(cursor_);
         page_ = Page::Controls;
+        cursor_ = 0;
+        break;
+    case kMainVideo:
+        cursor_stack_.push_back(cursor_);
+        page_ = Page::Video;
         cursor_ = 0;
         break;
     default: break;
@@ -443,6 +451,7 @@ std::string Menu::title() const {
     case Page::CodeEntry: return "Add a cheat code";
     case Page::Controls: return "Controls";
     case Page::Capture: return "Rebind " + input::target_name(capture_target_);
+    case Page::Video: return "Video";
     }
     return {};
 }
@@ -455,6 +464,7 @@ std::string Menu::help() const {
     case Page::CodeEntry: return "Type hex, Enter: next line  Esc cancel";
     case Page::Controls: return "A rebind  B back";
     case Page::Capture: return "Press a key or button  Esc cancel";
+    case Page::Video: return "</> change  B back";
     }
     return {};
 }
@@ -469,6 +479,7 @@ std::vector<Menu::Row> Menu::rows() const {
         out.push_back({"Speed", "< " + std::to_string(speed_) + "% >", kMainSpeed});
         out.push_back({"Cheats", ">", kMainCheats});
         out.push_back({"Controls", ">", kMainControls});
+        if (video_) out.push_back({"Video", ">", kMainVideo});
         break;
     case Page::Cheats:
         for (const Node& n : nodes()) {
@@ -512,8 +523,28 @@ std::vector<Menu::Row> Menu::rows() const {
         }
         out.push_back({"Reset to defaults", "", kReset});
         break;
+    case Page::Video:
+        if (video_) {
+            int i = 0;
+            for (const auto& item : video::menu_items(*video_)) out.push_back({item.label, "< " + item.value + " >", i++});
+        }
+        break;
     }
     return out;
+}
+
+void Menu::update_video(std::uint16_t press, std::vector<MenuAction>& out) {
+    if (press & kB) {
+        page_ = Page::Main;
+        cursor_ = cursor_stack_.empty() ? 0 : cursor_stack_.back();
+        if (!cursor_stack_.empty()) cursor_stack_.pop_back();
+        return;
+    }
+    const int dir = (press & (kRight | kA)) ? 1 : (press & kLeft) ? -1 : 0;
+    if (dir && video_) {
+        video::menu_step(*video_, cursor_, dir);
+        out.push_back(MenuAction::VideoChanged);
+    }
 }
 
 std::vector<std::string> Menu::lines() const {

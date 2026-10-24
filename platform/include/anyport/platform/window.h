@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct SDL_Window;
@@ -23,6 +24,23 @@ struct WindowConfig {
     PixelFormat format = PixelFormat::Rgb555;
     int scale = 3;  // initial window size as a multiple of the framebuffer
     bool vsync = true;
+    bool hidden = false;  // never shown (GPU tests)
+};
+
+struct Rect {
+    int x = 0, y = 0, w = 0, h = 0;
+};
+
+enum class Scaling { Nearest, Linear };
+
+// A picture the size of the destination rectangle that the shown picture is multiplied by
+// (R, G, B, A bytes; white leaves it alone). It is uploaded again only when `version` or the
+// size changes.
+struct Overlay {
+    std::span<const std::uint32_t> pixels;
+    int width = 0;
+    int height = 0;
+    std::uint64_t version = 0;
 };
 
 // Window output read back as tightly packed 8-bit R, G, B, A bytes.
@@ -46,6 +64,23 @@ public:
     // composed output is read back before it is shown.
     void present(std::span<const std::uint16_t> pixels, Image* capture = nullptr);
 
+    // Draws a filtered picture of any size (R, G, B, A bytes per pixel) into `dst` of the
+    // render target, black around it. The renderer (the GPU unless it is SDL's software
+    // renderer) does the scaling.
+    void present_rgba(std::span<const std::uint32_t> pixels, int width, int height, Rect dst, Scaling scaling,
+                      const Overlay* overlay = nullptr, Image* capture = nullptr);
+    // Pixels present_rgba draws into: the fixed render size if set, else the window's.
+    std::pair<int, int> render_size() const;
+    // Render into an offscreen target of this size, shown scaled to the window with the aspect
+    // ratio kept; (0, 0) renders straight to the window.
+    void set_render_size(int width, int height);
+    void set_fullscreen(bool on);
+    void set_window_size(int width, int height);
+    // False for SDL's software renderer (no GPU).
+    bool accelerated() const;
+    // The primary display's desktop mode, or (0, 0) when unknown.
+    static std::pair<int, int> desktop_size();
+
     int width() const noexcept { return width_; }
     int height() const noexcept { return height_; }
 
@@ -53,6 +88,13 @@ private:
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
     SDL_Texture* texture_ = nullptr;
+    SDL_Texture* rgba_ = nullptr;    // present_rgba upload
+    SDL_Texture* target_ = nullptr;  // fixed render size
+    int rgba_width_ = 0, rgba_height_ = 0;
+    SDL_Texture* overlay_ = nullptr;
+    int overlay_width_ = 0, overlay_height_ = 0;
+    std::uint64_t overlay_version_ = 0;
+    bool logical_ = true;            // logical presentation is on (present())
     int width_;
     int height_;
 };

@@ -124,7 +124,7 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     }
     dispatch += "};\n\nconst anygba_game anygba_game_info = {\n    " + c_string(info.title) + ",\n    \"" +
                 info.rom_sha256 + "\",\n    " + std::to_string(info.rom_size) + "u,\n    functions,\n    " +
-                std::to_string(functions.size()) + "u,\n    " + c_string(info.save_type) + ",\n};\n";
+                std::to_string(functions.size()) + "u,\n    " + c_string(info.save_type) + ",\n    " + c_string(info.video) + ",\n};\n";
     write_file(dir / "dispatch.c", dispatch, written);
 
     std::string cmake =

@@ -18,6 +18,7 @@ struct Analysis {
     std::string rom_sha256;
     std::uint32_t rom_size = 0;
     std::string save_type;
+    std::string video;
     std::map<std::uint32_t, std::string> replacements;
     std::vector<std::filesystem::path> sources;
     std::unique_ptr<analysis::Image> image;

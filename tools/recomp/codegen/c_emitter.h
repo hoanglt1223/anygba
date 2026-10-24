@@ -38,6 +38,7 @@ struct ProjectInfo {
     std::uint32_t rom_size = 0;
     std::size_t shards = 0;  // number of funcs_NNN.c files; 0 = one per 500 functions
     std::string save_type;   // "" = detect at run time
+    std::string video;       // serialized video settings, "" = defaults
     std::map<std::uint32_t, std::string> replacements;  // function entry -> hand-written C function
     std::vector<std::filesystem::path> sources;        // copied next to the generated files
 };
