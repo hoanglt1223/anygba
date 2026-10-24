@@ -9,12 +9,19 @@
 #include "video/hd/pack.h"
 #include "video/hd/png_io.h"
 #include "video/hd/renderer.h"
+#include "video/hd/widescreen.h"
+#include "video/hd/ai.h"
+#include "video/hd/onnx_patch.h"
+#include "video/settings.h"
 
 #include <doctest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <optional>
 #include <fstream>
 #include <iterator>
 #include <memory>
@@ -162,7 +169,9 @@ TEST_CASE("hd dump: whole sprites, tiles and index; sprite art; wrong sizes; hot
     hd::Renderer renderer;
     Image out;
     {
-        hd::Dumper dumper(dump_dir.path, "TEST", "synthetic");
+        hd::DumpFilter every;
+        every.min_frames = 1;
+        hd::Dumper dumper(dump_dir.path, "TEST", "synthetic", every);
         hd::RenderConfig cfg;
         cfg.sink = &dumper;
         renderer.render(*frame, cfg, out);
@@ -361,4 +370,290 @@ TEST_CASE("hd keys and json") {
     CHECK(filter.bg[2]);
     CHECK_FALSE(filter.bg[0]);
     CHECK(hd::parse_dump_filter("sprites", filter));
+    CHECK_FALSE(hd::parse_dump_filter("tiles,frames=5", filter));
+    CHECK(filter.min_frames == 5);
+    CHECK(hd::parse_dump_filter("frames=0", filter));
+}
+
+TEST_CASE("hd dump: art is written once it has been seen in min_frames frames") {
+    anygba::test::TempDir dir("anygba-hd-minframes");
+    auto frame = synthetic_frame();
+    hd::Renderer renderer;
+    Image out;
+    hd::Dumper dumper(dir.path, "TEST", "synthetic");  // default: 3 frames
+    hd::RenderConfig cfg;
+    cfg.sink = &dumper;
+    for (std::uint64_t n = 1; n <= 2; ++n) {
+        frame->number = n;
+        renderer.render(*frame, cfg, out);
+    }
+    CHECK_FALSE(dumper.wait());
+    CHECK(dumper.entries() == 0);  // a fade step lasts a frame or two: not dumped
+    frame->number = 3;
+    renderer.render(*frame, cfg, out);
+    CHECK_FALSE(dumper.wait());
+    CHECK(dumper.entries() == 3);
+    const auto plain = hd::key_name(hd::KeyType::Tile, hd::color_key(hd::KeyType::Tile, tile_art(*frame, 0)));
+    CHECK(std::filesystem::exists(dir.path / "tiles" / (plain + ".png")));
+    CHECK(std::filesystem::exists(dir.path / "tiles" / (plain + ".context.png")));
+}
+
+// ---- widescreen ----
+
+TEST_CASE("widescreen rules: scenes by memory, layer modes, patches and errors") {
+    const auto rules_text = R"(
+title = "Test"
+[default]
+mode = "pillarbox"
+
+[[scene]]
+name = "field"
+when = ["u16 0x03000010 == 0x1234", "u8 0x02000000 & 0x80"]
+hud = ["bg0", "obj"]
+clamp = ["bg3"]
+mirror = ["bg2"]
+
+[[patch]]
+address = 0x08000100
+value = 0x46C0
+)";
+    auto rules = hd::Rules::parse(rules_text, "test.toml");
+    CHECK(rules.title() == "Test");
+    REQUIRE(rules.rom_patches().size() == 1);
+    CHECK(rules.rom_patches().at(0x08000100) == 0x46C0);
+    anygba::Memory mem;
+    mem.iwram[0x10] = 0x34;
+    mem.iwram[0x11] = 0x12;
+    mem.ewram[0] = 0x80;
+    auto frame = std::make_unique<hd::Frame>();
+    CHECK(rules.apply(mem, *frame, 22) == "field");
+    CHECK_FALSE(frame->scene.pillarbox);
+    CHECK(frame->scene.layers[0] == hd::Extend::Hide);
+    CHECK(frame->scene.layers[1] == hd::Extend::Map);
+    CHECK(frame->scene.layers[2] == hd::Extend::Mirror);
+    CHECK(frame->scene.layers[3] == hd::Extend::Clamp);
+    CHECK(frame->scene.layers[4] == hd::Extend::Hide);
+    mem.ewram[0] = 0x7F;
+    CHECK(rules.apply(mem, *frame, 22) == "default");
+    CHECK(frame->scene.pillarbox);
+
+    const auto error_of = [](const char* text) {
+        try {
+            (void)hd::Rules::parse(text, "bad.toml");
+        } catch (const std::exception& e) {
+            return std::string(e.what());
+        }
+        return std::string();
+    };
+    CHECK(error_of("[[scene]]\nname = \"x\"\nwhen = [\"u16 0x03000000 ~ 1\"]\n").find("operator") != std::string::npos);
+    CHECK(error_of("[[scene]]\nname = \"x\"\n").find("needs a 'when'") != std::string::npos);
+    CHECK(error_of("[default]\nhud = [\"bg9\"]\n").find("unknown layer") != std::string::npos);
+    CHECK(error_of("[default]\nclamp = [\"obj\"]\n").find("sprites") != std::string::npos);
+    CHECK(error_of("[default]\nprovider = \"nope\"\n").find("unknown widescreen provider") != std::string::npos);
+    CHECK(error_of("[default]\nprovider = \"pokeemerald-field\"\n").find("map_header") != std::string::npos);
+    CHECK(error_of("[[patch]]\naddress = 0x08000101\nvalue = 1\n").find("even ROM address") != std::string::npos);
+    CHECK(error_of("title = ").find("bad.toml:") == 0);
+}
+
+TEST_CASE("widescreen: map, hud, clamp and pillarbox fill the extra columns; the middle stays") {
+    auto frame = synthetic_frame();
+    // BG0's whole map shows tile 1, so its own map can fill the extra columns.
+    for (unsigned i = 0; i < 32 * 32; ++i) {
+        frame->vram[0][0xF800 + 2 * i] = 1;
+        frame->vram[0][0xF800 + 2 * i + 1] = 0;
+    }
+    hd::Renderer renderer;
+    Image normal, wide;
+    renderer.render(*frame, {}, normal);
+    hd::RenderConfig cfg;
+    cfg.extra = 8;
+    const auto middle_same = [&] {
+        int bad = 0;
+        for (int y = 0; y < anygba::kScreenHeight; ++y) {
+            for (int x = 0; x < anygba::kScreenWidth; ++x) bad += wide.row(y)[x + 8] != normal.row(y)[x];
+        }
+        return bad == 0;
+    };
+    const auto bg = [&](int x, int y) { return hd::expand(frame->lines[0].bg_color(tile_index(static_cast<unsigned>(((x % 8) + 8) % 8 + (y % 8) * 8)))); };
+
+    renderer.render(*frame, cfg, wide);  // Map: the tile map wraps around (256 wide)
+    CHECK(wide.width == 256);
+    CHECK(middle_same());
+    CHECK(wide.row(9)[0] == bg(-8, 9));  // column -8 is map column 248: tile 1 again
+
+    frame->scene.layers[0] = hd::Extend::Hide;  // a HUD layer: backdrop at the sides
+    renderer.render(*frame, cfg, wide);
+    CHECK(middle_same());
+    CHECK(wide.row(9)[0] == hd::expand(frame->lines[0].bg_color(0)));
+
+    frame->scene.layers[0] = hd::Extend::Clamp;  // the edge column repeated
+    renderer.render(*frame, cfg, wide);
+    CHECK(middle_same());
+    for (int x = 0; x < 8; ++x) CHECK(wide.row(9)[x] == normal.row(9)[0]);
+    for (int x = 248; x < 256; ++x) CHECK(wide.row(9)[x] == normal.row(9)[239]);
+
+    frame->scene.layers[0] = hd::Extend::Mirror;
+    renderer.render(*frame, cfg, wide);
+    CHECK(middle_same());
+    for (int x = 0; x < 8; ++x) CHECK(wide.row(9)[7 - x] == normal.row(9)[x]);
+
+    frame->scene.pillarbox = true;
+    renderer.render(*frame, cfg, wide);
+    CHECK(middle_same());
+    CHECK(wide.row(9)[0] == 0xFF000000u);
+    CHECK(wide.row(70)[255] == 0xFF000000u);
+
+    // Map extensions from a provider replace what the wrapped map would show at the sides.
+    frame->scene = {};
+    hd::MapExtension& ext = frame->extension[0];
+    ext.x0 = -2;
+    ext.y0 = 0;
+    ext.width = 2;
+    ext.height = 20;
+    ext.entries.assign(40, 0);  // tile 0: transparent
+    renderer.render(*frame, cfg, wide);
+    CHECK(middle_same());
+    CHECK(wide.row(9)[0] == hd::expand(frame->lines[0].bg_color(0)));
+    CHECK(wide.row(9)[255] == bg(247, 9));  // not covered by the extension: the map as before
+}
+
+TEST_CASE("video options: HD settings parse, serialize and step in the menu") {
+    namespace video = anygba::video;
+    video::Options o;
+    CHECK_FALSE(video::apply_serialized(
+        o, "internal-scale=4;layer-filter=xbrz4x;smooth-affine=false;hd-pack=false;hd-dump=true;ai=frame;ai-model=x4plus;"
+           "widescreen=16:9"));
+    CHECK(o.internal_scale == 4);
+    CHECK(o.layer_filter == video::Scaler::Xbrz4x);
+    CHECK_FALSE(o.smooth_affine);
+    CHECK_FALSE(o.hd_pack);
+    CHECK(o.hd_dump);
+    CHECK(o.ai == video::Ai::Frame);
+    CHECK(o.ai_model == video::AiModel::X4Plus);
+    CHECK(o.widescreen == video::Widescreen::W16x9);
+    CHECK(video::widescreen_extra(o.widescreen) == 22);
+    video::Options back;
+    CHECK_FALSE(video::apply_serialized(back, video::serialize(o)));
+    CHECK(back == o);
+    CHECK(video::apply_setting(o, "internal-scale", "9"));
+    CHECK(video::apply_setting(o, "widescreen", "21:9"));
+    CHECK(video::apply_setting(o, "ai", "on"));
+
+    video::Options m;
+    const auto items = video::menu_items(m);
+    REQUIRE(items.size() == 17);
+    CHECK(items[9].label == "Internal scale");
+    CHECK(items[16].value == "off");
+    video::menu_step(m, 9, -1);
+    CHECK(m.internal_scale == video::kMaxInternalScale);  // wraps
+    video::menu_step(m, 9, 1);
+    CHECK(m.internal_scale == 1);
+    video::menu_step(m, 14, 1);
+    CHECK(m.ai == video::Ai::Frame);
+    video::menu_step(m, 16, -1);
+    CHECK(m.widescreen == video::Widescreen::W16x9);
+}
+
+// ---- AI ----
+
+namespace {
+
+void varint(std::vector<std::uint8_t>& out, std::uint64_t v) {
+    while (v >= 0x80) {
+        out.push_back(static_cast<std::uint8_t>(v | 0x80));
+        v >>= 7;
+    }
+    out.push_back(static_cast<std::uint8_t>(v));
+}
+
+std::vector<std::uint8_t> field(int number, const std::vector<std::uint8_t>& payload) {
+    std::vector<std::uint8_t> out;
+    varint(out, (static_cast<std::uint64_t>(number) << 3) | 2);
+    varint(out, payload.size());
+    out.insert(out.end(), payload.begin(), payload.end());
+    return out;
+}
+
+std::vector<std::uint8_t> field(int number, std::uint64_t value) {
+    std::vector<std::uint8_t> out;
+    varint(out, static_cast<std::uint64_t>(number) << 3);
+    varint(out, value);
+    return out;
+}
+
+std::vector<std::uint8_t> cat(std::initializer_list<std::vector<std::uint8_t>> parts) {
+    std::vector<std::uint8_t> out;
+    for (const auto& p : parts) out.insert(out.end(), p.begin(), p.end());
+    return out;
+}
+
+// ValueInfoProto "name" with a float tensor of shape (1, 3, 128, 128).
+std::vector<std::uint8_t> image_value(const std::string& name) {
+    std::vector<std::uint8_t> shape;
+    for (const int d : {1, 3, 128, 128}) {
+        const auto dim = field(1, field(1, static_cast<std::uint64_t>(d)));
+        shape.insert(shape.end(), dim.begin(), dim.end());
+    }
+    const auto tensor = cat({field(1, 1), field(2, shape)});
+    return cat({field(1, std::vector<std::uint8_t>(name.begin(), name.end())), field(2, field(1, tensor))});
+}
+
+std::size_t count(const std::vector<std::uint8_t>& bytes, const std::string& s) {
+    std::size_t n = 0;
+    for (std::size_t i = 0; i + s.size() <= bytes.size(); ++i) n += std::equal(s.begin(), s.end(), bytes.begin() + static_cast<std::ptrdiff_t>(i));
+    return n;
+}
+
+}  // namespace
+
+TEST_CASE("onnx patch: fixed 128x128 image inputs and outputs become any size") {
+    const auto node = field(1, cat({field(1, std::vector<std::uint8_t>{'x'}), field(2, std::vector<std::uint8_t>{'y'})}));
+    const auto graph = cat({node, field(11, image_value("image")), field(12, image_value("upscaled")),
+                            field(13, image_value("hidden"))});
+    const auto model = cat({field(1, 10), field(7, graph), field(8, cat({field(2, 21)}))});
+    std::string error;
+    const auto patched = hd::ai::make_size_dynamic(model, &error);
+    REQUIRE(patched);
+    CHECK(count(*patched, "height") == 2);
+    CHECK(count(*patched, "width") == 2);
+    CHECK(count(*patched, "hidden") == 0);  // recorded intermediate shapes dropped
+    CHECK(count(*patched, "image") == 1);
+    CHECK(patched->size() < model.size() + 64);
+    CHECK_FALSE(hd::ai::make_size_dynamic({1, 2, 3}, &error));
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("ai: offline upscale of a dump makes a 4x pack (ANYGBA_AI_TEST=1: downloads model)") {
+    const char* enabled = std::getenv("ANYGBA_AI_TEST");
+    if (!enabled || std::string(enabled) != "1") {
+        MESSAGE("skipped: set ANYGBA_AI_TEST=1 (needs ONNX Runtime and downloads the model)");
+        return;
+    }
+    const std::filesystem::path cache = hd::ai::default_cache(std::nullopt);
+    std::string error;
+    auto up = hd::ai::Upscaler::create(anygba::video::AiModel::GeneralX4v3, cache, hd::ai::Device::Auto, &error);
+    REQUIRE_MESSAGE(up, error);
+    MESSAGE("AI upscaler on ", up->device());
+    const auto frame = synthetic_frame();
+    hd::Renderer renderer;
+    Image one;
+    renderer.render(*frame, {}, one);
+    Image out;
+    const auto start = std::chrono::steady_clock::now();
+    const int runs = 30;
+    for (int i = 0; i < runs; ++i) up->upscale(one, out);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count() / runs;
+    MESSAGE("general-x4v3, 240x160 -> 960x640: ", ms, " ms per frame");
+    CHECK(out.width == 960);
+    CHECK(out.height == 640);
+    // A sprite with transparency keeps transparent corners and an opaque middle.
+    Image sprite;
+    sprite.resize(16, 16);
+    for (int y = 0; y < 16; ++y) {
+        for (int x = 0; x < 16; ++x) sprite.row(y)[x] = (x >= 4 && x < 12 && y >= 4 && y < 12) ? 0xFF3060C0u : 0u;
+    }
+    up->upscale(sprite, out);
+    CHECK(out.width == 64);
+    CHECK((out.row(0)[0] >> 24) == 0);
+    CHECK((out.row(32)[32] >> 24) == 255);
 }

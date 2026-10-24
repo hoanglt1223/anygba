@@ -4,6 +4,8 @@
 #include "video/hd/png_io.h"
 
 #include <cstdio>
+#include <algorithm>
+#include <charconv>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -66,11 +68,19 @@ std::optional<std::string> parse_dump_filter(std::string_view spec, DumpFilter& 
             out.bitmaps = true;
         } else if (part == "blank") {
             out.blank = true;
+        } else if (part.starts_with("frames=")) {
+            const std::string_view n = part.substr(7);
+            std::uint64_t v = 0;
+            const auto [end, ec] = std::from_chars(n.data(), n.data() + n.size(), v);
+            if (ec != std::errc{} || end != n.data() + n.size() || v < 1 || v > 100000) {
+                return "frames=N needs a number from 1 to 100000";
+            }
+            out.min_frames = v;
         } else if (part.size() == 3 && part.substr(0, 2) == "bg" && part[2] >= '0' && part[2] <= '3') {
             out.bg[static_cast<std::size_t>(part[2] - '0')] = true;
             any_bg = true;
         } else {
-            return "unknown dump filter '" + std::string(part) + "' (all, tiles, objs, bitmaps, bg0-bg3, blank)";
+            return "unknown dump filter '" + std::string(part) + "' (all, tiles, objs, bitmaps, bg0-bg3, blank, frames=N)";
         }
     }
     if (!any_bg) out.bg = {true, true, true, true};
@@ -140,38 +150,63 @@ void Dumper::load_index() {
 
 bool Dumper::add(KeyType type, std::uint64_t key, std::uint64_t index_key, const Art& art, const char* layer,
                  std::uint64_t frame) {
+    const auto id = std::make_pair(static_cast<int>(type), key);
+    std::optional<Art> ready, ready_context;  // art that reached min_frames now
+    bool fresh = false;
     {
         std::lock_guard lock(mutex_);
-        const auto id = std::make_pair(static_cast<int>(type), key);
         if (const auto it = entries_.find(id); it != entries_.end()) {
-            if (it->second.last_frame != frame) {
-                it->second.last_frame = frame;
-                ++it->second.frames;
-                dirty_ = true;
+            Entry& e = it->second;
+            if (e.last_frame == frame) return false;
+            e.last_frame = frame;
+            ++e.frames;
+            dirty_ = true;
+            if (e.written || e.frames < filter_.min_frames) return false;
+            e.written = true;
+            ready = std::move(e.pending);
+            ready_context = std::move(e.pending_context);
+            e.pending.reset();
+            e.pending_context.reset();
+        } else {
+            const bool wanted = type == KeyType::Tile     ? filter_.tiles
+                                : type == KeyType::Obj    ? filter_.objs
+                                : type == KeyType::Bitmap ? filter_.bitmaps
+                                                          : false;
+            if (!wanted || entries_.size() >= filter_.max_entries || (!filter_.blank && blank(art))) return false;
+            if (layer[0] == 'b' && layer[1] == 'g' && !filter_.bg[static_cast<std::size_t>(layer[2] - '0') & 3]) return false;
+            Entry e;
+            e.index_key = index_key;
+            e.width = art.width;
+            e.height = art.height;
+            e.layer = layer;
+            e.first_frame = e.last_frame = frame;
+            e.frames = 1;
+            e.written = filter_.min_frames <= 1;
+            if (e.written) {
+                ready = art;
+            } else {
+                e.pending = art;  // kept until the art has been seen in min_frames frames
             }
-            return false;
+            entries_.emplace(id, std::move(e));
+            dirty_ = true;
+            fresh = true;
         }
-        const bool wanted = type == KeyType::Tile     ? filter_.tiles
-                            : type == KeyType::Obj    ? filter_.objs
-                            : type == KeyType::Bitmap ? filter_.bitmaps
-                                                      : false;
-        if (!wanted || entries_.size() >= filter_.max_entries || (!filter_.blank && blank(art))) return false;
-        if (layer[0] == 'b' && layer[1] == 'g' && !filter_.bg[static_cast<std::size_t>(layer[2] - '0') & 3]) return false;
-        Entry e;
-        e.index_key = index_key;
-        e.width = art.width;
-        e.height = art.height;
-        e.layer = layer;
-        e.first_frame = e.last_frame = frame;
-        e.frames = 1;
-        entries_.emplace(id, std::move(e));
-        dirty_ = true;
     }
-    enqueue(dir_ / folder(type) / (key_name(type, key) + ".png"), art);
-    return true;
+    if (ready) enqueue(dir_ / folder(type) / (key_name(type, key) + ".png"), *ready);
+    if (ready_context) enqueue(dir_ / folder(type) / (key_name(type, key) + ".context.png"), *ready_context);
+    return fresh;
 }
 
 void Dumper::context(KeyType type, std::uint64_t key, const Art& context, int, int) {
+    {
+        std::lock_guard lock(mutex_);
+        const auto it = entries_.find({static_cast<int>(type), key});
+        if (it == entries_.end()) return;
+        if (!it->second.written) {
+            it->second.pending_context = context;
+            return;
+        }
+    }
     enqueue(dir_ / folder(type) / (key_name(type, key) + ".context.png"), context);
 }
 
@@ -215,7 +250,8 @@ std::optional<std::string> Dumper::wait() {
 
 std::size_t Dumper::entries() const {
     std::lock_guard lock(mutex_);
-    return entries_.size();
+    return static_cast<std::size_t>(
+        std::count_if(entries_.begin(), entries_.end(), [](const auto& kv) { return kv.second.written; }));
 }
 
 std::optional<std::string> Dumper::write_index() {
@@ -227,6 +263,7 @@ std::optional<std::string> Dumper::write_index() {
                ",\n  \"entries\": [";
         bool first = true;
         for (const auto& [id, e] : entries_) {
+            if (!e.written) continue;
             const auto type = static_cast<KeyType>(id.first);
             text += first ? "\n" : ",\n";
             first = false;

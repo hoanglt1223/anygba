@@ -83,6 +83,14 @@ std::vector<MenuItem> menu_items(const Options& o) {
         {"Resolution", std::string(name(o.output))},
         {"Fullscreen", on_off(o.fullscreen)},
         {"Integer scale", on_off(o.integer_scale)},
+        {"Internal scale", std::to_string(o.internal_scale) + "x"},
+        {"Layer filter", std::string(name(o.layer_filter))},
+        {"Smooth rotation", on_off(o.smooth_affine)},
+        {"HD pack", on_off(o.hd_pack)},
+        {"HD dump", on_off(o.hd_dump)},
+        {"AI upscaling", std::string(name(o.ai))},
+        {"AI model", std::string(name(o.ai_model))},
+        {"Widescreen", std::string(name(o.widescreen))},
     };
 }
 
@@ -103,6 +111,14 @@ void menu_step(Options& o, int item, int dir) {
     case 6: cycle(o.output, all_outputs(), dir); break;
     case 7: o.fullscreen = !o.fullscreen; break;
     case 8: o.integer_scale = !o.integer_scale; break;
+    case 9: o.internal_scale = ((o.internal_scale - 1 + dir) % kMaxInternalScale + kMaxInternalScale) % kMaxInternalScale + 1; break;
+    case 10: cycle(o.layer_filter, all_scalers(), dir); break;
+    case 11: o.smooth_affine = !o.smooth_affine; break;
+    case 12: o.hd_pack = !o.hd_pack; break;
+    case 13: o.hd_dump = !o.hd_dump; break;
+    case 14: cycle(o.ai, all_ai_modes(), dir); break;
+    case 15: cycle(o.ai_model, all_ai_models(), dir); break;
+    case 16: cycle(o.widescreen, all_widescreens(), dir); break;
     default: break;
     }
 }

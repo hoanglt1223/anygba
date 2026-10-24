@@ -1,7 +1,9 @@
 #include "build.h"
+#include "hdpack.h"
 
 #include <cstdio>
 #include <exception>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -12,9 +14,11 @@ const char* const kUsage =
     "\n"
     "Commands:\n"
     "  build <game.gba> [options]   recompile and compile a ROM into a native program\n"
+    "  hdpack <command> ...         HD pack creator: dedupe, preview, import, ai-upscale\n"
     "  help [command]               show help\n"
     "\n"
-    "Run `anygba help build` for the build options. The recompiler alone is anygba-recomp.\n";
+    "Run `anygba help build` or `anygba help hdpack` for the options. The recompiler alone is\n"
+    "anygba-recomp.\n";
 
 }  // namespace
 
@@ -23,10 +27,15 @@ int main(int argc, char** argv) {
     if (args.empty() || args[0] == "help" || args[0] == "--help" || args[0] == "-h") {
         if (args.size() > 1 && args[1] == "build") {
             std::fputs(anygba::driver::build_usage().c_str(), stdout);
+        } else if (args.size() > 1 && args[1] == "hdpack") {
+            std::fputs(anygba::hdpack::usage().c_str(), stdout);
         } else {
             std::fputs(kUsage, args.empty() ? stderr : stdout);
         }
         return args.empty() ? 2 : 0;
+    }
+    if (args[0] == "hdpack") {
+        return anygba::hdpack::run(std::span<const std::string_view>(args.data() + 1, args.size() - 1));
     }
     if (args[0] != "build") {
         std::fprintf(stderr, "anygba: unknown command '%.*s'\n\n%s", static_cast<int>(args[0].size()), args[0].data(),

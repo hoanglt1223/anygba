@@ -19,6 +19,7 @@ add_subdirectory(common)
 add_subdirectory(platform)
 add_subdirectory(runtime)
 add_subdirectory(tools/recomp)
+add_subdirectory(tools/hdpack)
 add_subdirectory(tools/anygba)
 
 if(ANYGBA_BUILD_TESTS)

@@ -25,9 +25,13 @@ struct DumpFilter {
     std::array<bool, 4> bg{true, true, true, true};
     bool blank = false;   // also dump fully transparent art
     std::size_t max_entries = 1'000'000;
+    // Art is written once it has been seen in this many frames: screen fades change palettes
+    // every frame, and each step would otherwise be dumped as new art.
+    std::uint64_t min_frames = 3;
 };
 
-// "tiles,objs,bitmaps,bg0,bg1,bg2,bg3,blank" (any subset; "all" = everything but blank).
+// "tiles,objs,bitmaps,bg0,bg1,bg2,bg3,blank,frames=N" (any subset; "all" = every kind; frames=N
+// sets min_frames).
 // Returns an error message.
 std::optional<std::string> parse_dump_filter(std::string_view spec, DumpFilter& filter);
 
@@ -61,6 +65,8 @@ private:
         int width = 0, height = 0;
         std::string layer;
         std::uint64_t first_frame = 0, last_frame = 0, frames = 0;
+        bool written = true;                 // its PNG is (being) written
+        std::optional<Art> pending, pending_context;  // until it has been seen in min_frames frames
     };
     struct Job {
         std::filesystem::path path;
