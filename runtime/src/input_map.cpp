@@ -1,5 +1,7 @@
 #include "input_map.h"
 
+#include "player/speed.h"
+
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_scancode.h>
 
@@ -239,11 +241,15 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
             if (key == "Speed") {
                 if (*end != '\0' || (n != 100 && n != 200 && n != 300 && n != 400)) fail("Speed must be 100, 200, 300 or 400");
                 m.speed = static_cast<int>(n);
+            } else if (key == "FastForwardSpeed") {
+                const auto ff = player::parse_fast_forward(value);
+                if (!ff) fail("FastForwardSpeed must be 150, 200, 300, 400, 500, 800 or unlimited");
+                m.fast_forward = *ff;
             } else if (key == "StickDeadzone") {
                 if (*end != '\0' || n < 0 || n > 32767) fail("StickDeadzone must be 0 to 32767");
                 m.stick_deadzone = static_cast<int>(n);
             } else {
-                fail("unknown [player] setting '" + std::string(key) + "' (Speed, StickDeadzone)");
+                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, StickDeadzone)");
             }
             continue;
         }
@@ -328,8 +334,9 @@ std::string format_mapping(const Mapping& m) {
     for (int i = 0; i < kHotkeys; ++i) {
         out += hotkey_name(static_cast<Hotkey>(i)) + " = " + join(m.pad_hotkeys[i]) + "\n";
     }
-    out += "\n[player]\nSpeed = " + std::to_string(m.speed) + "\nStickDeadzone = " + std::to_string(m.stick_deadzone) +
-           "\n";
+    out += "\n[player]\nSpeed = " + std::to_string(m.speed) +
+           "\nFastForwardSpeed = " + player::format_fast_forward(m.fast_forward, false) +
+           "\nStickDeadzone = " + std::to_string(m.stick_deadzone) + "\n";
     return out;
 }
 

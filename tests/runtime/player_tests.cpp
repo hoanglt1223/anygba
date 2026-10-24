@@ -365,6 +365,62 @@ TEST_CASE("menu: cheat tree, value picker, typed code and rebinding") {
     (void)Left;
 }
 
+TEST_CASE("fast-forward speed: steps, settings file and the menu's Speed page") {
+    using namespace anygba::player;
+    CHECK(next_fast_forward(300, 1) == 400);
+    CHECK(next_fast_forward(800, 1) == kUnlimited);
+    CHECK(next_fast_forward(kUnlimited, 1) == kUnlimited);
+    CHECK(next_fast_forward(150, -1) == 150);
+    CHECK(parse_fast_forward("500") == 500);
+    CHECK(parse_fast_forward("unlimited") == kUnlimited);
+    CHECK(!parse_fast_forward("250"));
+    CHECK(!parse_fast_forward("0"));
+    CHECK(!parse_fast_forward("+300"));
+
+    auto m = anygba::input::parse_mapping("[player]\nFastForwardSpeed = unlimited\n", "t.ini");
+    CHECK(m.fast_forward == kUnlimited);
+    CHECK(anygba::input::default_mapping().fast_forward == 300);
+    m.fast_forward = 800;
+    CHECK(anygba::input::parse_mapping(anygba::input::format_mapping(m), "rt").fast_forward == 800);
+    CHECK_THROWS_WITH(anygba::input::parse_mapping("[player]\nFastForwardSpeed = 250\n", "t.ini"),
+                      doctest::Contains("t.ini:2"));
+
+    anygba::cheats::CheatList list;
+    anygba::input::Mapping mapping = anygba::input::default_mapping();
+    int speed = 100;
+    int slot = 1;
+    Menu menu(list, mapping, speed, slot);
+    std::vector<MenuAction> actions;
+    const auto press = [&](std::uint16_t buttons) {
+        menu.update({});
+        MenuInput in;
+        in.gba_held = buttons;
+        auto a = menu.update(in);
+        actions.insert(actions.end(), a.begin(), a.end());
+    };
+    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Down = 128;
+    menu.open();
+    menu.update({});
+    for (int i = 0; i < 3; ++i) press(Down);
+    press(Right);  // Left/Right on the main Speed row still change the speed
+    CHECK(speed == 200);
+    press(A);
+    CHECK(menu.lines()[0] == "== Speed ==");
+    CHECK(menu.lines()[2] == "  Fast-forward speed  < 300% >");
+    press(Left);
+    CHECK(speed == 100);
+    press(Down);
+    press(Right);
+    press(Right);
+    CHECK(mapping.fast_forward == 500);
+    press(Left);
+    CHECK(mapping.fast_forward == 400);
+    press(B);
+    CHECK(menu.lines()[0] == "== AnyGBA ==");
+    CHECK(std::count(actions.begin(), actions.end(), MenuAction::MappingChanged) == 3);
+    CHECK(std::count(actions.begin(), actions.end(), MenuAction::SpeedChanged) == 2);
+}
+
 TEST_CASE("OSD text folds accents and draws inside the picture") {
     CHECK(anygba::player::to_ascii("Pok\xC3\xA9mon \xE2\x98\x85") == "Pokemon ?");
     std::array<std::uint16_t, 240 * 160> picture{};

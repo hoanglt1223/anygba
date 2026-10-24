@@ -122,6 +122,7 @@ std::vector<MenuAction> Menu::update(const MenuInput& in) {
     case Page::Controls: update_controls(press, out); break;
     case Page::Video: update_video(press, out); break;
     case Page::Settings: update_settings(press, out); break;
+    case Page::Speed: update_speed(press, out); break;
     default: break;
     }
     const int rows_now = static_cast<int>(rows().size());
@@ -165,6 +166,11 @@ void Menu::update_main(std::uint16_t press, std::vector<MenuAction>& out) {
         out.push_back(cursor_ == kMainSave ? MenuAction::SaveState : MenuAction::LoadState);
         out.push_back(MenuAction::Close);
         break;
+    case kMainSpeed:
+        cursor_stack_.push_back(cursor_);
+        page_ = Page::Speed;
+        cursor_ = 0;
+        break;
     case kMainCheats:
         cursor_stack_.push_back(cursor_);
         page_ = Page::Cheats;
@@ -190,11 +196,41 @@ void Menu::update_main(std::uint16_t press, std::vector<MenuAction>& out) {
     }
 }
 
+void Menu::back_to_main() {
+    page_ = Page::Main;
+    cursor_ = cursor_stack_.empty() ? 0 : cursor_stack_.back();
+    if (!cursor_stack_.empty()) cursor_stack_.pop_back();
+}
+
+void Menu::update_speed(std::uint16_t press, std::vector<MenuAction>& out) {
+    if (press & kB) {
+        back_to_main();
+        return;
+    }
+    const int dir = (press & (kRight | kA)) ? 1 : (press & kLeft) ? -1 : 0;
+    if (!dir) return;
+    if (cursor_ == 0) {
+        // A wraps around so the row can be cycled with one button.
+        const int next = (press & kA) && speed_ == kSpeeds.back() ? kSpeeds.front() : next_speed(speed_, dir);
+        if (next != speed_) {
+            speed_ = next;
+            out.push_back(MenuAction::SpeedChanged);
+        }
+    } else if (cursor_ == 1) {
+        const int current = mapping_.fast_forward;
+        const int next = (press & kA) && current == kFastForwardSpeeds.back() ? kFastForwardSpeeds.front()
+                                                                               : next_fast_forward(current, dir);
+        if (next != current) {
+            mapping_.fast_forward = next;
+            say("Fast-forward " + format_fast_forward(next));
+            out.push_back(MenuAction::MappingChanged);
+        }
+    }
+}
+
 void Menu::update_settings(std::uint16_t press, std::vector<MenuAction>& out) {
     if (press & kB) {
-        page_ = Page::Main;
-        cursor_ = cursor_stack_.empty() ? 0 : cursor_stack_.back();
-        if (!cursor_stack_.empty()) cursor_stack_.pop_back();
+        back_to_main();
         return;
     }
     if (!(press & (kA | kLeft | kRight)) || !settings_) return;
@@ -403,9 +439,12 @@ void Menu::update_controls(std::uint16_t press, std::vector<MenuAction>& out) {
     }
     if (!(press & kA)) return;
     if (cursor_ == target_count()) {
-        const int speed = mapping_.speed;
-        mapping_ = input::default_mapping();
-        mapping_.speed = speed;
+        // Only the bindings; the [player] settings stay.
+        const input::Mapping defaults = input::default_mapping();
+        mapping_.keys = defaults.keys;
+        mapping_.pad = defaults.pad;
+        mapping_.hotkeys = defaults.hotkeys;
+        mapping_.pad_hotkeys = defaults.pad_hotkeys;
         say("Controls reset to defaults");
         out.push_back(MenuAction::MappingChanged);
         return;
@@ -475,6 +514,7 @@ std::string Menu::title() const {
     case Page::Capture: return "Rebind " + input::target_name(capture_target_);
     case Page::Video: return "Video";
     case Page::Settings: return "Settings";
+    case Page::Speed: return "Speed";
     }
     return {};
 }
@@ -489,6 +529,7 @@ std::string Menu::help() const {
     case Page::Capture: return "Press a key or button  Esc cancel";
     case Page::Video: return "</> change  B back";
     case Page::Settings: return "A on/off  B back";
+    case Page::Speed: return "</> change  B back";
     }
     return {};
 }
@@ -505,6 +546,10 @@ std::vector<Menu::Row> Menu::rows() const {
         out.push_back({"Controls", ">", kMainControls});
         if (video_) out.push_back({"Video", ">", kMainVideo});
         if (settings_) out.push_back({"Settings", ">", kMainSettings});
+        break;
+    case Page::Speed:
+        out.push_back({"Speed", "< " + std::to_string(speed_) + "% >", 0});
+        out.push_back({"Fast-forward speed", "< " + format_fast_forward(mapping_.fast_forward) + " >", 1});
         break;
     case Page::Settings:
         if (settings_) {

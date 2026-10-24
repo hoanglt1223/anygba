@@ -52,7 +52,7 @@ public:
     std::vector<std::string> lines() const;
 
 private:
-    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video, Settings };
+    enum class Page : std::uint8_t { Main, Cheats, Picker, CodeEntry, Controls, Capture, Video, Settings, Speed };
     struct Row {
         std::string text;
         std::string value;  // right-aligned part
@@ -72,6 +72,8 @@ private:
     void update_settings(std::uint16_t press, std::vector<MenuAction>& out);
     void update_capture(const MenuInput& in, std::vector<MenuAction>& out);
     void update_video(std::uint16_t press, std::vector<MenuAction>& out);
+    void update_speed(std::uint16_t press, std::vector<MenuAction>& out);
+    void back_to_main();
     void bind(input::Device device, const std::string& binding, std::vector<MenuAction>& out);
 
     // Cheat tree: children of `path_` ("" = root, else "Items/").

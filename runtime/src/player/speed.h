@@ -2,7 +2,10 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 // Emulation speed for the player: fixed steps like VisualBoyAdvance's frame-skip throttle,
@@ -14,6 +17,18 @@ inline constexpr std::array<int, 4> kSpeeds = {100, 200, 300, 400};
 bool valid_speed(int percent);
 // The next step up or down, clamped to the list ends.
 int next_speed(int percent, int direction);
+
+// Fast-forward rates while the hotkey is held; kUnlimited runs as fast as the host can and
+// drops the sound the device cannot keep up with.
+inline constexpr int kUnlimited = 0;
+inline constexpr std::array<int, 7> kFastForwardSpeeds = {150, 200, 300, 400, 500, 800, kUnlimited};
+inline constexpr int kDefaultFastForward = 300;
+// "300" or "unlimited"; nullopt for anything else.
+std::optional<int> parse_fast_forward(std::string_view text);
+// "300%" or "unlimited"; without the percent sign for the settings file.
+std::string format_fast_forward(int percent, bool with_percent = true);
+// Steps through kFastForwardSpeeds, clamped to its ends (unlimited is the last).
+int next_fast_forward(int percent, int direction);
 
 // Stereo 16-bit linear-interpolation resampler for fast play: every input frame advances
 // the read position by 1, every output frame by `step` (2.0 at 200%), so N frames in give

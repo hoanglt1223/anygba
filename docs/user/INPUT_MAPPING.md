@@ -61,6 +61,8 @@ FastForward = RightTrigger
 [player]
 # Starting speed: 100, 200, 300 or 400.
 Speed = 100
+# Speed while FastForward is held: 150, 200, 300, 400, 500, 800 or unlimited (no sound).
+FastForwardSpeed = 300
 # Left stick travel ignored before it presses the d-pad (0-32767).
 StickDeadzone = 12000
 ```

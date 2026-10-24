@@ -72,6 +72,7 @@ struct Args {
     bool pace_given = false;
     int scale = 3;
     std::optional<int> speed;
+    std::optional<int> fast_forward;
     std::optional<std::uint64_t> frames;
     std::optional<double> seconds;
     bool exit_on_idle = false;
@@ -110,6 +111,8 @@ const char* const kUsage =
     "  --pace              pace to real time (default with a window)\n"
     "  --fast              do not pace\n"
     "  --speed N           speed in percent: 100, 200, 300 or 400 (default: the input file's [player] Speed)\n"
+    "  --ff-speed N        fast-forward speed while the hotkey is held: 150, 200, 300, 400, 500, 800 or\n"
+    "                      unlimited (default: the input file's [player] FastForwardSpeed, else 300)\n"
     "  --scale N           initial window size as a multiple of 240x160 (default 3)\n"
     "  --filter SPEC       video filter: a scaler, a screen effect and/or ghosting, e.g. xbrz4x+lcd-grid\n"
     "                      (docs/user/VIDEO.md)\n"
@@ -206,6 +209,9 @@ std::optional<Args> parse(int argc, char** argv) {
             const long n = std::strtol(argv[++i], &end, 10);
             if (*end != '\0' || !player::valid_speed(static_cast<int>(n))) return std::nullopt;
             a.speed = static_cast<int>(n);
+        } else if (arg == "--ff-speed" && has_value) {
+            a.fast_forward = player::parse_fast_forward(argv[++i]);
+            if (!a.fast_forward) return std::nullopt;
         } else if (arg == "--miss-log" && has_value) {
             a.runtime.miss_log = argv[++i];
         } else if (arg == "--save-dir" && has_value) {
@@ -417,6 +423,8 @@ public:
           osd_(args.headless),
           speed_(args.speed.value_or(mapping_.speed)),
           menu_(cheats_, mapping_, speed_, slot_) {
+        file_fast_forward_ = mapping_.fast_forward;
+        if (args.fast_forward) mapping_.fast_forward = *args.fast_forward;
         std::string video_warning;
         video_options_ = anygba::video::resolve_settings(anygba_game_info.video, video_file(), args.video, &video_warning);
         if (!video_warning.empty()) std::fprintf(stderr, "warning: %s\n", video_warning.c_str());
@@ -496,13 +504,15 @@ public:
             cheats::run(*program, sys_, frame_keys);
         }
 
-        const bool turbo = anygba::input::has(held, Hotkey::FastForward) || !args_.pace;
-        present(turbo);
+        fast_forward_held_ = anygba::input::has(held, Hotkey::FastForward);
+        if (effective_speed() != pacer_speed_) reset_pacer();
+        const bool unthrottled = this->unthrottled();
+        present(unthrottled);
         sound_.clear();
         sys_.drain_audio(sound_);
         if (audio_) {
-            feed_audio_and_wait(turbo);
-        } else if (pacer_ && !turbo) {
+            feed_audio_and_wait(unthrottled);
+        } else if (pacer_ && !unthrottled) {
             pacer_->wait();
         }
         osd_.tick();
@@ -699,10 +709,20 @@ private:
         player::draw_text(frame_copy_, anygba::kScreenWidth - width - 2, 1, text, player::color::kCyan);
     }
 
+    // The speed the game runs at now: the fast-forward rate while its hotkey is held.
+    int effective_speed() const {
+        return fast_forward_held_ && mapping_.fast_forward != player::kUnlimited ? mapping_.fast_forward : speed_;
+    }
+
+    bool unthrottled() const {
+        return !args_.pace || (fast_forward_held_ && mapping_.fast_forward == player::kUnlimited);
+    }
+
     void reset_pacer() {
         pacer_.reset();
+        pacer_speed_ = effective_speed();
         if (args_.pace && !audio_) {
-            pacer_ = std::make_unique<platform::FramePacer>(anygba::kFramesPerSecond * speed_ / 100.0);
+            pacer_ = std::make_unique<platform::FramePacer>(anygba::kFramesPerSecond * pacer_speed_ / 100.0);
         }
     }
 
@@ -777,7 +797,10 @@ private:
             osd_.show("No folder for anygba-input.ini");
             return;
         }
-        if (const auto error = anygba::input::save_mapping(mapping_, *mapping_path_)) {
+        // A --ff-speed value is for this run only, unless the menu changed it since.
+        anygba::input::Mapping saved = mapping_;
+        if (args_.fast_forward && mapping_.fast_forward == *args_.fast_forward) saved.fast_forward = file_fast_forward_;
+        if (const auto error = anygba::input::save_mapping(saved, *mapping_path_)) {
             osd_.show(*error);
         }
     }
@@ -861,10 +884,10 @@ private:
         std::fflush(stdout);
     }
 
-    void present(bool turbo) {
+    void present(bool unthrottled) {
         if (!window_) return;
         const std::uint64_t now = platform::now_ns();
-        if ((turbo || speed_ > 100) && now - last_present_ns_ < 15'000'000) {
+        if ((unthrottled || effective_speed() > 100) && now - last_present_ns_ < 15'000'000) {
             return;  // fast play: show at most about 60 pictures a second
         }
         last_present_ns_ = now;
@@ -912,16 +935,17 @@ private:
     // Audio-led pacing: the device consumes 32768 frames per second of sound (SDL resamples
     // to the device rate), so keeping the queue near two video frames ties emulation speed to
     // the sound card's clock. Faster speeds squeeze each frame's sound by the speed factor, so
-    // the queue still drains at the same rate and the game runs that much faster.
-    void feed_audio_and_wait(bool turbo) {
+    // the queue still drains at the same rate and the game runs that much faster. Fast-forward
+    // at a set rate works the same way; only unlimited fast-forward drops sound.
+    void feed_audio_and_wait(bool unthrottled) {
         const std::size_t target = 2 * kSampleRate / 60;
         squeezed_.clear();
-        resampler_.process(sound_, turbo ? 4.0 : speed_ / 100.0, squeezed_);
-        if (turbo && audio_->queued_frames() > target) {
-            return;  // unthrottled: drop what the device cannot play
+        resampler_.process(sound_, unthrottled ? 4.0 : effective_speed() / 100.0, squeezed_);
+        if (unthrottled && audio_->queued_frames() > target) {
+            return;  // drop what the device cannot play
         }
         audio_->push(squeezed_);
-        while (!turbo && audio_->queued_frames() > target) {
+        while (!unthrottled && audio_->queued_frames() > target) {
             platform::sleep_ns(1'000'000);
         }
     }
@@ -937,6 +961,9 @@ private:
     std::optional<player::Script> script_;
     player::Osd osd_;
     int speed_ = 100;
+    int pacer_speed_ = 0;
+    bool fast_forward_held_ = false;
+    int file_fast_forward_ = player::kDefaultFastForward;  // what the settings file holds
     int slot_ = 1;
     player::Menu menu_;
     std::unique_ptr<platform::Context> context_;

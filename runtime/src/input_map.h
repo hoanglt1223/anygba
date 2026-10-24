@@ -45,6 +45,7 @@ struct Mapping {
     // Gamepad chords: buttons joined by '+' ("Back+Start"), all held at once.
     std::array<std::vector<std::string>, kHotkeys> pad_hotkeys;
     int speed = 100;              // [player] Speed: starting speed in percent
+    int fast_forward = 300;       // [player] FastForwardSpeed: percent, 0 = unlimited
     int stick_deadzone = 12000;   // [player] StickDeadzone: left stick travel ignored (0-32767)
 };
 

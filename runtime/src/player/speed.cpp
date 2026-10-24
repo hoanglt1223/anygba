@@ -16,6 +16,34 @@ int next_speed(int percent, int direction) {
     return kSpeeds[static_cast<std::size_t>(std::clamp(index, 0, static_cast<int>(kSpeeds.size()) - 1))];
 }
 
+std::optional<int> parse_fast_forward(std::string_view text) {
+    if (text == "unlimited") return kUnlimited;
+    if (text.empty() || text.size() > 4) return std::nullopt;
+    int value = 0;
+    for (const char ch : text) {
+        if (ch < '0' || ch > '9') return std::nullopt;
+        value = value * 10 + (ch - '0');
+    }
+    if (value == kUnlimited ||
+        std::find(kFastForwardSpeeds.begin(), kFastForwardSpeeds.end(), value) == kFastForwardSpeeds.end()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+std::string format_fast_forward(int percent, bool with_percent) {
+    if (percent == kUnlimited) return "unlimited";
+    return std::to_string(percent) + (with_percent ? "%" : "");
+}
+
+int next_fast_forward(int percent, int direction) {
+    const auto it = std::find(kFastForwardSpeeds.begin(), kFastForwardSpeeds.end(), percent);
+    if (it == kFastForwardSpeeds.end()) return kDefaultFastForward;
+    const auto index = static_cast<int>(it - kFastForwardSpeeds.begin()) + direction;
+    return kFastForwardSpeeds[static_cast<std::size_t>(
+        std::clamp(index, 0, static_cast<int>(kFastForwardSpeeds.size()) - 1))];
+}
+
 void Resampler::process(std::span<const std::int16_t> in, double step, std::vector<std::int16_t>& out) {
     const std::size_t frames = in.size() / 2;
     if (frames == 0) {

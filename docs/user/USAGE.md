@@ -45,6 +45,7 @@ Options (`anygba help build`):
 
 - `--scale N`: window size as a multiple of 240x160 (default 3).
 - `--speed N`: start at 100, 200, 300 or 400% speed.
+- `--ff-speed N|unlimited`: fast-forward speed for this run (see Speed).
 - `--load-state FILE`: start from a save state.
 - `--cheat CODE`, `--cheats FILE`, `--cheat-db FILE`: cheats ([CHEATS.md](CHEATS.md)).
 - `--filter SPEC`, `--video SETTINGS`: graphics filters, colour correction and output resolution, also in
@@ -63,7 +64,7 @@ Options (`anygba help build`):
 |---|---|---|
 | F1 to F9 | Back+LeftShoulder (slot 1) | load save state 1-9 |
 | Shift+F1 to Shift+F9 | Back+RightShoulder (slot 1) | save state 1-9 |
-| Space (hold) | RightTrigger (hold) | fast-forward, as fast as the computer can |
+| Space (hold) | RightTrigger (hold) | fast-forward at the fast-forward speed (default 300%) |
 | `=` / `-` | Back+DpadUp / Back+DpadDown | speed up / down: 100, 200, 300, 400% |
 | Escape | Back+Start | open or close the menu |
 | F12 (hold) | | the cheat device's button, for codes that need it |
@@ -78,8 +79,13 @@ left of the picture for a few seconds.
 
 Speed steps through 100, 200, 300 and 400%. The sound plays faster and higher with the game instead of
 breaking up: each frame's sound is resampled by the speed factor, so the sound card still sets the pace.
-Holding fast-forward runs without any limit and drops the sound the card cannot keep up with. The starting
-speed is `--speed`, else `Speed` in the input file's `[player]` section.
+The starting speed is `--speed`, else `Speed` in the input file's `[player]` section.
+
+Holding fast-forward runs at the fast-forward speed: 150, 200, 300 (default), 400, 500 or 800%, with the
+sound resampled the same way, or *unlimited*, which runs as fast as the computer can and drops the sound
+the card cannot keep up with. Set it in the menu (Speed page), with `FastForwardSpeed` in the input file's
+`[player]` section, or for one run with `--ff-speed N|unlimited`. A change in the menu is saved to the
+input file.
 
 ## Save states
 
@@ -95,7 +101,7 @@ Escape (gamepad: Back+Start) pauses the game and opens the menu; the GBA buttons
 A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes it.
 
 - **Save state / Load state**: Left/Right picks the slot.
-- **Speed**: Left/Right.
+- **Speed**: Left/Right changes the speed; A opens the Speed page with *Speed* and *Fast-forward speed*.
 - **Cheats**: the cheat databases for this game and your own codes ([CHEATS.md](CHEATS.md)).
 - **Controls**: every GBA button and hotkey with its keyboard and gamepad bindings. Choose one, then press
   the new key (with Ctrl, Alt or Shift for a hotkey chord) or gamepad button (hold another gamepad button
