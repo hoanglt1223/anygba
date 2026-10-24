@@ -1,0 +1,127 @@
+# AnyGBA menu text: key, English, Vietnamese (tab-separated). See runtime/src/ui/anyui/strings.hpp.
+key	en	vi
+tab.game	Game	Trò chơi
+tab.states	Save states	Trạng thái lưu
+tab.video	Video	Hình ảnh
+tab.audio	Audio	Âm thanh
+tab.controls	Controls	Điều khiển
+tab.cheats	Cheats	Mã gian lận
+tab.ai	AI	AI
+tab.settings	Settings	Cài đặt
+on	On	Bật
+off	Off	Tắt
+error	Error	Lỗi
+confirm	Press again to confirm	Nhấn lần nữa để xác nhận
+game.resume	Resume	Tiếp tục
+game.speed	Speed	Tốc độ
+game.ff	Fast-forward speed	Tốc độ tua nhanh
+game.reset	Reset	Khởi động lại
+game.reset.confirm	Press A again to reset the game	Nhấn A lần nữa để khởi động lại trò chơi
+game.exit	Exit game	Thoát trò chơi
+game.exit.confirm	Press A again to exit; the game's save is kept	Nhấn A lần nữa để thoát; bản lưu của trò chơi được giữ
+states.slot	Slot {0}	Ô {0}
+states.empty	Empty	Trống
+states.load	Load	Tải
+states.save	Save here	Lưu vào đây
+states.overwrite	Save here (replace)	Lưu đè vào đây
+states.delete	Delete	Xóa
+states.cancel	Cancel	Hủy
+states.deleted	Deleted state {0}	Đã xóa trạng thái {0}
+audio.volume	Volume	Âm lượng
+audio.mute	Mute	Tắt tiếng
+audio.music	Normal-speed music	Nhạc ở tốc độ thường
+audio.music.detail	Music keeps its tempo and pitch when the game runs faster	Nhạc giữ nhịp và cao độ khi trò chơi chạy nhanh hơn
+controls.buttons	GBA buttons	Nút GBA
+controls.hotkeys	Hotkeys	Phím tắt
+controls.reset	Reset to defaults	Khôi phục mặc định
+controls.reset.done	Controls reset to defaults	Đã khôi phục điều khiển mặc định
+controls.rebind	Rebind	Gán lại
+controls.capture	Press a key or button for {0}	Nhấn phím hoặc nút cho {0}
+controls.capture.detail	Esc cancels. Hold Ctrl, Alt or Shift for a chord.	Esc để hủy. Giữ Ctrl, Alt hoặc Shift để tạo tổ hợp.
+controls.cancelled	Cancelled	Đã hủy
+controls.swapped	swapped with {0}	đổi chỗ với {0}
+cheats.search	Search cheats	Tìm mã
+cheats.results	{0} found	Tìm thấy {0}
+cheats.none	No cheats here	Không có mã nào
+cheats.mine	My codes	Mã của tôi
+cheats.add	Add code...	Thêm mã...
+cheats.on	On	Bật
+cheats.off	Off	Tắt
+cheats.deleted	Deleted	Đã xóa
+cheats.picker.crumb	Choose a value	Chọn giá trị
+cheats.entry.title	Add a cheat code	Thêm mã gian lận
+cheats.entry.format	Format	Định dạng
+cheats.entry.cancelled	Code entry cancelled	Đã hủy nhập mã
+cheats.added	Added Code {0} ({1})	Đã thêm Code {0} ({1})
+ai.control	AI control	Điều khiển bằng AI
+ai.readonly	Read-only agent	Tác tử chỉ đọc
+ai.journal	Journal	Nhật ký chơi
+settings.language	Language	Ngôn ngữ
+settings.theme	Theme	Giao diện
+settings.scale	Menu size	Cỡ menu
+settings.motion	Reduce motion	Giảm chuyển động
+settings.stats	FPS and stats overlay	Hiện FPS và thông số
+settings.folder	Save folder	Thư mục lưu
+settings.default_folder	Use the default folder	Dùng thư mục mặc định
+settings.default_folder.done	Default save folder, from the next start	Thư mục lưu mặc định, từ lần chạy sau
+settings.export	Export save (.sav)	Xuất bản lưu (.sav)
+settings.import	Import save (.sav)	Nhập bản lưu (.sav)
+folder.default	default	mặc định
+language.en	English	English
+language.vi	Tiếng Việt	Tiếng Việt
+theme.dark	Dark	Tối
+theme.light	Light	Sáng
+hint.rail	Up/Down tab   A open   B close	Lên/Xuống chọn mục   A mở   B đóng
+hint.page	A choose   Left/Right change   L/R tabs   B close	A chọn   Trái/Phải đổi   L/R chuyển mục   B đóng
+hint.states	A actions   Select delete   L/R tabs   B close	A thao tác   Select xóa   L/R chuyển mục   B đóng
+hint.popup	A choose   B cancel	A chọn   B hủy
+hint.cheats	A on/off   Right value   Up search   Select delete   B close	A bật/tắt   Phải giá trị   Lên tìm   Select xóa   B đóng
+hint.cheats.sub	A on/off   Right value   Select delete   B back	A bật/tắt   Phải giá trị   Select xóa   B quay lại
+hint.search	Type to search   Enter done   Esc clear	Gõ để tìm   Enter xong   Esc xóa
+hint.picker	A apply   L/R ±10   Select off   B back	A áp dụng   L/R ±10   Select tắt   B quay lại
+hint.entry	Type hex, Enter: next line, Enter again: add   Left/Right format   Esc cancel	Gõ số hex, Enter: dòng mới, Enter lần nữa: thêm   Trái/Phải định dạng   Esc hủy
+hint.capture	Press a key or button   Esc cancel	Nhấn phím hoặc nút   Esc hủy
+quick.Save	Save	Lưu
+quick.Load	Load	Tải
+quick.Fast	Fast	Tua
+quick.Speed	Speed	Tốc độ
+quick.Cheats	Cheats	Mã
+quick.Shot	Shot	Chụp
+quick.Filter	Filter	Lọc
+quick.Wide	Wide	Rộng
+quick.Wide off	Wide off	Tắt rộng
+quick.Layout	Layout	Bố cục
+quick.Pad	Pad	Phím
+quick.Hide pad	Hide pad	Ẩn phím
+quick.Show pad	Show pad	Hiện phím
+quick.Menu	Menu	Menu
+quick.Setup	Setup	Thiết lập
+quick.Exit	Exit	Thoát
+quick.Load state	Load state	Tải trạng thái
+quick.Back	Back	Quay lại
+quick.saved	saved	đã lưu
+quick.empty	empty	trống
+quick.drag	Drag a control. Sizes apply to all	Kéo một nút. Cỡ áp dụng cho tất cả
+quick.selected	Selected:	Đã chọn:
+quick.smaller	Smaller	Nhỏ hơn
+quick.bigger	Bigger	Lớn hơn
+quick.reset	Reset	Đặt lại
+quick.done	Done	Xong
+Filter	Filter	Bộ lọc
+Screen effect	Screen effect	Hiệu ứng màn hình
+Ghosting	Ghosting	Bóng mờ chuyển động
+Colour	Colour	Màu
+Gamma	Gamma	Gamma
+Debanding	Debanding	Khử dải màu
+Resolution	Resolution	Độ phân giải
+Fullscreen	Fullscreen	Toàn màn hình
+Integer scale	Integer scale	Phóng to số nguyên
+Internal scale	Internal scale	Tỉ lệ nội bộ
+Layer filter	Layer filter	Bộ lọc lớp
+Smooth rotation	Smooth rotation	Xoay mượt
+HD pack	HD pack	Gói HD
+HD dump	HD dump	Xuất ảnh HD
+AI upscaling	AI upscaling	Phóng to bằng AI
+AI model	AI model	Mô hình AI
+Widescreen	Widescreen	Màn hình rộng
+Smoothing	Smoothing	Làm mượt chuyển động

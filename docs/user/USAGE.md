@@ -91,11 +91,11 @@ The starting speed is `--speed`, else `Speed` in the input file's `[player]` sec
 
 Holding fast-forward runs at the fast-forward speed: 150, 200, 300 (default), 400, 500 or 800%, with the
 sound resampled the same way, or *unlimited*, which runs as fast as the computer can and drops the sound
-the card cannot keep up with. Set it in the menu (Speed page), with `FastForwardSpeed` in the input file's
+the card cannot keep up with. Set it in the menu (Game tab), with `FastForwardSpeed` in the input file's
 `[player]` section, or for one run with `--ff-speed N|unlimited`. A change in the menu is saved to the
 input file.
 
-*Normal-speed music* (Speed page, `NormalSpeedMusic = on` in `[player]`; off by default) keeps the music
+*Normal-speed music* (Audio tab, `NormalSpeedMusic = on` in `[player]`; off by default) keeps the music
 at 1x while the game runs faster, at any speed above 100% and while fast-forward is held (not at
 *unlimited*). In games that use Nintendo's MusicPlayer2000 sound engine (most first-party and many other
 games, Pokemon Emerald among them), the engine's sequencer is slowed by the speed, so songs and sound
@@ -126,23 +126,42 @@ message and the game goes on. How states work with recompiled code: [../dev/SAVE
 
 ## Menu
 
-Escape (gamepad: Back+Start) pauses the game and opens the menu; the GBA buttons move through it (d-pad,
-A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes it.
+Escape (gamepad: Back+Start) pauses the game and opens the menu over a frosted copy of the picture.
+Escape or the same gamepad chord closes it, and so does B on a tab's first page. The menu is drawn at the
+window's full resolution in its own font (Noto Sans), in English or Vietnamese, with a dark or light theme.
 
-- **Save state / Load state**: Left/Right picks the slot.
-- **Speed**: Left/Right changes the speed; A opens the Speed page with *Speed*, *Fast-forward speed* and
-  *Normal-speed music*.
-- **Cheats**: the cheat databases for this game and your own codes ([CHEATS.md](CHEATS.md)).
-- **Controls**: every GBA button and hotkey with its keyboard and gamepad bindings. Choose one, then press
-  the new key (with Ctrl, Alt or Shift for a hotkey chord) or gamepad button (hold another gamepad button
-  first for a chord such as Back+Start). If that key was bound to something else, the two swap. Escape
-  cancels. *Reset to defaults* restores the defaults. Changes are saved to the input mapping file at once.
-- **Video**: filter, screen effect, ghosting, colour, gamma, debanding, resolution, fullscreen and integer
-  scale; Left/Right changes them at once and they are kept for this game ([VIDEO.md](VIDEO.md)).
-- **Settings**: AI control, Read-only agent and Journal switches ([AI-CONTROL.md](AI-CONTROL.md)). They
-  take effect at once and last until the game ends.
-- **Options**: the save folder, and *Export save* / *Import save* for `.sav` files of other emulators
-  (see Saves).
+- **Keyboard and gamepad**: the GBA buttons move through it. Up/Down choose a row, A acts on it, Left/Right
+  change a value, B goes back. L/R (or Tab and Shift+Tab) switch tabs; Left on a row with no value moves to
+  the tab rail, where Up/Down switch tabs and A or Right go back to the page. Page Up/Page Down jump in
+  long lists.
+- **Mouse**: click a tab or a row, the arrows of a value, or outside the menu to close it; the wheel
+  scrolls.
+- **Touch** (Android): tap like a click, drag to scroll; rows are taller.
+
+The tabs:
+
+- **Game**: *Resume*, *Speed*, *Fast-forward speed*, *Reset* and *Exit game* (both ask for a second A; Exit
+  writes the game's save first).
+- **Save states**: the nine slots as a grid with a picture of the moment and when it was saved. A (or a
+  click) on a slot offers *Load*, *Save here* and *Delete*; Select deletes. The picture is kept next to the
+  state as `<state>.png`.
+- **Video**: filter, screen effect, ghosting, colour, gamma, debanding, resolution, fullscreen, integer
+  scale and the HD and widescreen settings; they apply at once and are kept for this game ([VIDEO.md](VIDEO.md)).
+- **Audio**: *Volume* (0-100%), *Mute* and *Normal-speed music*. Volume and Mute change what the sound
+  card plays, not `--wav` recordings.
+- **Controls**: a picture of the GBA with the selected button lit, then every GBA button and hotkey with
+  its keyboard and gamepad bindings. Choose one, then press the new key (with Ctrl, Alt or Shift for a
+  hotkey chord) or gamepad button (hold another gamepad button first for a chord such as Back+Start). If
+  that key was bound to something else, the two swap. Escape cancels. *Reset to defaults* restores the
+  defaults. Changes are saved to the input mapping file at once.
+- **Cheats**: the cheat databases for this game and your own codes ([CHEATS.md](CHEATS.md)). Up on the
+  first row (or a click on the field) searches every cheat by name.
+- **AI**: AI control, Read-only agent and Journal switches ([AI-CONTROL.md](AI-CONTROL.md)). They take
+  effect at once and last until the game ends.
+- **Settings**: *Language* (English, Tiếng Việt), *Theme* (dark, light), *Menu size* (75-150%), *Reduce
+  motion* (no open, close or focus animations), *FPS and stats overlay* (see Stats overlay), the save
+  folder, and *Export save* / *Import save* for `.sav` files of other emulators (see Saves). They are
+  saved in the input file's `[player]` section ([INPUT_MAPPING.md](INPUT_MAPPING.md)).
 
 ## Gamepads
 
@@ -194,14 +213,14 @@ settings), for a portable install or an isolated test run.
 
 To keep saves elsewhere (a OneDrive folder such as
 `C:\Users\<you>\OneDrive\Documents\My Games\AnyGBA\saves`, for example), set the save folder in the menu
-(Options, *Save folder*: a folder picker) or as `SaveFolder = <folder>` in the input file's `[player]`
+(Settings, *Save folder*: a folder picker) or as `SaveFolder = <folder>` in the input file's `[player]`
 section; a relative folder is taken from the input file's folder. It is used from the next start for the
 save file, save states, the cheat file and the video settings; move existing files there yourself.
 *Use the default folder* goes back to the per-user data folder.
 
 ### Moving saves to and from other emulators
 
-The menu's Options page exports and imports `.sav` files as VisualBoyAdvance and mGBA write them (the raw
+The menu's Settings tab exports and imports `.sav` files as VisualBoyAdvance and mGBA write them (the raw
 chip contents). *Export save* writes `<ROM name>.sav` next to the ROM (for a program with the ROM embedded:
 `<title>.sav` in the save folder); with a window, a file picker opens there so you can choose another
 place. *Import save* reads a `.sav` (a picker in the same place), checks that its size fits the game's save

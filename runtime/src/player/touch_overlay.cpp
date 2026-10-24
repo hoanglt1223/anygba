@@ -1,6 +1,8 @@
 #include "player/touch_overlay.h"
 
 #include "input_map.h"
+#include "player/menu.h"
+#include "ui/menu_assets.h"
 
 #include <anyport/platform/timing.h>
 
@@ -16,6 +18,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <string>
 #include <system_error>
 #include <tuple>
@@ -39,7 +42,7 @@ constexpr int kBackCell = assist::kSlots;  // the slot picker's last cell
 SDL_FColor colour(float grey, float alpha) { return {grey, grey, grey, alpha}; }
 SDL_FColor rgba(float r, float g, float b, float a) { return {r, g, b, a}; }
 SDL_FColor with_alpha(SDL_FColor c, float a) { return {c.r, c.g, c.b, a}; }
-const SDL_FColor kAccent = rgba(0.24f, 0.55f, 1.0f, 1.0f);
+SDL_FColor sdl(anyui::Color c, float alpha = 1) { return {c.r, c.g, c.b, c.a * alpha}; }
 
 // ---- primitives: everything is triangles through SDL_RenderGeometry ----
 
@@ -156,29 +159,68 @@ void fill_rect(SDL_Renderer* r, const FRect& rect, SDL_FColor c) {
     SDL_RenderFillRect(r, &f);
 }
 
-// SDL's built-in 8x8 font at a whole scale about `height` pixels tall, no wider than `max_width`.
-void text(SDL_Renderer* r, float cx, float cy, float height, const std::string& s, SDL_FColor c, float max_width = 0) {
-    if (s.empty()) return;
-    const float chars = static_cast<float>(s.size());
-    float scale = std::floor(height / 8);
-    if (max_width > 0) scale = std::min(scale, std::floor(max_width / (8 * chars)));
-    scale = std::max(1.0f, scale);
-    const float w = chars * 8 * scale;
-    SDL_SetRenderScale(r, scale, scale);
-    SDL_SetRenderDrawColorFloat(r, c.r, c.g, c.b, c.a);
-    SDL_RenderDebugText(r, (cx - w / 2) / scale, (cy - 4 * scale) / scale, s.c_str());
-    SDL_SetRenderScale(r, 1, 1);
+// Text in the menu's font, white in a cached texture tinted when drawn.
+struct TextTexture {
+    SDL_Texture* texture = nullptr;
+    float width = 0, height = 0;
+};
+
+const TextTexture& text_texture(SDL_Renderer* r, const std::string& s, int px) {
+    static const SDL_Renderer* owner = nullptr;
+    static std::map<std::pair<std::string, int>, TextTexture> cache;
+    if (owner != r || cache.size() > 256) {
+        // Textures of a destroyed renderer are gone with it; only ours are freed here.
+        if (owner == r) {
+            for (auto& [key, t] : cache) SDL_DestroyTexture(t.texture);
+        }
+        cache.clear();
+        owner = r;
+    }
+    const auto key = std::make_pair(s, px);
+    if (const auto it = cache.find(key); it != cache.end()) return it->second;
+    TextTexture& t = cache[key];
+    const anyui::Font& font = ui::bold_font();
+    const float size = static_cast<float>(px);
+    const int w = static_cast<int>(std::ceil(font.measure(s, size))) + 2;
+    const int h = static_cast<int>(std::ceil(font.line_height(size))) + 2;
+    anyui::Canvas c(w, h);
+    c.clear({1, 1, 1, 0});
+    font.draw(c, 1, 1 + font.ascent(size), s, size, {1, 1, 1, 1});
+    t.texture = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (!t.texture) return t;
+    SDL_UpdateTexture(t.texture, nullptr, c.data(), w * 4);
+    SDL_SetTextureBlendMode(t.texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(t.texture, SDL_SCALEMODE_LINEAR);
+    t.width = static_cast<float>(w);
+    t.height = static_cast<float>(h);
+    return t;
 }
 
-// Frosted card: soft shadow, a slightly lighter top, a hairline border.
-void card(SDL_Renderer* r, const FRect& b, float radius, float alpha) {
+// Text about `height` pixels tall (capitals) centred on (cx, cy), no wider than `max_width`.
+void text(SDL_Renderer* r, float cx, float cy, float height, const std::string& s, SDL_FColor c, float max_width = 0) {
+    if (s.empty() || height <= 0) return;
+    float px = height * 1.35f;
+    if (max_width > 0) {
+        const float w = ui::bold_font().measure(s, px);
+        if (w > max_width) px *= max_width / w;
+    }
+    const TextTexture& t = text_texture(r, s, std::max(6, static_cast<int>(std::lround(px))));
+    if (!t.texture) return;
+    SDL_SetTextureColorModFloat(t.texture, c.r, c.g, c.b);
+    SDL_SetTextureAlphaModFloat(t.texture, c.a);
+    const SDL_FRect dst{std::round(cx - t.width / 2), std::round(cy - t.height / 2), t.width, t.height};
+    SDL_RenderTexture(r, t.texture, nullptr, &dst);
+}
+
+// The menu's card: soft shadow, the theme's panel colour, a hairline border.
+void card(SDL_Renderer* r, const FRect& b, float radius, float alpha, const anyui::Theme& theme) {
     for (int i = 3; i >= 1; --i) {
         const float grow = radius * 0.18f * static_cast<float>(i);
         fill_rounded(r, {b.x - grow, b.y - grow * 0.6f, b.w + 2 * grow, b.h + 2 * grow}, radius + grow, colour(0, 0.07f * alpha),
                      colour(0, 0.1f * alpha));
     }
-    fill_rounded(r, b, radius, rgba(0.20f, 0.22f, 0.27f, 0.82f * alpha), rgba(0.09f, 0.10f, 0.13f, 0.88f * alpha));
-    stroke(r, rounded_outline(b, radius), true, std::max(1.0f, radius * 0.04f), colour(1, 0.14f * alpha));
+    fill_rounded(r, b, radius, sdl(theme.rail, alpha), sdl(theme.panel, alpha));
+    stroke(r, rounded_outline(b, radius), true, std::max(1.0f, radius * 0.04f), sdl(theme.line, alpha * 1.5f));
 }
 
 // ---- icons, drawn in a box of side `s` centred on `c` ----
@@ -335,6 +377,8 @@ void TouchOverlay::handle(const SDL_Event& e) {
 void TouchOverlay::finger_down(std::int64_t id, float x, float y, std::uint64_t now) {
     switch (mode_) {
     case Mode::Play:
+        // The in-game menu covers the controls and takes touches itself.
+        if (status_.game_menu_open) return;
         if (settings_.floating_button && button_.down(id, x, y, now)) return;
         fingers_[id] = touch::buttons_at(layout_, x, y);
         return;
@@ -573,7 +617,7 @@ void TouchOverlay::draw_controls(SDL_Renderer* r, const touch::Layout& l, float 
         const FRect& b = l[c];
         const bool on = c == selected;
         stroke(r, rounded_outline(b, radius), true, std::max(2.0f, l.unit * (on ? 0.08f : 0.04f)),
-               on ? kAccent : colour(1, 0.55f));
+               on ? sdl(anyui::Theme::make(true).accent) : colour(1, 0.55f));
     };
     const bool buttons = l.show_controls || editing;
 
@@ -625,15 +669,19 @@ void TouchOverlay::draw_button(SDL_Renderer* r, Point c, float d, float alpha) c
 
 void TouchOverlay::draw_panel(SDL_Renderer* r, float w, float h, const TouchStatus& status, const touch::Settings& s,
                               Mode mode, int pressed) const {
+    const anyui::Theme theme = anyui::Theme::make(!status.light);
+    anyui::Strings& strings = menu_strings();
+    strings.set_language(status.language);
+    const auto tr = [&](const std::string& label) { return strings.tr("quick." + label).starts_with("quick.") ? label : strings.tr("quick." + label); };
     fill_rect(r, {0, 0, w, h}, colour(0, 0.42f));
     const bool panel = mode == Mode::Panel;
     const auto g = assist::grid(panel ? assist::kItems : assist::kSlots + 1, w, h, safe_);
     if (g.cells.empty()) return;
-    card(r, g.card, g.cell * 0.28f, 1);
-    const SDL_FColor white = colour(1, 0.95f), dim = colour(1, 0.55f);
-    const float label_h = g.cell * 0.13f;
+    card(r, g.card, g.cell * 0.28f, 1, theme);
+    const SDL_FColor white = sdl(theme.text), dim = sdl(theme.dim), accent = sdl(theme.accent);
+    const float label_h = g.cell * 0.11f;
     if (!panel) {
-        text(r, g.card.x + g.card.w / 2, g.card.y - label_h * 1.4f, label_h * 1.2f, "Load state", white, g.card.w);
+        text(r, g.card.x + g.card.w / 2, g.card.y - label_h * 1.6f, label_h * 1.2f, tr("Load state"), colour(1, 0.95f), g.card.w);
     }
     for (std::size_t i = 0; i < g.cells.size(); ++i) {
         const FRect& cell = g.cells[i];
@@ -642,33 +690,33 @@ void TouchOverlay::draw_panel(SDL_Renderer* r, float w, float h, const TouchStat
         const float icon_size = tile.w * 0.38f;
         const float label_y = tile.y + tile.h * 0.82f;
         bool active = false;
-        if (static_cast<int>(i) == pressed) fill_rounded(r, tile, tile.w * 0.22f, colour(1, 0.2f), colour(1, 0.14f));
+        if (static_cast<int>(i) == pressed) fill_rounded(r, tile, tile.w * 0.22f, sdl(theme.select), sdl(theme.select));
         if (panel) {
             const auto item = static_cast<Item>(i);
-            std::string label = assist::item_label(item);
+            std::string label = tr(assist::item_label(item));
             switch (item) {
             case Item::SaveState: label += " " + std::to_string(status.slot); break;
             case Item::FastForward: active = status.fast_forward; break;
             case Item::FastForwardSpeed: label = status.fast_forward_speed; break;
             case Item::Filter: label = status.filter; break;
-            case Item::Widescreen: label = status.widescreen == "off" ? "Wide off" : status.widescreen; break;
-            case Item::ShowControls: label = s.show_controls ? "Hide pad" : "Show pad"; break;
+            case Item::Widescreen: label = status.widescreen == "off" ? tr("Wide off") : status.widescreen; break;
+            case Item::ShowControls: label = tr(s.show_controls ? "Hide pad" : "Show pad"); break;
             default: break;
             }
-            if (active) fill_rounded(r, tile, tile.w * 0.22f, with_alpha(kAccent, 0.55f), with_alpha(kAccent, 0.4f));
-            icon(r, item, centre, icon_size, white, item == Item::ShowControls && !s.show_controls);
-            text(r, tile.x + tile.w / 2, label_y, label_h, label, active ? white : colour(1, 0.8f), tile.w * 0.94f);
+            if (active) fill_rounded(r, tile, tile.w * 0.22f, with_alpha(accent, 0.9f), with_alpha(accent, 0.75f));
+            icon(r, item, centre, icon_size, active ? sdl(theme.on_accent) : white, item == Item::ShowControls && !s.show_controls);
+            text(r, tile.x + tile.w / 2, label_y, label_h, label, active ? sdl(theme.on_accent) : dim, tile.w * 0.94f);
         } else if (static_cast<int>(i) == kBackCell) {
             back_icon(r, centre, icon_size, white);
-            text(r, tile.x + tile.w / 2, label_y, label_h, "Back", colour(1, 0.8f), tile.w * 0.94f);
+            text(r, tile.x + tile.w / 2, label_y, label_h, tr("Back"), dim, tile.w * 0.94f);
         } else {
             const int slot = static_cast<int>(i) + 1;
             const bool saved = (status.saved_slots >> i) & 1u;
             if (slot == status.slot) {
-                stroke(r, rounded_outline(tile, tile.w * 0.22f), true, std::max(2.0f, tile.w * 0.03f), kAccent);
+                stroke(r, rounded_outline(tile, tile.w * 0.22f), true, std::max(2.0f, tile.w * 0.03f), accent);
             }
-            text(r, centre.x, centre.y, tile.h * 0.36f, std::to_string(slot), saved ? white : dim);
-            text(r, tile.x + tile.w / 2, label_y, label_h, saved ? "saved" : "empty", saved ? colour(1, 0.8f) : dim, tile.w * 0.94f);
+            text(r, centre.x, centre.y, tile.h * 0.3f, std::to_string(slot), saved ? white : dim);
+            text(r, tile.x + tile.w / 2, label_y, label_h, tr(saved ? "saved" : "empty"), dim, tile.w * 0.94f);
         }
     }
 }
@@ -679,17 +727,25 @@ void TouchOverlay::draw_toolbar(SDL_Renderer* r, float w, float h, Control selec
     const FRect& last = bar.back();
     const float pad = first.h * 0.35f;
     const FRect back{first.x - pad, first.y - pad - first.h * 0.6f, last.x + last.w - first.x + 2 * pad, first.h * 1.6f + 2 * pad};
-    card(r, back, first.h * 0.5f, 1);
-    const std::string hint = selected == Control::Count ? "Drag a control. Sizes apply to all"
-                                                        : std::string("Selected: ") + touch::key_name(selected);
-    text(r, back.x + back.w / 2, first.y - first.h * 0.35f, first.h * 0.3f, hint, colour(1, 0.8f), back.w * 0.94f);
-    constexpr std::array<const char*, assist::kTools> kNames = {"Smaller", "Bigger", "Reset", "Done"};
+    TouchStatus status;
+    {
+        const std::lock_guard lock(mutex_);
+        status = status_;
+    }
+    const anyui::Theme theme = anyui::Theme::make(!status.light);
+    anyui::Strings& strings = menu_strings();
+    strings.set_language(status.language);
+    card(r, back, first.h * 0.5f, 1, theme);
+    const std::string hint = selected == Control::Count ? strings.tr("quick.drag")
+                                                        : strings.tr("quick.selected") + " " + touch::key_name(selected);
+    text(r, back.x + back.w / 2, first.y - first.h * 0.35f, first.h * 0.26f, hint, sdl(theme.dim), back.w * 0.94f);
+    constexpr std::array<const char*, assist::kTools> kNames = {"quick.smaller", "quick.bigger", "quick.reset", "quick.done"};
     for (int i = 0; i < assist::kTools; ++i) {
         const FRect& b = bar[static_cast<std::size_t>(i)];
         const bool done = static_cast<assist::Tool>(i) == assist::Tool::Done;
-        fill_rounded(r, b, b.h / 2, done ? with_alpha(kAccent, 0.95f) : colour(1, 0.16f),
-                     done ? with_alpha(kAccent, 0.8f) : colour(1, 0.1f));
-        text(r, b.x + b.w / 2, b.y + b.h / 2, b.h * 0.36f, kNames[static_cast<std::size_t>(i)], colour(1, 0.95f), b.w * 0.86f);
+        fill_rounded(r, b, b.h / 2, done ? sdl(theme.accent) : sdl(theme.select), done ? sdl(theme.accent, 0.85f) : sdl(theme.select));
+        text(r, b.x + b.w / 2, b.y + b.h / 2, b.h * 0.3f, strings.tr(kNames[static_cast<std::size_t>(i)]),
+             done ? sdl(theme.on_accent) : sdl(theme.text), b.w * 0.86f);
     }
 }
 

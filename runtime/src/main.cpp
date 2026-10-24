@@ -19,6 +19,7 @@
 #include "video/motion.h"
 #include "player/touch_overlay.h"
 #include "save/save.h"
+#include "ui/menu_assets.h"
 #include "video/hd/png_io.h"
 #include "video/hd/session.h"
 #include "video/presenter.h"
@@ -540,6 +541,7 @@ public:
         video_options_ = anygba::video::resolve_settings(anygba_game_info.video, video_file(), args.video, &video_warning);
         if (!video_warning.empty()) std::fprintf(stderr, "warning: %s\n", video_warning.c_str());
         menu_.set_video(&video_options_);
+        menu_.set_game_title(anygba_game_info.title);
         if (!args.headless) {
             context_ = std::make_unique<platform::Context>(platform::ContextOptions{false});
             platform::WindowConfig window;
@@ -788,11 +790,7 @@ private:
         }
         if (anygba::input::has(pressed, Hotkey::SpeedUp)) set_speed(player::next_speed(speed_, 1));
         if (anygba::input::has(pressed, Hotkey::SpeedDown)) set_speed(player::next_speed(speed_, -1));
-        if (anygba::input::has(pressed, Hotkey::Menu)) {
-            sync_menu_settings();
-            menu_.open();
-            menu_trace_.clear();
-        }
+        if (anygba::input::has(pressed, Hotkey::Menu)) open_menu(false);
         if (control_ && anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
         if (control_ && anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
         if (anygba::input::has(pressed, Hotkey::Stats)) toggle_stats();
@@ -829,11 +827,7 @@ private:
                 osd_.show("Fast-forward " + player::format_fast_forward(mapping_.fast_forward));
                 break;
             }
-            case Item::Cheats:
-                sync_menu_settings();
-                menu_.open_cheats();
-                menu_trace_.clear();
-                break;
+            case Item::Cheats: open_menu(true); break;
             case Item::Screenshot: take_screenshot(); break;
             case Item::Filter: {
                 const auto effects = anygba::video::all_effects();
@@ -855,9 +849,7 @@ private:
                 if (menu_.is_open()) {
                     menu_.close();
                 } else {
-                    sync_menu_settings();
-                    menu_.open();
-                    menu_trace_.clear();
+                    open_menu(false);
                 }
                 break;
             case Item::Exit:
@@ -874,6 +866,8 @@ private:
         status.filter = std::string(anygba::video::name(video_options_.effect));
         status.widescreen = std::string(anygba::video::name(video_options_.widescreen));
         status.game_menu_open = menu_.is_open();
+        status.language = mapping_.language;
+        status.light = mapping_.light_theme;
         if (scan_slots) {
             status.saved_slots = 0;
             for (int slot = 1; slot <= player::assist::kSlots; ++slot) {
@@ -1111,6 +1105,7 @@ private:
                 if (const auto error = write_file(path, s.save_state())) {
                     osd_.show("Save state " + std::to_string(slot) + " failed: " + *error);
                 } else {
+                    write_thumbnail(path);
                     osd_.show("Saved state " + std::to_string(slot));
                     user_event("state_save", anygba::control::Json(anygba::control::Json::Object{{"slot", slot}}));
                 }
@@ -1118,6 +1113,163 @@ private:
                 osd_.show("Save state " + std::to_string(slot) + " failed: " + e.what());
             }
         });
+    }
+
+    // The picture of the moment, next to the state as <state>.png, for the Save states page.
+    void write_thumbnail(const fs::path& state) {
+        anygba::video::Image image;
+        image.resize(anygba::kScreenWidth, anygba::kScreenHeight);
+        const auto& frame = sys_.framebuffer();
+        for (std::size_t i = 0; i < image.pixels.size(); ++i) {
+            image.pixels[i] = anygba::video::hd::expand(static_cast<std::uint16_t>(frame[i] & 0x7FFF));
+        }
+        fs::path file = state;
+        file += ".png";
+        if (const auto error = anygba::video::hd::save_png(file, image)) {
+            std::fprintf(stderr, "warning: %s\n", error->c_str());
+        }
+    }
+
+    void delete_state(int slot) {
+        const auto path = state_path(slot);
+        if (!path) return;
+        std::error_code ec;
+        fs::path thumb = *path;
+        thumb += ".png";
+        fs::remove(thumb, ec);
+        if (!fs::remove(*path, ec) || ec) {
+            osd_.show("Cannot delete state " + std::to_string(slot) + (ec ? ": " + ec.message() : std::string()));
+            return;
+        }
+        osd_.show("Deleted state " + std::to_string(slot));
+        refresh_slots();
+    }
+
+    // What the Save states page shows: which slots hold a state, when it was saved, and its
+    // thumbnail.
+    void refresh_slots() {
+        std::array<player::SlotInfo, player::kStateSlots> slots{};
+        for (int slot = 1; slot <= player::kStateSlots; ++slot) {
+            const auto path = state_path(slot);
+            std::error_code ec;
+            if (!path || !fs::exists(*path, ec)) continue;
+            player::SlotInfo& info = slots[static_cast<std::size_t>(slot - 1)];
+            info.used = true;
+            const auto written = fs::last_write_time(*path, ec);
+            if (!ec) {
+                // file_clock to system_clock without clock_cast, which not every C++ library has.
+                const auto at = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                    written - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
+                const std::time_t t = std::chrono::system_clock::to_time_t(at);
+                std::tm tm{};
+#if defined(_WIN32)
+                localtime_s(&tm, &t);
+#else
+                localtime_r(&t, &tm);
+#endif
+                char text[32];
+                std::strftime(text, sizeof text, "%Y-%m-%d %H:%M", &tm);
+                info.when = text;
+            }
+            fs::path thumb = *path;
+            thumb += ".png";
+            if (fs::exists(thumb, ec)) {
+                std::string error;
+                if (auto png = anygba::video::hd::load_png(thumb, &error)) {
+                    info.thumb = std::move(png->pixels);
+                    info.thumb_width = png->width;
+                    info.thumb_height = png->height;
+                }
+            }
+        }
+        menu_.set_slots(slots);
+    }
+
+    void open_menu(bool cheats) {
+        sync_menu_settings();
+        refresh_slots();
+        if (cheats) {
+            menu_.open_cheats();
+        } else {
+            menu_.open();
+        }
+        menu_trace_.clear();
+        osd_seen_ = osd_.count();
+        if (window_) {
+            menu_view_.open();
+            menu_backdrop_stale_ = true;
+        }
+    }
+
+    anyui::ViewOptions menu_look() const {
+        anyui::ViewOptions o;
+        o.ui_scale = static_cast<float>(mapping_.ui_scale) / 100.f;
+        o.dark = !mapping_.light_theme;
+        o.reduce_motion = mapping_.reduce_motion;
+        o.touch = touch_ != nullptr;
+        return o;
+    }
+
+    // One picture of the menu over the frosted game picture, at the window's resolution.
+    void draw_menu(float dt) {
+        const auto [w, h] = window_->output_pixels();
+        if (w <= 0 || h <= 0) return;
+        const anyui::ViewOptions look = menu_look();
+        if (menu_backdrop_stale_ || !menu_view_.background_fits(w, h, look)) {
+            menu_backdrop_stale_ = false;
+            shot_pipeline_.set_options(video_options_);
+            const anygba::video::Image* hd = hd_->picture();
+            const int lw = hd ? hd_->logical_width() : anygba::kScreenWidth;
+            try {
+                const anygba::video::Image& image = hd ? shot_pipeline_.render(*hd, lw, anygba::kScreenHeight, w, h)
+                                                       : shot_pipeline_.render(sys_.framebuffer(), lw, anygba::kScreenHeight, w, h);
+                menu_view_.set_background(image.pixels.data(), w, h, look);
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "warning: menu backdrop: %s\n", e.what());
+                menu_view_.set_background(nullptr, w, h, look);
+            }
+        }
+        menu_view_.render(menu_canvas_, menu_.view(), look, dt);
+        window_->present_ui(menu_canvas_.pixels(), menu_canvas_.width(), menu_canvas_.height());
+    }
+
+    // Mouse and touch in the menu: hover, click or tap, wheel or drag to scroll.
+    std::vector<player::MenuAction> menu_pointer() {
+        std::vector<player::MenuAction> out;
+        if (!input_ || !window_) return out;
+        const auto [w, h] = window_->output_pixels();
+        for (const platform::PointerEvent& e : input_->take_pointer_events()) {
+            const float x = e.x * static_cast<float>(w), y = e.y * static_cast<float>(h);
+            using Kind = platform::PointerEvent::Kind;
+            if (e.kind == Kind::Wheel) {
+                menu_view_.wheel(e.wheel);
+            } else if (e.kind == Kind::Move) {
+                if (e.touch && drag_finger_ == e.finger) {
+                    const float dy = drag_y_ - y;
+                    if (std::abs(y - press_y_) > 12) dragged_ = true;
+                    if (dragged_) menu_view_.wheel(dy / std::max(1.f, 40.f * std::min(static_cast<float>(w) / 960.f, static_cast<float>(h) / 540.f) * 1.5f));
+                    drag_y_ = y;
+                } else if (!e.touch) {
+                    menu_view_.hover(x, y);
+                }
+            } else if (e.kind == Kind::Down) {
+                if (e.touch) {
+                    drag_finger_ = e.finger;
+                    drag_y_ = press_y_ = y;
+                    dragged_ = false;
+                } else {
+                    const auto a = menu_.click(menu_view_.hit(x, y));
+                    out.insert(out.end(), a.begin(), a.end());
+                }
+            } else if (e.kind == Kind::Up && e.touch && drag_finger_ == e.finger) {
+                drag_finger_.reset();
+                if (!dragged_ && e.x >= 0) {
+                    const auto a = menu_.click(menu_view_.hit(x, y));
+                    out.insert(out.end(), a.begin(), a.end());
+                }
+            }
+        }
+        return out;
     }
 
     void load_state(int slot) {
@@ -1370,7 +1522,10 @@ private:
             in.menu_hotkey = anygba::input::has(pressed_hotkeys, Hotkey::Menu) &&
                              std::find(in.keys.begin(), in.keys.end(), "Escape") == in.keys.end();
 
-            for (const player::MenuAction action : menu_.update(in)) {
+            std::vector<player::MenuAction> actions = menu_.update(in);
+            const auto pointer = menu_pointer();
+            actions.insert(actions.end(), pointer.begin(), pointer.end());
+            for (const player::MenuAction action : actions) {
                 switch (action) {
                 case player::MenuAction::SaveState: save_state(slot_); break;
                 case player::MenuAction::LoadState: load_state(slot_); break;
@@ -1386,19 +1541,38 @@ private:
                 case player::MenuAction::ChooseSaveFolder: choose_save_folder(); break;
                 case player::MenuAction::ExportSave: export_from_menu(); break;
                 case player::MenuAction::ImportSave: import_from_menu(); break;
+                case player::MenuAction::DeleteState: delete_state(slot_); break;
+                case player::MenuAction::Reset:
+                    sys_.request_safe_point([this](anygba::System& s) {
+                        s.reset();
+                        reset_audio();
+                        osd_.show("Game reset");
+                    });
+                    break;
+                case player::MenuAction::Exit:
+                    write_save();
+                    stop();
+                    break;
+                case player::MenuAction::StatsChanged:
+                    stats_lines_.clear();  // filled at the end of the next one-second window
+                    break;
                 case player::MenuAction::Close: break;
                 }
+                if (action == player::MenuAction::VideoChanged) menu_backdrop_stale_ = true;
             }
             handle_touch(false);
             poll_dialog();
+            if (osd_.count() != osd_seen_) {
+                osd_seen_ = osd_.count();
+                menu_.say(osd_.last());
+            }
             trace_menu();
             osd_.tick();
-            if (window_) {
-                frame_copy_ = sys_.framebuffer();
-                menu_.draw(frame_copy_);
-                osd_.draw(frame_copy_);
-                draw_indicator();
-                show(frame_copy_);
+            if (window_ && menu_.is_open()) {
+                const std::uint64_t now = platform::now_ns();
+                const float dt = menu_frame_ns_ ? std::min(0.1f, static_cast<float>(now - menu_frame_ns_) / 1e9f) : 1.f / 60;
+                menu_frame_ns_ = now;
+                draw_menu(dt);
                 platform::sleep_ns(16'000'000);
             }
             if (args_.headless && script_ && host_frame_ > script_end + 600) {
@@ -1410,6 +1584,16 @@ private:
             }
         }
         trace_menu();
+        if (window_ && !stopping_) {
+            // The menu fades out over the game picture before the game goes on.
+            menu_view_.close();
+            for (int i = 0; i < 30 && !menu_view_.closed(); ++i) {
+                draw_menu(1.f / 60);
+                platform::sleep_ns(16'000'000);
+            }
+        }
+        menu_frame_ns_ = 0;
+        if (input_) input_->take_pointer_events();
         hotkeys_prev_ = hotkeys_held();
         reset_audio();
     }
@@ -1623,6 +1807,13 @@ private:
         if (wav_) wav_->write(squeezed_);
     }
 
+    // The Volume and Mute settings, on what goes to the sound card only (not --wav).
+    void apply_volume() {
+        const int volume = mapping_.mute ? 0 : mapping_.volume;
+        if (volume >= 100) return;
+        for (auto& sample : squeezed_) sample = static_cast<std::int16_t>(sample * volume / 100);
+    }
+
     void reset_audio() {
         resampler_.reset();
         stretch_.reset();
@@ -1638,6 +1829,7 @@ private:
         if (unthrottled && audio_->queued_frames() > target) {
             return;  // drop what the device cannot play
         }
+        apply_volume();
         audio_->push(squeezed_);
         while (!unthrottled && audio_->queued_frames() > target) {
             show_between(false);
@@ -1717,6 +1909,14 @@ private:
     std::uint64_t window_interpreted_ = 0;
     std::vector<std::string> stats_lines_;
     player::MenuSettings menu_settings_;
+    anyui::MenuView menu_view_{anygba::ui::regular_font(), anygba::ui::bold_font()};
+    anyui::Canvas menu_canvas_;
+    bool menu_backdrop_stale_ = true;
+    std::uint64_t menu_frame_ns_ = 0;
+    std::uint64_t osd_seen_ = 0;
+    std::optional<std::int64_t> drag_finger_;
+    float drag_y_ = 0, press_y_ = 0;
+    bool dragged_ = false;
     // Declared last: destroyed first, while everything its hooks use still exists.
     std::unique_ptr<anygba::control::Controller> control_;
 };

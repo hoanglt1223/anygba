@@ -287,7 +287,7 @@ TEST_CASE("menu: cheat tree, value picker, typed code and rebinding") {
     using anygba::player::MenuAction;
     using anygba::player::MenuInput;
 
-    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Up = 64, Down = 128, R = 256;
+    constexpr std::uint16_t A = 1, B = 2, Right = 16, Up = 64, Down = 128, R = 256, L = 512;
     std::vector<MenuAction> actions;
     const auto press = [&](std::uint16_t buttons) {
         MenuInput up;
@@ -305,15 +305,16 @@ TEST_CASE("menu: cheat tree, value picker, typed code and rebinding") {
     };
     menu.open();
     menu.update({});  // the first frame only notes what is held
-    press(Down);
-    press(Down);
+    CHECK(menu.lines()[0] == "== Game ==");
     press(Down);
     press(Right);  // speed 200
     CHECK(speed == 200);
-    press(Down);
-    press(A);  // Cheats
-    CHECK(menu.lines()[0] == "== Cheats ==");
+    press(L);  // Settings
+    press(L);  // Cheats
+    REQUIRE(menu.lines()[0] == "== Cheats ==");
+    CHECK(menu.lines()[1] == "> Memory  >");
     press(A);  // Memory
+    CHECK(menu.lines()[0] == "== Cheats / Memory ==");
     press(A);  // Write marker on
     CHECK(list.cheats()[0].enabled);
     press(B);
@@ -342,11 +343,14 @@ TEST_CASE("menu: cheat tree, value picker, typed code and rebinding") {
     REQUIRE(list.cheats().size() == 5);
     CHECK(list.cheats()[4].custom);
     CHECK(list.cheats()[4].code == std::vector<std::string>{"3203F030 0077"});
-    press(B);
-    press(B);  // main page, cursor back on Cheats
-    press(Down);
-    press(A);  // Controls
+    CHECK(menu.lines().back() == "! Added Code 1 (CodeBreaker)");
+    press(B);  // back to the tree's root
+    press(L);  // Controls
+    REQUIRE(menu.lines()[0] == "== Controls ==");
+    CHECK(menu.lines()[1] == "  -- GBA buttons --");
+    CHECK(menu.lines()[2] == "> A  Z | South");
     press(A);  // rebind A
+    CHECK(menu.view().page.modal == "Press a key or button for A");
     keys({"C"});
     CHECK(mapping.keys[0] == std::vector<std::string>{"C"});
     press(Down);
@@ -364,10 +368,169 @@ TEST_CASE("menu: cheat tree, value picker, typed code and rebinding") {
     CHECK(count(MenuAction::CheatsChanged) == 4);
     CHECK(count(MenuAction::MappingChanged) == 2);
     CHECK(count(MenuAction::Close) == 1);
-    (void)Left;
 }
 
-TEST_CASE("fast-forward speed: steps, settings file and the menu's Speed page") {
+TEST_CASE("menu: tabs, rail, save state slots, audio, settings, search and clicks") {
+    anygba::test::TempDir dir("anygba-menu-tabs");
+    write_file(dir.path / "db.toml", kDatabase);
+    anygba::cheats::CheatList list;
+    REQUIRE(list.load_database(dir.path / "db.toml", 0));
+    anygba::input::Mapping mapping = anygba::input::default_mapping();
+    int speed = 100;
+    int slot = 1;
+    anygba::player::Menu menu(list, mapping, speed, slot);
+    using anygba::player::MenuAction;
+    using anygba::player::MenuInput;
+    constexpr std::uint16_t A = 1, B = 2, Select = 4, Right = 16, Left = 32, Up = 64, Down = 128, R = 256, L = 512;
+    std::vector<MenuAction> actions;
+    const auto press = [&](std::uint16_t buttons) {
+        menu.update({});
+        MenuInput in;
+        in.gba_held = buttons;
+        auto a = menu.update(in);
+        actions.insert(actions.end(), a.begin(), a.end());
+    };
+    const auto keys = [&](std::vector<std::string> names) {
+        MenuInput in;
+        in.keys = std::move(names);
+        auto a = menu.update(in);
+        actions.insert(actions.end(), a.begin(), a.end());
+    };
+    std::array<anygba::player::SlotInfo, anygba::player::kStateSlots> slots{};
+    slots[1].used = true;
+    slots[1].when = "2026-10-24 21:05";
+    menu.set_slots(slots);
+
+    menu.open();
+    menu.update({});
+    // The Game page: Reset and Exit want a second A.
+    press(Down);
+    press(Down);
+    press(Down);
+    press(A);
+    CHECK(menu.lines()[4] == "> Reset  Press again to confirm");
+    CHECK(actions.empty());
+    press(A);
+    CHECK(actions == std::vector<MenuAction>{MenuAction::Reset, MenuAction::Close});
+    CHECK(!menu.is_open());
+    actions.clear();
+
+    // Save states: a 3x3 grid; A opens the slot's actions.
+    menu.open();
+    menu.update({});
+    press(R);
+    REQUIRE(menu.lines()[0] == "== Save states ==");
+    CHECK(menu.lines()[1] == "> Slot 1  Empty");
+    CHECK(menu.lines()[2] == "  Slot 2  2026-10-24 21:05");
+    press(Right);
+    CHECK(slot == 2);
+    press(Down);
+    press(Up);
+    press(A);
+    CHECK(menu.lines()[1] == "-- Slot 2 --");
+    CHECK(menu.lines()[2] == "> Load");
+    press(Down);
+    press(Down);
+    press(A);  // Delete
+    CHECK(actions == std::vector<MenuAction>{MenuAction::DeleteState});
+    press(Select);  // Select deletes too
+    CHECK(actions.size() == 2);
+    press(A);
+    press(A);  // Load
+    CHECK(actions.back() == MenuAction::Close);
+    CHECK(actions[actions.size() - 2] == MenuAction::LoadState);
+    CHECK(slot == 2);
+    CHECK(!menu.is_open());
+    actions.clear();
+
+    // Left from a plain row goes to the rail; up and down there switch tabs.
+    menu.open();
+    menu.update({});
+    press(Left);
+    CHECK(menu.lines()[1] == "[tabs]");
+    press(Down);
+    press(Down);
+    CHECK(menu.lines()[0] == "== Audio ==");
+    press(A);
+    CHECK(menu.lines()[1] == "> Volume  < 100% >");
+    press(Left);
+    CHECK(mapping.volume == 90);
+    press(Down);
+    press(A);
+    CHECK(mapping.mute);
+
+    // Settings: language, theme, menu size.
+    press(L);
+    press(L);
+    press(L);
+    REQUIRE(menu.lines()[0] == "== Settings ==");
+    press(Right);
+    CHECK(mapping.language == "vi");
+    CHECK(menu.lines()[0] == "== C\xC3\xA0i \xC4\x91\xE1\xBA\xB7t ==");
+    press(Left);
+    CHECK(mapping.language == "en");
+    press(Down);
+    press(A);
+    CHECK(mapping.light_theme);
+    press(Down);
+    press(Right);
+    CHECK(mapping.ui_scale == 125);
+    press(Down);
+    press(A);
+    CHECK(mapping.reduce_motion);
+    press(Down);
+    press(A);
+    CHECK(mapping.stats);
+    CHECK(std::count(actions.begin(), actions.end(), MenuAction::StatsChanged) == 1);
+    const auto saved = anygba::input::parse_mapping(anygba::input::format_mapping(mapping), "rt");
+    CHECK(saved.volume == 90);
+    CHECK(saved.mute);
+    CHECK(saved.light_theme);
+    CHECK(saved.ui_scale == 125);
+    CHECK(saved.reduce_motion);
+    CHECK(saved.language == "en");
+    CHECK_THROWS_WITH(anygba::input::parse_mapping("[player]\nVolume = 55\n", "t.ini"), doctest::Contains("t.ini:2"));
+    CHECK_THROWS_WITH(anygba::input::parse_mapping("[player]\nLanguage = fr\n", "t.ini"), doctest::Contains("t.ini:2"));
+
+    // Clicks: a tab, then a row.
+    actions = menu.click({anyui::HitKind::Tab, 0});
+    CHECK(menu.lines()[0] == "== Game ==");
+    actions = menu.click({anyui::HitKind::Increase, 1});
+    CHECK(speed == 200);
+    actions = menu.click({anyui::HitKind::Row, 0});
+    CHECK(actions == std::vector<MenuAction>{MenuAction::Close});
+    CHECK(!menu.is_open());
+
+    // Cheat search: Up from the first row starts typing.
+    menu.open_cheats();
+    menu.update({});
+    press(Up);
+    keys({"P", "I", "C"});
+    CHECK(menu.lines()[1] == "> Search cheats: pic_");
+    CHECK(menu.lines()[2] == "  [ ] Pick an item  Potion");
+    keys({"Return"});
+    CHECK(menu.lines()[0] == "== Cheats / 1 found ==");
+    press(B);  // clears the search
+    CHECK(menu.lines()[1] == "> Memory  >");
+    press(B);
+    CHECK(!menu.is_open());
+}
+
+TEST_CASE("menu strings: every key has English and Vietnamese text") {
+    const anyui::Strings& s = anygba::player::menu_strings();
+    CHECK(s.languages() == std::vector<std::string>{"en", "vi"});
+    CHECK(s.missing("en").empty());
+    CHECK(s.missing("vi").empty());
+    anyui::Strings t("key\ten\tvi\nhello\tHello {0}\tXin ch\xC3\xA0o {0}\nonly\tOnly\n");
+    t.set_language("vi");
+    CHECK(t.fmt("hello", {"Henry"}) == "Xin ch\xC3\xA0o Henry");
+    CHECK(t.tr("only") == "Only");
+    CHECK(t.tr("Unknown label") == "Unknown label");
+    CHECK_THROWS(anyui::Strings("nope\n"));
+    CHECK_THROWS(anyui::Strings("key\ten\na\tb\tc\n"));
+}
+
+TEST_CASE("fast-forward speed: steps, settings file and the menu's Game and Audio pages") {
     using namespace anygba::player;
     CHECK(next_fast_forward(300, 1) == 400);
     CHECK(next_fast_forward(800, 1) == kUnlimited);
@@ -400,15 +563,15 @@ TEST_CASE("fast-forward speed: steps, settings file and the menu's Speed page") 
         auto a = menu.update(in);
         actions.insert(actions.end(), a.begin(), a.end());
     };
-    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Down = 128;
+    constexpr std::uint16_t A = 1, B = 2, Right = 16, Left = 32, Down = 128, R = 256;
     menu.open();
     menu.update({});
-    for (int i = 0; i < 3; ++i) press(Down);
-    press(Right);  // Left/Right on the main Speed row still change the speed
+    press(Down);
+    press(Right);
     CHECK(speed == 200);
-    press(A);
-    CHECK(menu.lines()[0] == "== Speed ==");
-    CHECK(menu.lines()[2] == "  Fast-forward speed  < 300% >");
+    CHECK(menu.lines()[0] == "== Game ==");
+    CHECK(menu.lines()[2] == "> Speed  < 200% >");
+    CHECK(menu.lines()[3] == "  Fast-forward speed  < 300% >");
     press(Left);
     CHECK(speed == 100);
     press(Down);
@@ -417,13 +580,17 @@ TEST_CASE("fast-forward speed: steps, settings file and the menu's Speed page") 
     CHECK(mapping.fast_forward == 500);
     press(Left);
     CHECK(mapping.fast_forward == 400);
+    press(R);
+    press(R);
+    REQUIRE(menu.lines()[0] == "== Audio ==");
+    press(Down);
     press(Down);
     CHECK(menu.lines()[3] == "> Normal-speed music  Off");
     press(A);
     CHECK(mapping.normal_speed_music);
     CHECK(anygba::input::parse_mapping(anygba::input::format_mapping(mapping), "rt").normal_speed_music);
     press(B);
-    CHECK(menu.lines()[0] == "== AnyGBA ==");
+    CHECK(!menu.is_open());
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::MappingChanged) == 4);
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::SpeedChanged) == 2);
 }
@@ -533,7 +700,7 @@ TEST_CASE("MP2K: tempo and envelopes slowed by the speed, then put back") {
     CHECK(byte(chan + 7) == 128);
 }
 
-TEST_CASE("save folder: settings file and the Options page") {
+TEST_CASE("save folder: settings file and the Settings page") {
     const std::string folder = "C:\\Users\\me\\OneDrive\\Documents\\My Games\\AnyGBA\\saves";
     auto m = anygba::input::parse_mapping("[player]\nSaveFolder = " + folder + "\r\n", "t.ini");
     CHECK(m.save_folder == folder);
@@ -553,20 +720,26 @@ TEST_CASE("save folder: settings file and the Options page") {
         auto a = menu.update(in);
         actions.insert(actions.end(), a.begin(), a.end());
     };
-    constexpr std::uint16_t A = 1, Up = 64, Down = 128;
+    constexpr std::uint16_t A = 1, Down = 128, L = 512;
     menu.open();
     menu.update({});
-    press(Up);  // wraps to the last row: Options
-    press(A);
-    REQUIRE(menu.lines()[0] == "== Options ==");
-    CHECK(menu.lines()[1] == "> Save folder  ... Games\\AnyGBA\\saves");
+    press(L);  // the last tab: Settings
+    REQUIRE(menu.lines()[0] == "== Settings ==");
+    for (int i = 0; i < 5; ++i) press(Down);
+    CHECK(menu.lines()[6] == "> Save folder  " + folder);
     press(A);
     CHECK(actions == std::vector<MenuAction>{MenuAction::ChooseSaveFolder});
     press(Down);
     press(A);
     CHECK(m.save_folder.empty());
     CHECK(actions.back() == MenuAction::MappingChanged);
-    CHECK(menu.lines()[1] == "  Save folder  default");
+    CHECK(menu.lines()[6] == "  Save folder  default");
+    press(Down);
+    press(A);
+    CHECK(actions.back() == MenuAction::ExportSave);
+    press(Down);
+    press(A);
+    CHECK(actions.back() == MenuAction::ImportSave);
 }
 
 TEST_CASE("stats overlay: hotkey, setting and lines") {

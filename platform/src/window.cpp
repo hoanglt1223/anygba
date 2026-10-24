@@ -100,6 +100,7 @@ Window::Window(const WindowConfig& config) : width_(config.width), height_(confi
 
 Window::~Window() {
     if (target_) SDL_DestroyTexture(target_);
+    if (ui_) SDL_DestroyTexture(ui_);
     if (overlay_) SDL_DestroyTexture(overlay_);
     if (rgba_) SDL_DestroyTexture(rgba_);
     SDL_DestroyTexture(texture_);
@@ -285,6 +286,52 @@ std::pair<int, int> Window::render_size() const {
         detail::throw_sdl_error("SDL_GetRenderOutputSize");
     }
     return {w, h};
+}
+
+std::pair<int, int> Window::output_pixels() const {
+    int w = 0, h = 0;
+    if (!SDL_GetRenderOutputSize(renderer_, &w, &h)) {
+        detail::throw_sdl_error("SDL_GetRenderOutputSize");
+    }
+    return {w, h};
+}
+
+void Window::present_ui(std::span<const std::uint32_t> pixels, int width, int height) {
+    if (width <= 0 || height <= 0 ||
+        pixels.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height)) {
+        throw Error("menu picture has " + std::to_string(pixels.size()) + " pixels, expected " + std::to_string(width) +
+                    "x" + std::to_string(height));
+    }
+    if (logical_) {
+        if (!SDL_SetRenderLogicalPresentation(renderer_, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED)) {
+            detail::throw_sdl_error("SDL_SetRenderLogicalPresentation");
+        }
+        logical_ = false;
+    }
+    if (!ui_ || ui_width_ != width || ui_height_ != height) {
+        if (ui_) SDL_DestroyTexture(ui_);
+        ui_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, width, height);
+        if (!ui_) {
+            ui_width_ = ui_height_ = 0;
+            detail::throw_sdl_error("SDL_CreateTexture (menu)");
+        }
+        ui_width_ = width;
+        ui_height_ = height;
+        if (!SDL_SetTextureBlendMode(ui_, SDL_BLENDMODE_NONE) || !SDL_SetTextureScaleMode(ui_, SDL_SCALEMODE_LINEAR)) {
+            detail::throw_sdl_error("menu texture");
+        }
+    }
+    if (!SDL_UpdateTexture(ui_, nullptr, pixels.data(), width * 4)) {
+        detail::throw_sdl_error("SDL_UpdateTexture");
+    }
+    if (!SDL_SetRenderTarget(renderer_, nullptr)) {
+        detail::throw_sdl_error("SDL_SetRenderTarget");
+    }
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    if (!SDL_RenderClear(renderer_) || !SDL_RenderTexture(renderer_, ui_, nullptr, nullptr) ||
+        !SDL_RenderPresent(renderer_)) {
+        detail::throw_sdl_error("render menu");
+    }
 }
 
 void Window::set_render_size(int width, int height) {

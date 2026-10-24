@@ -39,5 +39,5 @@ expect_bytes("${WORK}/ewram2.bin" 258096 "77")
 # A gamepad connects, Back+Start opens the menu, the stick moves, B closes.
 run_game(pad --frames 120 --no-save --script "${DATA}/gamepad-script.txt")
 expect_output("${pad}" "osd: Gamepad connected: Test Pad")
-expect_output("${pad}" "menu\\| > Save state")
+expect_output("${pad}" "menu\\| > Speed  < 100% >")
 expect_output("${pad}" "menu\\| \\(closed\\)")

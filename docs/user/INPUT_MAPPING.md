@@ -74,6 +74,15 @@ StickDeadzone = 12000
 # Folder for saves, save states and the cheat file, e.g.
 # C:\Users\me\OneDrive\Documents\My Games\AnyGBA\saves (empty: the per-user data folder).
 SaveFolder =
+# Sound card volume in percent (0-100, steps of 10), and mute: on or off.
+Volume = 100
+Mute = off
+# The menu: language (en or vi), theme (dark or light), size in percent (75, 100, 125 or 150) and
+# whether it animates (ReduceMotion = on turns animations off).
+Language = en
+Theme = dark
+UiScale = 100
+ReduceMotion = off
 ```
 
 - Names are the GBA buttons `A`, `B`, `Select`, `Start`, `Right`, `Left`, `Up`, `Down`, `R`, `L` and the

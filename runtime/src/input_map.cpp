@@ -260,8 +260,28 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
             } else if (key == "StickDeadzone") {
                 if (*end != '\0' || n < 0 || n > 32767) fail("StickDeadzone must be 0 to 32767");
                 m.stick_deadzone = static_cast<int>(n);
+            } else if (key == "Volume") {
+                if (v.empty() || *end != '\0' || n < 0 || n > 100 || n % 10 != 0) fail("Volume must be 0 to 100 in steps of 10");
+                m.volume = static_cast<int>(n);
+            } else if (key == "Mute") {
+                if (value != "on" && value != "off") fail("Mute must be on or off");
+                m.mute = value == "on";
+            } else if (key == "Language") {
+                if (value != "en" && value != "vi") fail("Language must be en or vi");
+                m.language = std::string(value);
+            } else if (key == "Theme") {
+                if (value != "dark" && value != "light") fail("Theme must be dark or light");
+                m.light_theme = value == "light";
+            } else if (key == "UiScale") {
+                if (v.empty() || *end != '\0' || n < 75 || n > 150 || n % 25 != 0) fail("UiScale must be 75, 100, 125 or 150");
+                m.ui_scale = static_cast<int>(n);
+            } else if (key == "ReduceMotion") {
+                if (value != "on" && value != "off") fail("ReduceMotion must be on or off");
+                m.reduce_motion = value == "on";
             } else {
-                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, NormalSpeedMusic, Stats, StickDeadzone, SaveFolder)");
+                fail("unknown [player] setting '" + std::string(key) +
+                     "' (Speed, FastForwardSpeed, NormalSpeedMusic, Stats, StickDeadzone, SaveFolder, Volume, Mute, "
+                     "Language, Theme, UiScale, ReduceMotion)");
             }
             continue;
         }
@@ -351,7 +371,13 @@ std::string format_mapping(const Mapping& m) {
            "\nNormalSpeedMusic = " + (m.normal_speed_music ? "on" : "off") +
            "\nStats = " + (m.stats ? "on" : "off") +
            "\nStickDeadzone = " + std::to_string(m.stick_deadzone) +
-           "\nSaveFolder = " + m.save_folder + "\n";
+           "\nSaveFolder = " + m.save_folder +
+           "\nVolume = " + std::to_string(m.volume) +
+           "\nMute = " + (m.mute ? "on" : "off") +
+           "\nLanguage = " + m.language +
+           "\nTheme = " + (m.light_theme ? "light" : "dark") +
+           "\nUiScale = " + std::to_string(m.ui_scale) +
+           "\nReduceMotion = " + (m.reduce_motion ? "on" : "off") + "\n";
     return out;
 }
 

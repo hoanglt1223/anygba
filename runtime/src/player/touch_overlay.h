@@ -37,6 +37,8 @@ struct TouchStatus {
     std::string filter;             // short name of the screen effect
     std::string widescreen;         // "off", "16:10", "16:9"
     bool game_menu_open = false;
+    std::string language = "en";    // the menu's language and theme, which the quick menu shares
+    bool light = false;
     bool operator==(const TouchStatus&) const = default;
 };
 

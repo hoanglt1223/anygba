@@ -99,3 +99,32 @@ TEST_CASE("only one context may exist") {
     pf::Context context({.headless = true});
     CHECK_THROWS_AS((pf::Context{{.headless = true}}), pf::Error);
 }
+
+TEST_CASE("touches become pointer events; mouse events made up from touches do not") {
+    pf::Context context({.headless = true});
+    pf::Input input;
+    SDL_Event down{};
+    down.type = SDL_EVENT_FINGER_DOWN;
+    down.tfinger.x = 0.25f;
+    down.tfinger.y = 0.75f;
+    down.tfinger.fingerID = 7;
+    input.handle_event(down);
+    SDL_Event fake{};
+    fake.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+    fake.button.which = SDL_TOUCH_MOUSEID;
+    fake.button.button = SDL_BUTTON_LEFT;
+    input.handle_event(fake);
+    SDL_Event cancel = down;
+    cancel.type = SDL_EVENT_FINGER_CANCELED;
+    input.handle_event(cancel);
+    const auto events = input.take_pointer_events();
+    REQUIRE(events.size() == 2);
+    CHECK(events[0].kind == pf::PointerEvent::Kind::Down);
+    CHECK(events[0].touch);
+    CHECK(events[0].finger == 7);
+    CHECK(events[0].x == doctest::Approx(0.25f));
+    CHECK(events[0].y == doctest::Approx(0.75f));
+    CHECK(events[1].kind == pf::PointerEvent::Kind::Up);
+    CHECK(events[1].x < 0);  // cancelled: not a tap
+    CHECK(input.take_pointer_events().empty());
+}

@@ -68,9 +68,10 @@ play; long-press for per-game settings (starting speed) or to remove the game (s
   the menu to go back to the game.
 - **Layout editor**: drag any button to move it. Tap one to select it, then Smaller/Bigger resize it and
   Reset puts it back; with nothing selected they apply to all buttons. Done saves the layout.
-- The **in-game menu** (Menu in the quick menu) has save states, speed, cheats, video and controls.
-  Navigate it with the touch d-pad, A and B; tap the floating button to close it. Typing a cheat code
-  needs a keyboard; cheats from the database work by touch.
+- The **in-game menu** (Menu in the quick menu) is the same as on the desktop
+  ([USAGE.md](USAGE.md#menu)): tap a tab or a row, tap the arrows of a value, drag to scroll, tap outside
+  it to close it. Rows are taller for fingers. Typing a cheat code or a search needs a keyboard; cheats
+  from the database work by touch. The quick menu follows the menu's language and theme.
 - **Touch settings** (Setup): size, opacity, position, vibration, the floating button, and save export
   and import. Changes apply while you play and are stored in `anygba-touch.ini` with the button's place
   and the layout. Turn the floating button off there to get the classic MENU button back (tap: in-game

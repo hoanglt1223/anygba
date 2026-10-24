@@ -85,6 +85,11 @@ public:
                       const Overlay* overlay = nullptr, Image* capture = nullptr);
     // Pixels present_rgba draws into: the fixed render size if set, else the window's.
     std::pair<int, int> render_size() const;
+    // The window's size in pixels, whatever the render size.
+    std::pair<int, int> output_pixels() const;
+    // Shows a picture of output_pixels() size over the whole window, pixel for pixel (the
+    // in-game menu): no render size, letterbox or screen overlay.
+    void present_ui(std::span<const std::uint32_t> pixels, int width, int height);
     // Render into an offscreen target of this size, shown scaled to the window with the aspect
     // ratio kept; (0, 0) renders straight to the window.
     void set_render_size(int width, int height);
@@ -114,6 +119,8 @@ private:
     SDL_Texture* texture_ = nullptr;
     SDL_Texture* rgba_ = nullptr;    // present_rgba upload
     SDL_Texture* target_ = nullptr;  // fixed render size
+    SDL_Texture* ui_ = nullptr;      // present_ui upload
+    int ui_width_ = 0, ui_height_ = 0;
     int rgba_width_ = 0, rgba_height_ = 0;
     SDL_Texture* overlay_ = nullptr;
     int overlay_width_ = 0, overlay_height_ = 0;
