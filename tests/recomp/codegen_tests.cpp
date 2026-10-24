@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "codegen/c_emitter.h"
 #include "decode/arm.h"
 #include "decode/disasm.h"
 #include "decode/thumb.h"
@@ -179,4 +180,31 @@ TEST_CASE("generated code matches the reference interpreter on random instructio
                                  << " states skipped (address outside the sandbox), " << failures << " mismatches");
     CHECK(states >= 1000000);
     CHECK(failures == 0);
+}
+
+TEST_CASE("a branch to a label the walk never decoded leaves through r[15]") {
+    // Thumb `b #0x03000100` in IWRAM; the target is a label but was never decoded.
+    anygba::analysis::Function fn;
+    fn.entry = 0x03000000;
+    fn.mode = anygba::analysis::Mode::Thumb;
+    fn.insns.emplace(0x03000000, anygba::decode::decode_thumb(0xE07E, 0x03000000));
+    fn.labels = {0x03000000, 0x03000100};
+    const std::string c = anygba::codegen::emit_function(fn, {});
+    CHECK(c.find("goto L_03000100") == std::string::npos);
+    CHECK(c.find("c->r[15] = 0x03000100u;") != std::string::npos);
+    CHECK(c.find("AG_ENTER") == std::string::npos);  // RAM code: ROM patches never cover it
+}
+
+TEST_CASE("ROM functions start with AG_ENTER and report their code footprint") {
+    anygba::analysis::Function fn;
+    fn.entry = 0x08000100;
+    fn.mode = anygba::analysis::Mode::Thumb;
+    fn.insns.emplace(0x08000100, anygba::decode::decode_thumb(0x4801, 0x08000100));  // ldr r0, [pc, #4]
+    fn.insns.emplace(0x08000102, anygba::decode::decode_thumb(0x4770, 0x08000102));  // bx lr
+    fn.labels = {0x08000100};
+    const std::string c = anygba::codegen::emit_function(fn, {});
+    CHECK(c.find("AG_ENTER(c, 0x08000100u);") != std::string::npos);
+    const auto code = anygba::codegen::code_footprint(fn, nullptr);
+    CHECK(code.begin == 0x08000100);
+    CHECK(code.end == 0x08000104);
 }

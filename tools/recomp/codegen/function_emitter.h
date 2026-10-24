@@ -29,7 +29,9 @@ private:
     void emit_indirect_exit(const decode::Insn& in);
     void emit_jump_to(const decode::Insn& in, std::uint32_t target);
     std::string cond_expr(decode::Cond cond) const;
-    bool is_label(std::uint32_t addr) const { return labels_.contains(addr); }
+    // Only targets the function decoded: a branch into code the walk could not read (RAM code
+    // outside the known region) leaves through r[15] instead of a goto to a missing label.
+    bool is_label(std::uint32_t addr) const { return labels_.contains(addr) && fn_.insns.contains(addr); }
     static std::string hex(std::uint32_t v);
 
     // ---- operands (arm_ops.cpp) ----
