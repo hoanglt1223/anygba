@@ -420,7 +420,7 @@ public:
                 const float end = regular_.draw(out, field.x + 34 * u, center_baseline(regular_, field.y + field.h / 2, spx),
                                                 empty && p.search_active ? std::string() : shown, spx,
                                                 (empty ? t.dim : t.text).alpha(ca));
-                if (p.search_active && blink()) {
+                if (p.search_active) {
                     out.fill_rect({end + 1 * u, field.y + 9 * u, std::max(1.f, 1.5f * u), field.h - 18 * u}, t.accent.alpha(ca));
                 }
                 hits_.push_back({field, {HitKind::Search, -1}});
@@ -450,8 +450,6 @@ private:
     float center_baseline(const Font& font, float cy, float px) const {
         return cy + (font.ascent(px) - font.descent(px)) / 2;
     }
-
-    bool blink() const { return true; }
 
     float row_height(const Row& r) const {
         if (r.kind == RowKind::Header) return 30 * u_;
@@ -779,8 +777,8 @@ private:
         out.fill_round_rect(screen, 6 * u, (t.dark ? Color::rgb(0x11141A) : Color::rgb(0xFAFBFC)).alpha(a));
         out.stroke_round_rect(screen, 6 * u, sw, edge);
         // D-pad.
-        const float dc = body.x + w * (psp ? 0.12f : 0.135f), dy = body.y + h * (psp ? 0.38f : 0.45f);
-        const float arm = h * 0.11f, len = h * 0.3f;
+        const float dc = body.x + w * (psp ? 0.15f : 0.135f), dy = body.y + h * (psp ? 0.4f : 0.45f);
+        const float arm = h * (psp ? 0.085f : 0.11f), len = h * (psp ? 0.24f : 0.3f);
         // A plus-shaped pad; the lit arm is filled.
         const std::vector<Point> cross{{dc - arm, dy - len}, {dc + arm, dy - len}, {dc + arm, dy - arm}, {dc + len, dy - arm},
                                        {dc + len, dy + arm}, {dc + arm, dy + arm}, {dc + arm, dy + len}, {dc - arm, dy + len},
@@ -825,7 +823,7 @@ private:
             out.stroke_round_rect({fx - br * 2.1f - k * 0.8f, fy - k * 0.8f, k * 1.6f, k * 1.6f}, 0, lw, symbol_colour("Square"));
             button("Circle", "", fx + br * 2.1f, fy);
             out.stroke_circle(fx + br * 2.1f, fy, k * 0.9f, lw, symbol_colour("Circle"));
-            const float nx = body.x + w * 0.12f, ny = body.y + h * 0.74f;
+            const float nx = body.x + w * 0.15f, ny = body.y + h * 0.78f;
             const bool analog = p.highlight.starts_with("Analog");
             out.fill_circle(nx, ny, br * 1.1f, analog ? t.accent.alpha(a) : fill);
             out.stroke_circle(nx, ny, br * 1.1f, sw, analog ? t.accent.alpha(a) : edge);
@@ -842,8 +840,8 @@ private:
                           (lit(name) ? t.accent : t.dim).alpha(a));
         };
         if (psp) {
-            pill("Select", "SELECT", body.right() - w * 0.21f, body.y + h * 0.84f);
-            pill("Start", "START", body.right() - w * 0.1f, body.y + h * 0.84f);
+            pill("Select", "SELECT", body.right() - w * 0.21f, body.y + h * 0.72f);
+            pill("Start", "START", body.right() - w * 0.1f, body.y + h * 0.72f);
         } else {
             pill("Select", "SELECT", body.x + w * 0.08f, body.y + h * 0.8f);
             pill("Start", "START", body.x + w * 0.2f, body.y + h * 0.8f);

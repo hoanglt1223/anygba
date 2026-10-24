@@ -1195,6 +1195,7 @@ private:
         }
         menu_trace_.clear();
         osd_seen_ = osd_.count();
+        if (input_) input_->take_pointer_events();  // clicks made in the game are not for the menu
         if (window_) {
             menu_view_.open();
             menu_backdrop_stale_ = true;
