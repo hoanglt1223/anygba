@@ -2,7 +2,7 @@
 #
 # Addresses follow the pret/pokeemerald decompilation and were checked on a US/EU ROM by reading
 # memory while the game runs: gMain.callback2 at 0x030022C4, gMapHeader at 0x02037318,
-# gBackupMapLayout at 0x03005DC0, gSaveBlock1Ptr at 0x03005D8C.
+# gBackupMapLayout at 0x03005DC0, gSaveBlock1Ptr at 0x03005D8C, BattleMainCB2 at 0x08038420.
 title = "Pokemon - Emerald Version (USA, Europe)"
 
 # Anything not listed below keeps the GBA picture between black bars.
@@ -23,3 +23,15 @@ provider = "pokeemerald-field"
 map_header = 0x02037318
 backup_layout = 0x03005DC0
 save_block1_ptr = 0x03005D8C
+
+# Battles (callback2 = BattleMainCB2, from the intro slide to the last message). The battle
+# background is BG3, a 512-pixel-wide map the game fills beyond the screen, and the Pokemon,
+# trainers and health boxes are sprites, so they widen from VRAM. The text box and the action and
+# move menus are on BG0, whose map holds other text box panels beyond the screen: its edge column
+# (the box's dark frame) is repeated outwards instead. The transition into a battle and the
+# battle's own setup (CB2_InitBattle, CB2_HandleStartBattle) stay pillarboxed.
+[[scene]]
+name = "battle"
+when = ["u32 0x030022C4 == 0x08038421"]
+mode = "widen"
+clamp = ["bg0"]
