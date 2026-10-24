@@ -414,16 +414,21 @@ std::pair<std::uint32_t, std::uint32_t> parse_target(std::string_view s, std::si
 
 Op parse_extended_raw(std::string text, std::size_t number) {
     std::erase_if(text, [](char ch) { return ch == ' ' || ch == '\t' || ch == '\r'; });
-    const auto colon = text.find(':');
+    const auto colon = text.find_first_of(":|");
     if (colon == std::string::npos) {
-        throw CodeError("line " + std::to_string(number) + ": expected TARGET:VALUE, got '" + text + "'");
+        throw CodeError("line " + std::to_string(number) + ": expected TARGET:VALUE or TARGET|VALUE, got '" + text + "'");
     }
     const auto [pointer, addr] = parse_target(std::string_view(text).substr(0, colon), number);
     std::string value = text.substr(colon + 1);
     Op op;
     op.pointer = pointer;
     op.addr = addr;
-    if (const auto caret = value.find('^'); caret != std::string::npos) {
+    if (text[colon] == '|') {
+        op.kind = Kind::Or;
+        if (value.find('^') != std::string::npos) {
+            throw CodeError("line " + std::to_string(number) + ": TARGET|VALUE sets bits and cannot XOR the value");
+        }
+    } else if (const auto caret = value.find('^'); caret != std::string::npos) {
         const auto [xp, xa] = parse_target(std::string_view(value).substr(caret + 1), number);
         op.xor_value = true;
         op.xor_pointer = xp;
@@ -445,7 +450,7 @@ Program compile_known(Format format, std::span<const std::string> text) {
     switch (format) {
     case Format::Raw:
         for (std::size_t i = 0; i < text.size(); ++i) {
-            if (text[i].find_first_of("[^") != std::string::npos) {
+            if (text[i].find_first_of("[^|") != std::string::npos) {
                 p.ops.push_back(parse_extended_raw(text[i], i + 1));
                 continue;
             }
@@ -675,7 +680,7 @@ Program compile(Format format, std::span<const std::string> lines) {
     bool all12 = true;
     bool all16 = true;
     for (const std::string& line : lines) {
-        colon = colon || line.find(':') != std::string::npos;
+        colon = colon || line.find_first_of(":|") != std::string::npos;
         const std::size_t n = digit_count(line);
         all12 = all12 && n == 12;
         all16 = all16 && n == 16;

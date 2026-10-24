@@ -155,6 +155,12 @@ name = "Player/Max Game Corner coins (9999)"
 format = "raw"
 code = ["[03005D8C]+0494:270F^[03005D90]+00AC"]
 
+[[cheat]]
+name = "Player/All badges"
+note = "Sets FLAG_BADGE01_GET to FLAG_BADGE08_GET (SaveBlock1 + 0x1270 flags) and keeps the flags around them"
+format = "raw"
+code = ["[03005D8C]+137C|80", "[03005D8C]+137D|7F"]
+
 # ---- Items ----
 
 [[cheat]]

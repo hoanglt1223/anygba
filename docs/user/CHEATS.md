@@ -59,6 +59,8 @@ Emerald):
 - `[PPPPPPPP]+OFFSET:VALUE` writes at the address stored at `PPPPPPPP`, plus `OFFSET`.
 - `VALUE^TARGET` (TARGET written like an address or a pointer) XORs the value with what is stored there
   first.
+- `TARGET|VALUE` sets the value's bits and keeps the others, for flags that share a byte, for example
+  `[03005D8C]+137C|80`.
 
 ## Cheat databases
 

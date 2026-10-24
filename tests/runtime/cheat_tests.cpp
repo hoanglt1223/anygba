@@ -115,6 +115,23 @@ TEST_CASE("raw codes through a pointer and XORed with a per-save key") {
     CHECK_THROWS_AS(code(Format::Raw, {"[03005D8C]+0490:123"}), CodeError);
 }
 
+TEST_CASE("raw codes set bits through a pointer and keep the others") {
+    auto sys = make_system();
+    const Program p = code(Format::Raw, {"[03000010]+137C|80", "[03000010]+137D|7F", "02000020|0101"});
+    sys.write8(0x0200137C, 0x05);
+    sys.write8(0x0200137D, 0x80);
+    run(p, sys, {});  // pointer still 0: only the plain address changes
+    CHECK(sys.read8(0x0200137C) == 0x05);
+    CHECK(sys.read16(0x02000020) == 0x0101);
+    sys.write32(0x03000010, 0x02000000);
+    run(p, sys, {});
+    CHECK(sys.read8(0x0200137C) == 0x85);
+    CHECK(sys.read8(0x0200137D) == 0xFF);
+    CHECK(code(Format::Auto, {"[03005D8C]+137C|80"}).format == Format::Raw);
+    CHECK_THROWS_AS(code(Format::Raw, {"[03005D8C]+137C|80^[03005D90]+00AC"}), CodeError);
+    CHECK_THROWS_AS(code(Format::Raw, {"[03005D8C]+137C|8"}), CodeError);
+}
+
 TEST_CASE("CodeBreaker writes, arithmetic, slides, byte lists and conditions") {
     auto sys = make_system();
     sys.write16(0x02000100, 0x00F0);

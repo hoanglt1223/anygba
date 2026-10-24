@@ -17,7 +17,8 @@ enum class Format : std::uint8_t {
     // "AAAAAAAA:VV", ":VVVV" or ":VVVVVVVV" (also with a space): plain writes. AnyGBA also
     // accepts a pointer target "[PPPPPPPP]+OFFSET:VALUE" (written at the 32-bit pointer plus
     // OFFSET, skipped while the pointer is 0) and a value XORed with memory "VALUE^TARGET", for
-    // games that encrypt values with a per-save key.
+    // games that encrypt values with a per-save key. "TARGET|VALUE" sets the value's bits and keeps
+    // the others (flags that share a byte).
     Raw,
     GameShark,   // GameShark / Action Replay v1 and v2, encrypted (as printed)
     GameSharkRaw,
@@ -67,7 +68,7 @@ struct Op {
     std::uint32_t value_step = 0;
     std::vector<std::uint8_t> bytes;
 
-    // Raw extensions (Write only): the target is [pointer] + addr when pointer != 0, and the
+    // Raw extensions (Write and Or): the target is [pointer] + addr when pointer != 0; Write's
     // value is XORed with the `size` bytes at xor_addr (or [xor_pointer] + xor_addr).
     std::uint32_t pointer = 0;
     bool xor_value = false;

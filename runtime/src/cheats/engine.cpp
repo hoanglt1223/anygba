@@ -98,7 +98,16 @@ void run(const Program& program, System& sys, const FrameKeys& keys) {
             break;
         }
         case Kind::Add: store(sys, op.addr, op.size, read(sys, op.addr, op.size) + op.value); break;
-        case Kind::Or: store(sys, op.addr, op.size, read(sys, op.addr, op.size) | op.value); break;
+        case Kind::Or: {
+            std::uint32_t addr = op.addr;
+            if (op.pointer) {
+                const std::uint32_t base = sys.read32(op.pointer);
+                if (base == 0) break;
+                addr += base;
+            }
+            store(sys, addr, op.size, read(sys, addr, op.size) | op.value);
+            break;
+        }
         case Kind::And: store(sys, op.addr, op.size, read(sys, op.addr, op.size) & op.value); break;
         case Kind::WriteBytes:
             for (std::size_t b = 0; b < op.bytes.size(); ++b) {
