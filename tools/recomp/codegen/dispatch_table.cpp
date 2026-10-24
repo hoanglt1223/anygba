@@ -93,6 +93,12 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
         }
         ++i;
     }
+    // Shards from an earlier run with more of them would be compiled in too.
+    for (std::size_t s = shards;; ++s) {
+        char name[32];
+        std::snprintf(name, sizeof name, "funcs_%03zu.c", s);
+        if (!std::filesystem::remove(dir / name)) break;
+    }
     for (std::size_t s = 0; s < shards; ++s) {
         char name[32];
         std::snprintf(name, sizeof name, "funcs_%03zu.c", s);
