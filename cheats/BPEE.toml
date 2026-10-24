@@ -258,6 +258,34 @@ code = [
 param = { label = "Multiplier", list = "exp_multipliers" }
 default = 2
 
+# ---- Pokemon ----
+# Party data is encrypted and checksummed, so these change the game's code where it creates or
+# updates a Pokemon; the results are stored in the Pokemon and stay after the cheat is off.
+
+[[cheat]]
+name = "Pokemon/Perfect IVs for new Pokemon"
+note = "ROM patch of CreateBoxMon: Pokemon created with random IVs (wild, gifts, eggs) get 31 in every stat; trainers' Pokemon keep theirs. Pokemon you already have do not change"
+format = "raw"
+code = ["08067DC8:43C02000", "08067E12:2000", "08067E14:43C0"]
+
+[[cheat]]
+name = "Pokemon/Max EVs from the next battle"
+note = "ROM patch of MonGainEVs: a Pokemon that earns EVs gets the legal maximum, 255 HP and 255 Attack (510 in total). Stats follow at its next level up"
+format = "raw"
+code = ["0806DBC6:24FF"]
+
+[[cheat]]
+name = "Pokemon/Max friendship"
+note = "ROM patch of AdjustFriendship: friendship becomes 255 at the next change (level up, vitamin, battle, walking)"
+format = "raw"
+code = ["0806DAB0:46C0"]
+
+[[cheat]]
+name = "Pokemon/Eggs hatch fast"
+note = "Keeps the Day Care step counter (SaveBlock1 + 0x314C) one step short of an egg cycle, so every step counts as one: eggs hatch after 5 to 120 steps"
+format = "raw"
+code = ["[03005D8C]+314C:FE"]
+
 # ---- Battle ----
 
 [[cheat]]
