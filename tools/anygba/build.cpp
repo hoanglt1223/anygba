@@ -99,7 +99,7 @@ fs::path default_prefix() {
 }
 
 // Cheat databases for this ROM shipped in <prefix>/share/anygba/cheats: <game code>.toml and
-// <crc32>.toml, copied to `dest` where the game looks for them (docs/user/CHEATS.md).
+// <crc32>.toml; build() copies them where the game looks for them (docs/user/CHEATS.md).
 std::vector<fs::path> cheat_databases(const fs::path& prefix, const std::vector<std::uint8_t>& rom) {
     std::vector<fs::path> found;
     if (rom.size() < 0xB0) return found;

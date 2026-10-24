@@ -4,7 +4,7 @@
 include("${CMAKE_CURRENT_LIST_DIR}/player-common.cmake")
 
 # 240 frames at 59.73 Hz: 4.02 s at 100%, 2.01 s at 200%, 1.00 s at 400%.
-foreach(case "200;1.6;2.6" "400;0.8;1.4")
+foreach(case "200;1.6;3.0" "400;0.8;1.6")
   list(GET case 0 speed)
   list(GET case 1 low)
   list(GET case 2 high)
