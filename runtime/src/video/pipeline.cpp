@@ -46,6 +46,36 @@ Prepared Pipeline::prepare(std::span<const std::uint16_t> frame, int width, int 
         throw std::invalid_argument("video output size must be positive");
     }
     color_.convert(frame, width, height, source_);
+    return finish(width, height, dst_w, dst_h);
+}
+
+Prepared Pipeline::prepare(const Image& frame, int logical_w, int logical_h, int dst_w, int dst_h) {
+    if (frame.width <= 0 || frame.height <= 0 || logical_w <= 0 || logical_h <= 0 ||
+        frame.pixels.size() != static_cast<std::size_t>(frame.width) * static_cast<std::size_t>(frame.height)) {
+        throw std::invalid_argument("video frame size does not match its dimensions");
+    }
+    if (dst_w <= 0 || dst_h <= 0) {
+        throw std::invalid_argument("video output size must be positive");
+    }
+    color_.convert(frame, source_);
+    return finish(logical_w, logical_h, dst_w, dst_h);
+}
+
+const Image& Pipeline::render(const Image& frame, int logical_w, int logical_h, int target_w, int target_h) {
+    const Rect area = fit(target_w, target_h, logical_w, logical_h, options_.integer_scale);
+    const Prepared p = prepare(frame, logical_w, logical_h, area.w, area.h);
+    if (output_.width != target_w || output_.height != target_h || output_area_ != area) {
+        output_.resize(target_w, target_h);
+        std::fill(output_.pixels.begin(), output_.pixels.end(), kOpaque);
+        output_area_ = area;
+    }
+    resize(*p.image, output_, area, p.linear);
+    if (p.overlay) multiply(output_, area, *p.overlay);
+    return output_;
+}
+
+Prepared Pipeline::finish(int logical_w, int logical_h, int dst_w, int dst_h) {
+    const int width = source_.width, height = source_.height;
     if (options_.ghosting) {
         if (has_previous_ && previous_.width == width && previous_.height == height) {
             for (std::size_t i = 0; i < source_.pixels.size(); ++i) {
@@ -62,6 +92,7 @@ Prepared Pipeline::prepare(std::span<const std::uint16_t> frame, int width, int 
     apply_gain(source_, effect_gain(options_.effect));
 
     const Scaler scaler = options_.scaler;
+    const bool at_1x = width == logical_w && height == logical_h;
     const int whole = std::max(1, std::min(dst_w / width, dst_h / height));
     const Image* image = &source_;
     if (scaler == Scaler::SharpBilinear && whole > 1) {
@@ -70,16 +101,16 @@ Prepared Pipeline::prepare(std::span<const std::uint16_t> frame, int width, int 
         scaled_.resize(width * whole, height * whole);
         resize(source_, scaled_, {0, 0, scaled_.width, scaled_.height}, false);
         image = &scaled_;
-    } else if (factor(scaler) > 1) {
+    } else if (factor(scaler) > 1 && at_1x) {
         upscale(scaler, source_, scaled_);
         image = &scaled_;
     }
 
     const Image* overlay = nullptr;
     if (options_.effect != Effect::None) {
-        const OverlayKey key{options_.effect, width, height, dst_w, dst_h};
+        const OverlayKey key{options_.effect, logical_w, logical_h, dst_w, dst_h};
         if (!(key == overlay_key_)) {
-            make_overlay(options_.effect, width, height, dst_w, dst_h, overlay_);
+            make_overlay(options_.effect, logical_w, logical_h, dst_w, dst_h, overlay_);
             overlay_key_ = key;
             ++overlay_version_;
         }
@@ -88,7 +119,8 @@ Prepared Pipeline::prepare(std::span<const std::uint16_t> frame, int width, int 
 
     const bool exact = dst_w % image->width == 0 && dst_h % image->height == 0 &&
                        dst_w / image->width == dst_h / image->height;
-    return {image, !exact && scaler != Scaler::Nearest, overlay, overlay_version_};
+    // HD frames are already detailed: scale them smoothly unless the size is a whole multiple.
+    return {image, !exact && (scaler != Scaler::Nearest || !at_1x), overlay, overlay_version_};
 }
 
 const Image& Pipeline::render(std::span<const std::uint16_t> frame, int width, int height, int target_w,

@@ -6,6 +6,7 @@
 #include <anyport/platform/window.h>
 
 #include <cstdint>
+#include <functional>
 #include <span>
 
 namespace anygba::video {
@@ -24,8 +25,13 @@ public:
     // `frame` is width x height BGR555.
     void present(std::span<const std::uint16_t> frame, int width, int height,
                  anyport::platform::Image* capture = nullptr);
+    // An RGBA frame showing logical_w x logical_h GBA pixels (HD renderer output).
+    void present(const Image& frame, int logical_w, int logical_h, anyport::platform::Image* capture = nullptr);
 
 private:
+    void show(int width, int height, anyport::platform::Image* capture, const std::function<Prepared(int, int)>& prepare,
+              const std::function<const Image&(int, int)>& render);
+
     anyport::platform::Window& window_;
     Pipeline pipeline_;
     bool gpu_;

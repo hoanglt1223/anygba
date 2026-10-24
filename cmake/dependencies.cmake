@@ -23,6 +23,18 @@ FetchContent_Declare(tomlplusplus
   URL_HASH SHA256=6b5172ad4dd6519aec67b919181fa7a38a2234131e5b2afa232dfe444819783e
   DOWNLOAD_NO_EXTRACT TRUE)
 FetchContent_MakeAvailable(tomlplusplus)
+
+# ONNX Runtime C API headers (MIT) for AI upscaling. Only the headers: the library is loaded at
+# run time when a player turns AI upscaling on (docs/user/HD-PACKS.md).
+FetchContent_Declare(onnxruntime_api
+  URL https://raw.githubusercontent.com/microsoft/onnxruntime/v1.24.4/include/onnxruntime/core/session/onnxruntime_c_api.h
+  URL_HASH SHA256=9ed0d7054a4e74249467365b25b415d36f51a44a6349e2a994a1812e4723d1e2
+  DOWNLOAD_NO_EXTRACT TRUE)
+FetchContent_Declare(onnxruntime_ep_api
+  URL https://raw.githubusercontent.com/microsoft/onnxruntime/v1.24.4/include/onnxruntime/core/session/onnxruntime_ep_c_api.h
+  URL_HASH SHA256=e94ac3490697bdb107844fa9d403952ee7136134132a057eae5c1207b57ce352
+  DOWNLOAD_NO_EXTRACT TRUE)
+FetchContent_MakeAvailable(onnxruntime_api onnxruntime_ep_api)
 add_library(tomlplusplus INTERFACE)
 target_include_directories(tomlplusplus SYSTEM INTERFACE "${tomlplusplus_SOURCE_DIR}")
 add_library(tomlplusplus::tomlplusplus ALIAS tomlplusplus)

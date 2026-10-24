@@ -116,6 +116,19 @@ std::vector<fs::path> cheat_databases(const fs::path& prefix, const std::vector<
     return found;
 }
 
+// Widescreen rules for this ROM shipped in <prefix>/share/anygba/widescreen/<game code>.toml
+// (docs/user/WIDESCREEN.md).
+std::vector<fs::path> widescreen_rules(const fs::path& prefix, const std::vector<std::uint8_t>& rom) {
+    if (rom.size() < 0xB0) return {};
+    std::string code(rom.begin() + 0xAC, rom.begin() + 0xB0);
+    for (char& ch : code) {
+        if (!std::isalnum(static_cast<unsigned char>(ch))) ch = '_';
+    }
+    const fs::path p = prefix / "share" / "anygba" / "widescreen" / (code + ".toml");
+    if (fs::exists(p)) return {p};
+    return {};
+}
+
 std::vector<std::uint8_t> read_file(const fs::path& p) {
     std::ifstream in(p, std::ios::binary);
     if (!in) {
@@ -280,13 +293,19 @@ fs::path build(const BuildOptions& o) {
     const std::string name = o.name ? *o.name : program_name(analysis.title);
     fs::create_directories(o.output_dir);
     const std::vector<fs::path> databases = cheat_databases(prefix, read_file(o.rom));
-    const auto copy_databases = [&databases](const fs::path& dir) {
-        if (databases.empty()) return;
-        fs::create_directories(dir);
-        for (const auto& db : databases) {
-            fs::copy_file(db, dir / db.filename(), fs::copy_options::overwrite_existing);
-            std::printf("anygba: cheat database %s\n", path_string(dir / db.filename()).c_str());
-        }
+    const std::vector<fs::path> rules = widescreen_rules(prefix, read_file(o.rom));
+    // `dir` is the game's cheats/ folder; widescreen rules go to widescreen/ beside it.
+    const auto copy_databases = [&databases, &rules](const fs::path& dir) {
+        const auto copy = [](const std::vector<fs::path>& files, const fs::path& to, const char* what) {
+            if (files.empty()) return;
+            fs::create_directories(to);
+            for (const auto& f : files) {
+                fs::copy_file(f, to / f.filename(), fs::copy_options::overwrite_existing);
+                std::printf("anygba: %s %s\n", what, path_string(to / f.filename()).c_str());
+            }
+        };
+        copy(databases, dir, "cheat database");
+        copy(rules, dir.parent_path() / "widescreen", "widescreen rules");
     };
 #if defined(__APPLE__)
     const fs::path app = o.output_dir / (name + ".app");

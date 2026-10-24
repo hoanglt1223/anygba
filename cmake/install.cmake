@@ -45,3 +45,6 @@ install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" 
 # Curated cheat databases; `anygba build` copies the ones for the ROM next to the game.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/cheats/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/cheats
   FILES_MATCHING PATTERN "*.toml")
+# Per-game widescreen rules, copied next to the game the same way.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/widescreen/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/widescreen
+  FILES_MATCHING PATTERN "*.toml")

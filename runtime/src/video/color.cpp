@@ -44,6 +44,53 @@ std::uint32_t ColorConverter::convert_precise(float r, float g, float b) const {
     return pack(to_byte(out[0]), to_byte(out[1]), to_byte(out[2]));
 }
 
+void ColorConverter::convert(const Image& in, Image& out) {
+    out.resize(in.width, in.height);
+    if (color_ == Color::Raw && gamma_ == 1.0) {
+        for (std::size_t i = 0; i < in.pixels.size(); ++i) out.pixels[i] = in.pixels[i] | kOpaque;
+        return;
+    }
+    constexpr int kGrid = 33;
+    if (cube_.empty()) {
+        cube_.resize(kGrid * kGrid * kGrid);
+        for (int b = 0; b < kGrid; ++b) {
+            for (int g = 0; g < kGrid; ++g) {
+                for (int r = 0; r < kGrid; ++r) {
+                    const std::uint32_t c = convert_precise(static_cast<float>(r) / (kGrid - 1), static_cast<float>(g) / (kGrid - 1),
+                                                            static_cast<float>(b) / (kGrid - 1));
+                    cube_[static_cast<std::size_t>((b * kGrid + g) * kGrid + r)] = {
+                        static_cast<float>(red(c)), static_cast<float>(green(c)), static_cast<float>(blue(c))};
+                }
+            }
+        }
+    }
+    parallel_for(in.height, [&](int y0, int y1) {
+        for (int y = y0; y < y1; ++y) {
+            const std::uint32_t* src = in.row(y);
+            std::uint32_t* dst = out.row(y);
+            for (int x = 0; x < in.width; ++x) {
+                const std::uint32_t c = src[x];
+                const float p[3] = {red(c) * (kGrid - 1) / 255.0f, green(c) * (kGrid - 1) / 255.0f, blue(c) * (kGrid - 1) / 255.0f};
+                int i[3];
+                float f[3];
+                for (int k = 0; k < 3; ++k) {
+                    i[k] = std::min(static_cast<int>(p[k]), kGrid - 2);
+                    f[k] = p[k] - static_cast<float>(i[k]);
+                }
+                float acc[3] = {0, 0, 0};
+                for (int corner = 0; corner < 8; ++corner) {
+                    const int dr = corner & 1, dg = (corner >> 1) & 1, db = (corner >> 2) & 1;
+                    const float w = (dr ? f[0] : 1 - f[0]) * (dg ? f[1] : 1 - f[1]) * (db ? f[2] : 1 - f[2]);
+                    const auto& v = cube_[static_cast<std::size_t>(((i[2] + db) * kGrid + i[1] + dg) * kGrid + i[0] + dr)];
+                    for (int k = 0; k < 3; ++k) acc[k] += w * v[k];
+                }
+                dst[x] = pack(static_cast<unsigned>(acc[0] + 0.5f), static_cast<unsigned>(acc[1] + 0.5f),
+                              static_cast<unsigned>(acc[2] + 0.5f));
+            }
+        }
+    });
+}
+
 void ColorConverter::convert(std::span<const std::uint16_t> frame, int width, int height, Image& out) const {
     out.resize(width, height);
     if (!deband_) {

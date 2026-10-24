@@ -39,7 +39,15 @@ public:
     // The whole chain on the CPU: the frame letterboxed (black) into target_w x target_h.
     const Image& render(std::span<const std::uint16_t> frame, int width, int height, int target_w, int target_h);
 
+    // The same for an 8-bit RGBA frame showing logical_w x logical_h GBA pixels at any size (HD
+    // renderer and AI output). The pixel-art scaler only runs on frames at 1x; screen effects
+    // follow the GBA pixel grid.
+    Prepared prepare(const Image& frame, int logical_w, int logical_h, int dst_w, int dst_h);
+    const Image& render(const Image& frame, int logical_w, int logical_h, int target_w, int target_h);
+
 private:
+    Prepared finish(int logical_w, int logical_h, int dst_w, int dst_h);
+
     Options options_;
     ColorConverter color_;
     Image source_;
