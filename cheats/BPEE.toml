@@ -161,6 +161,38 @@ note = "Sets FLAG_BADGE01_GET to FLAG_BADGE08_GET (SaveBlock1 + 0x1270 flags) an
 format = "raw"
 code = ["[03005D8C]+137C|80", "[03005D8C]+137D|7F"]
 
+[[cheat]]
+name = "Player/Walk through walls"
+note = "ROM patch of CheckForObjectEventCollision: walls, water edges and people no longer block you (ledges still jump). Turn it off before surfing, and stay inside the map"
+format = "raw"
+code = ["0808B0C0:46C02000"]
+
+[[cheat]]
+name = "Player/Field moves without badges"
+note = "ROM patch of the party menu (CursorCb_FieldMove): Cut, Flash, Rock Smash, Strength, Surf, Fly, Dive and Waterfall can be used from the POKEMON menu without their badge. Pressing A at a tree, rock or water still asks for the badge"
+format = "raw"
+code = ["081B54EA:E01B"]
+
+[[cheat]]
+name = "Player/Complete Pokedex"
+note = "All 386 Pokemon seen and caught: the Pokedex flags in SaveBlock2 and the two seen copies in SaveBlock1. The National Pokedex still has to be unlocked to list them all"
+format = "raw"
+code = [
+  "[03005D90]+0028:FFFFFFFF", "[03005D90]+002C:FFFFFFFF", "[03005D90]+0030:FFFFFFFF", "[03005D90]+0034:FFFFFFFF",
+  "[03005D90]+0038:FFFFFFFF", "[03005D90]+003C:FFFFFFFF", "[03005D90]+0040:FFFFFFFF", "[03005D90]+0044:FFFFFFFF",
+  "[03005D90]+0048:FFFFFFFF", "[03005D90]+004C:FFFFFFFF", "[03005D90]+0050:FFFFFFFF", "[03005D90]+0054:FFFFFFFF",
+  "[03005D90]+0058:03", "[03005D90]+005C:FFFFFFFF", "[03005D90]+0060:FFFFFFFF", "[03005D90]+0064:FFFFFFFF",
+  "[03005D90]+0068:FFFFFFFF", "[03005D90]+006C:FFFFFFFF", "[03005D90]+0070:FFFFFFFF", "[03005D90]+0074:FFFFFFFF",
+  "[03005D90]+0078:FFFFFFFF", "[03005D90]+007C:FFFFFFFF", "[03005D90]+0080:FFFFFFFF", "[03005D90]+0084:FFFFFFFF",
+  "[03005D90]+0088:FFFFFFFF", "[03005D90]+008C:03", "[03005D8C]+0988:FFFFFFFF", "[03005D8C]+098C:FFFFFFFF",
+  "[03005D8C]+0990:FFFFFFFF", "[03005D8C]+0994:FFFFFFFF", "[03005D8C]+0998:FFFFFFFF", "[03005D8C]+099C:FFFFFFFF",
+  "[03005D8C]+09A0:FFFFFFFF", "[03005D8C]+09A4:FFFFFFFF", "[03005D8C]+09A8:FFFFFFFF", "[03005D8C]+09AC:FFFFFFFF",
+  "[03005D8C]+09B0:FFFFFFFF", "[03005D8C]+09B4:FFFFFFFF", "[03005D8C]+09B8:03", "[03005D8C]+3B24:FFFFFFFF",
+  "[03005D8C]+3B28:FFFFFFFF", "[03005D8C]+3B2C:FFFFFFFF", "[03005D8C]+3B30:FFFFFFFF", "[03005D8C]+3B34:FFFFFFFF",
+  "[03005D8C]+3B38:FFFFFFFF", "[03005D8C]+3B3C:FFFFFFFF", "[03005D8C]+3B40:FFFFFFFF", "[03005D8C]+3B44:FFFFFFFF",
+  "[03005D8C]+3B48:FFFFFFFF", "[03005D8C]+3B4C:FFFFFFFF", "[03005D8C]+3B50:FFFFFFFF", "[03005D8C]+3B54:03",
+]
+
 # ---- Items ----
 
 [[cheat]]
