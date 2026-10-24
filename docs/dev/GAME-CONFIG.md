@@ -40,6 +40,17 @@ bytes = "00 00 a0 e1"   # memory order; spaces and underscores are ignored
 addr = 0x08000400
 mode = "thumb"
 function = "skip_intro"
+
+# Default video settings of the generated game (keys and values: docs/user/VIDEO.md).
+# The player's menu choices and command-line options override them.
+[video]
+filter = "xbrz4x+lcd-grid"
+color = "gba-lcd"
+gamma = 1.2
+deband = true
+output = "1080p"
+fullscreen = false
+integer-scale = true
 ```
 
 ## Replacement functions
