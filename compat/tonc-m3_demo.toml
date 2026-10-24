@@ -1,0 +1,11 @@
+title = "tonc: m3_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/m3_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1251+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "e7b1aef0bf62ef74139a0f0db61c96e963da888d394334ee125cc7fc4194512d"
+updated = 2026-10-24

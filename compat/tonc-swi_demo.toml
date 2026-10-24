@@ -1,0 +1,11 @@
+title = "tonc: swi_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/swi_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1274+ frames/s unpaced; 25 interpreter fallbacks, 3 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 25
+checkpoint_frames = 3600
+checkpoint_hash = "465233686cb985d44a2fe26313896de961ed825634b818a8de33005cd96e728d"
+updated = 2026-10-24

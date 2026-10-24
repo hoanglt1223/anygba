@@ -1,0 +1,11 @@
+title = "tonc: txt_se2"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/txt_se2.gba"
+stage = "in-game"
+evidence = "60 s recompiled headless run without errors, 1145+ frames/s unpaced; 17 interpreter fallbacks, 4 after one feedback pass; same picture before and after feedback"
+blockers = ["no reference picture from mGBA yet", "shows timing measurements, which differ from the interpreter and from hardware"]
+misses = 17
+checkpoint_frames = 3600
+checkpoint_hash = "f215235812e19671473f39d82970548c6b24f949efe8a19a8beae6c84733e64d"
+updated = 2026-10-24

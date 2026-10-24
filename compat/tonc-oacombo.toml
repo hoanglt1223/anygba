@@ -1,0 +1,11 @@
+title = "tonc: oacombo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/oacombo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 499+ frames/s unpaced; 26 interpreter fallbacks, 3 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 26
+checkpoint_frames = 3600
+checkpoint_hash = "d29c00998d25ba1e73b357eb6e72fb234966a2b3f240a181fe6f270d18f9d6d7"
+updated = 2026-10-24

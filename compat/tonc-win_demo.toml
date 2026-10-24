@@ -1,0 +1,11 @@
+title = "tonc: win_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/win_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 495+ frames/s unpaced; 4 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 4
+checkpoint_frames = 3600
+checkpoint_hash = "36fada0812602f12ee2b49e32833970cc70340ded6ebb7f6086a63698266c0e9"
+updated = 2026-10-24

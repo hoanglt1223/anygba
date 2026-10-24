@@ -1,0 +1,11 @@
+title = "tonc: pageflip"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/pageflip.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 537+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "3882637ffe84c3239cba84cecdbb8a6270bc6e72b7ae43c932e555a87a28f26a"
+updated = 2026-10-24

@@ -108,6 +108,46 @@ foreach(save sram:32768 flash64:65536 flash128:131072 none:0)
   endif()
 endforeach()
 
+# The committed compat data must render (schema checks included).
+find_package(Python3 3.11 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME compat-site
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tools/compat-site/generate.py"
+      --out "${CMAKE_CURRENT_BINARY_DIR}/compat-site")
+endif()
+
+# Compatibility checkpoints: every compat/*.toml entry with a corpus ROM is recompiled and run
+# headless; the last frame's hash must match the recorded one (compat/schema.md).
+option(ANYGBA_COMPAT_TESTS "Build the compat/*.toml titles and check their frame-hash checkpoints" OFF)
+if(ANYGBA_COMPAT_TESTS)
+  file(GLOB compat_files CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/compat/*.toml")
+  foreach(compat_file IN LISTS compat_files)
+    get_filename_component(id "${compat_file}" NAME_WE)
+    foreach(key rom checkpoint_frames checkpoint_hash shards)
+      file(STRINGS "${compat_file}" line REGEX "^${key} = ")
+      string(REGEX REPLACE "^${key} = \"?([^\"]*)\"?.*$" "\\1" value "${line}")
+      set(compat_${key} "${value}")
+    endforeach()
+    if(NOT compat_rom OR NOT compat_checkpoint_frames)
+      continue()  # commercial titles: no corpus ROM, tracked by hand
+    endif()
+    if(NOT EXISTS "${corpus}/${compat_rom}")
+      message(STATUS "Corpus ROM ${compat_rom} not fetched; skipping compat-${id}")
+      continue()
+    endif()
+    if(NOT compat_shards)
+      set(compat_shards 2)
+    endif()
+    anygba_add_game(compat-${id} ROM "${corpus}/${compat_rom}" SHARDS ${compat_shards})
+    add_test(NAME compat-${id}
+      COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:compat-${id}>" "-DROM=${corpus}/${compat_rom}"
+        -DFRAMES=${compat_checkpoint_frames} "-DHASH=${compat_checkpoint_hash}"
+        "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/compat/${id}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/compat-run.cmake")
+    set_tests_properties(compat-${id} PROPERTIES LABELS compat TIMEOUT 600)
+  endforeach()
+endif()
+
 # A large real game, compiled on demand to keep the generated C honest:
 #   cmake --build <out> --target varooom-3d
 if(EXISTS "${corpus}/butano/varooom-3d/varooom-3d.gba")

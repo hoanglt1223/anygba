@@ -1,0 +1,12 @@
+title = "ARMWrestler (fixed)"
+kind = "test-suite"
+source = "https://github.com/destoer/armwrestler-gba-fixed"
+rom = "armwrestler/armwrestler-gba-fixed.gba"
+stage = "in-game"
+evidence = "60 s recompiled headless run without errors, 505+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = ["output not checked against a reference"]
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "938321dea85449f1de3c1c33dc07b1e4922dc9c3b4fd6364f778b3bbc52287a6"
+shards = 2
+updated = 2026-10-24

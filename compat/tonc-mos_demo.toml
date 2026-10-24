@@ -1,0 +1,11 @@
+title = "tonc: mos_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/mos_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 384+ frames/s unpaced; 25 interpreter fallbacks, 7 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 25
+checkpoint_frames = 3600
+checkpoint_hash = "e89e894bdf2437bb43e68fb4750b3215a7fb432b6fd52a7c4abf4f3d1e58b4ea"
+updated = 2026-10-24

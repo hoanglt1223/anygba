@@ -1,0 +1,12 @@
+title = "Varooom 3D (Butano)"
+kind = "homebrew"
+source = "https://github.com/GValiente/butano"
+rom = "butano/varooom-3d/varooom-3d.gba"
+stage = "menus"
+evidence = "splash and menu pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 991+ frames/s unpaced; 63 interpreter fallbacks, 2 after one feedback pass; same picture before and after feedback"
+blockers = ["gameplay not exercised: headless runs have no input script"]
+misses = 63
+checkpoint_frames = 3600
+checkpoint_hash = "a002d18394cae4ebef07afa9eb6b36c82098ef01194c045f7940979119093112"
+shards = 8
+updated = 2026-10-24

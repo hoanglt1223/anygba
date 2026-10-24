@@ -1,0 +1,11 @@
+title = "tonc: brin_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/brin_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 516+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "9c9ce333412e96cd3ca29a28f0683ab298275cf91d8b2fea0061010962d9a675"
+updated = 2026-10-24

@@ -1,0 +1,11 @@
+title = "tonc: m7_ex"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/m7_ex.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 682+ frames/s unpaced; 14 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 14
+checkpoint_frames = 3600
+checkpoint_hash = "ef5e368139df515705b85e8ee5df732e78d9101d3db2912c25bf5e5bb79f710c"
+updated = 2026-10-24

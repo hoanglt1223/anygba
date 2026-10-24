@@ -1,0 +1,12 @@
+title = "gba-tests: nes"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/nes/nes.gba"
+stage = "in-game"
+evidence = "60 s recompiled headless run without errors, 1490+ frames/s unpaced; 6 interpreter fallbacks, 6 after one feedback pass; same picture before and after feedback"
+blockers = ["output not checked against a reference"]
+misses = 6
+checkpoint_frames = 3600
+checkpoint_hash = "5d7098c43253151951e2e7451c103eb0f1b95e73127d466058e146da37dfff72"
+shards = 1
+updated = 2026-10-24

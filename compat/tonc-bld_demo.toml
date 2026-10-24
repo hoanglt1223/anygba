@@ -1,0 +1,11 @@
+title = "tonc: bld_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/bld_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 349+ frames/s unpaced; 29 interpreter fallbacks, 8 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 29
+checkpoint_frames = 3600
+checkpoint_hash = "2ff14109baaf9152955c1c495da8e9bdea84608e86edecf349f0938af0cb5ab9"
+updated = 2026-10-24

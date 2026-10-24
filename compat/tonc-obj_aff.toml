@@ -1,0 +1,11 @@
+title = "tonc: obj_aff"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/obj_aff.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 368+ frames/s unpaced; 27 interpreter fallbacks, 10 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 27
+checkpoint_frames = 3600
+checkpoint_hash = "34ce20c280779e0251508f441dc455bae089ba58a5c2e86229d782795eb5068d"
+updated = 2026-10-24

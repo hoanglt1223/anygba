@@ -1,0 +1,12 @@
+title = "gba-tests: ppu/shades"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/ppu/shades.gba"
+stage = "perfect"
+evidence = "the test picture matches mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1265 frames/s unpaced; 0 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 0
+checkpoint_frames = 3600
+checkpoint_hash = "da5336215e6c56d30146c42d81ad828a819214c307682903a5bcc87be8c0538e"
+shards = 1
+updated = 2026-10-24

@@ -1,0 +1,11 @@
+title = "tonc: obj_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/obj_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 538+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "d5ed18a2607f5e0ea659a0dd50a1fc8ed9bf0715f42806c37cf31e9e7f0051bd"
+updated = 2026-10-24

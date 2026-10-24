@@ -1,0 +1,11 @@
+title = "tonc: hello"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/hello.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1165+ frames/s unpaced; 3 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 3
+checkpoint_frames = 3600
+checkpoint_hash = "9028054601c72cf2d8470dc6914e87e0aa8d6030c259a107086097d62eadd5bd"
+updated = 2026-10-24

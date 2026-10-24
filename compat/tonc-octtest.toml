@@ -1,0 +1,11 @@
+title = "tonc: octtest"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/octtest.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 733+ frames/s unpaced; 30 interpreter fallbacks, 6 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 30
+checkpoint_frames = 3600
+checkpoint_hash = "620e81ee1833c87765dd755f2199eb4e0586b3c7f102de8a65c8e7a953ff8166"
+updated = 2026-10-24

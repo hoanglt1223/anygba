@@ -1,0 +1,11 @@
+title = "tonc: tte_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/tte_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1204+ frames/s unpaced; 29 interpreter fallbacks, 4 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 29
+checkpoint_frames = 3600
+checkpoint_hash = "2733cbdb68c311cf35f9e9235d52c493f0595ea81c982852ba5feb7b5335b3d6"
+updated = 2026-10-24

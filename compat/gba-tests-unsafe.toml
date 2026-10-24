@@ -1,0 +1,12 @@
+title = "gba-tests: unsafe"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/unsafe/unsafe.gba"
+stage = "in-game"
+evidence = "60 s recompiled headless run without errors, 1522 frames/s unpaced; 0 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = ["output not checked against a reference"]
+misses = 0
+checkpoint_frames = 3600
+checkpoint_hash = "59ce42abae9825c2d2579c5cd838e47d88be917e37ea36ff162d46fc5d0991e3"
+shards = 1
+updated = 2026-10-24

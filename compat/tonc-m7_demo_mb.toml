@@ -1,0 +1,11 @@
+title = "tonc: m7_demo_mb"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/m7_demo_mb.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 791+ frames/s unpaced; 15 interpreter fallbacks, 5 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 15
+checkpoint_frames = 3600
+checkpoint_hash = "ece8ebd939a5e1d27ffd8f1d5d7bb7cf65b80bfd78858e777997efd087fb90e6"
+updated = 2026-10-24

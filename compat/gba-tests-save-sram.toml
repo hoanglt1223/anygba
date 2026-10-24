@@ -1,0 +1,8 @@
+title = "gba-tests: save/sram"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/save/sram.gba"
+stage = "perfect"
+evidence = "all checks pass twice against one save folder, ctest gba-tests-save-sram"
+blockers = []
+updated = 2026-10-24

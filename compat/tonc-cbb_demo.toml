@@ -1,0 +1,11 @@
+title = "tonc: cbb_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/cbb_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 976+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "c75fb55388ec92cd4e5442879bfa81598d8e69d0ea1cc3e15cd6acbdbecf7b9b"
+updated = 2026-10-24

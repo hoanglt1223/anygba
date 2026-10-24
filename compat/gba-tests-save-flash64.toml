@@ -1,0 +1,8 @@
+title = "gba-tests: save/flash64"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/save/flash64.gba"
+stage = "perfect"
+evidence = "all checks pass twice against one save folder, ctest gba-tests-save-flash64"
+blockers = []
+updated = 2026-10-24

@@ -1,0 +1,12 @@
+title = "gba-tests: ppu/hello"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/ppu/hello.gba"
+stage = "perfect"
+evidence = "the test picture matches mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1504 frames/s unpaced; 0 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 0
+checkpoint_frames = 3600
+checkpoint_hash = "56cd131fb3915fe7e410be228a8c09e99132064799f148583636ca75745bedf7"
+shards = 1
+updated = 2026-10-24

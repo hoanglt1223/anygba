@@ -1,0 +1,11 @@
+title = "tonc: bm_modes"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/bm_modes.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 524+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "d88d1448ba790b614387c095ba8cc6246692c8b3d49994196fe166c46215daec"
+updated = 2026-10-24

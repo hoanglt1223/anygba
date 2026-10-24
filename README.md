@@ -5,7 +5,9 @@ executable. The ROM's ARM/Thumb code is translated to C ahead of time and linked
 high-level runtime that provides the BIOS, video, audio, and I/O. There is no emulator loop; an
 interpreter exists only as a fallback for code the recompiler missed.
 
-Status: early bring-up.
+Status: every plan phase is implemented and tested on Windows; Linux/macOS CI and one commercial title
+(from the user's own dump) are still to come. Compatibility: [compat/](compat/) (page:
+`python tools/compat-site/generate.py`).
 
 What works:
 
@@ -25,6 +27,10 @@ What works:
 - Saves: SRAM, Flash 64/128 KB and EEPROM 512 B/8 KB, detected from the ROM or set per game, written to
   the per-user data folder with a backup of the previous file. jsmolka's save tests pass and keep their
   save across restarts.
+- 41 open-source titles (34 tonc demos, Varooom 3D, ARMWrestler, jsmolka's PPU/NES/unsafe tests) run
+  60 s as recompiled code without errors, well above full speed, with the same final picture as the
+  interpreter (except tonc `txt_se2`, which prints its own timing measurements); their frame hashes
+  are CI checkpoints.
 - `anygba build game.gba`: one command from ROM to a program with the ROM embedded
   ([docs/user/USAGE.md](docs/user/USAGE.md)). Controls come from `anygba-input.ini`
   ([docs/user/INPUT_MAPPING.md](docs/user/INPUT_MAPPING.md)).

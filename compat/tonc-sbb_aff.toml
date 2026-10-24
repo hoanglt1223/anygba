@@ -1,0 +1,11 @@
+title = "tonc: sbb_aff"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/sbb_aff.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 312+ frames/s unpaced; 31 interpreter fallbacks, 6 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 31
+checkpoint_frames = 3600
+checkpoint_hash = "d6b4e79c5432fb416546267d586b6a2ac8770202dd4dd522a33b1980c4220f24"
+updated = 2026-10-24

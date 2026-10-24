@@ -1,0 +1,8 @@
+title = "gba-tests: bios"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/bios/bios.gba"
+stage = "perfect"
+evidence = "all checks pass as recompiled code (r12 = 0), ctest gba-tests-bios"
+blockers = []
+updated = 2026-10-24

@@ -1,0 +1,11 @@
+title = "tonc: txt_se1"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/txt_se1.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1107+ frames/s unpaced; 5 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 5
+checkpoint_frames = 3600
+checkpoint_hash = "35502d9b30d8900ee5a908ab6b0e305d8957c8ac1fec86cb33c54a870769fb75"
+updated = 2026-10-24

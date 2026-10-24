@@ -1,0 +1,11 @@
+title = "tonc: key_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/key_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 546+ frames/s unpaced; 2 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 2
+checkpoint_frames = 3600
+checkpoint_hash = "dd16436b4394cd1839ceb9610d1d116c0f97aecc5b6435422a45c7d2391c29ba"
+updated = 2026-10-24

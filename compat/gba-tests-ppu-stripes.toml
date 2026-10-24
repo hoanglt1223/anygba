@@ -1,0 +1,12 @@
+title = "gba-tests: ppu/stripes"
+kind = "test-suite"
+source = "https://github.com/jsmolka/gba-tests"
+rom = "gba-tests/ppu/stripes.gba"
+stage = "perfect"
+evidence = "the test picture matches mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 1179 frames/s unpaced; 0 interpreter fallbacks, 0 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 0
+checkpoint_frames = 3600
+checkpoint_hash = "4600c4f2749300b40f34dea969165d4d08d652543620076fb5cae249426f238d"
+shards = 1
+updated = 2026-10-24

@@ -1,0 +1,11 @@
+title = "tonc: dma_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/dma_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 381+ frames/s unpaced; 28 interpreter fallbacks, 6 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 28
+checkpoint_frames = 3600
+checkpoint_hash = "80f56457debde5b7157f7e7d08dc11bb8737b834bccff961f3dc501be919d1d9"
+updated = 2026-10-24

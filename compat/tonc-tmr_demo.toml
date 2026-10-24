@@ -1,0 +1,11 @@
+title = "tonc: tmr_demo"
+kind = "homebrew"
+source = "https://www.coranac.com/tonc/text/"
+rom = "tonc/bin/tmr_demo.gba"
+stage = "playable"
+evidence = "pictures match mGBA (tests/golden/ppu); 60 s recompiled headless run without errors, 511+ frames/s unpaced; 25 interpreter fallbacks, 9 after one feedback pass; same picture before and after feedback"
+blockers = []
+misses = 25
+checkpoint_frames = 3600
+checkpoint_hash = "9340fbfaef356a0bcbf5416ebaf4aee56a767308f6d7c76ecb23d1ff9ece09e3"
+updated = 2026-10-24
