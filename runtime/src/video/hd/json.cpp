@@ -3,6 +3,9 @@
 #include <cctype>
 #include <charconv>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 #include <stdexcept>
 
 namespace anygba::video::hd::json {
@@ -84,10 +87,14 @@ private:
         } else if (word("null")) {
         } else {
             v.type = Value::Type::Number;
-            const char* first = t_.data() + i_;
-            const auto [end, ec] = std::from_chars(first, t_.data() + t_.size(), v.number);
-            if (ec != std::errc{}) fail("bad value");
-            i_ += static_cast<std::size_t>(end - first);
+            // strtod on a copy, not from_chars: the NDK's libc++ has no floating-point from_chars.
+            std::size_t n = 0;
+            while (i_ + n < t_.size() && std::strchr("0123456789+-.eE", t_[i_ + n]) != nullptr) ++n;
+            const std::string text(t_.substr(i_, n));
+            char* end = nullptr;
+            v.number = text.empty() ? 0 : std::strtod(text.c_str(), &end);
+            if (text.empty() || end != text.c_str() + text.size()) fail("bad value");
+            i_ += n;
         }
         --depth_;
         return v;

@@ -75,6 +75,10 @@ std::optional<std::string> run_process(const std::vector<std::string>& args) {
 
 std::optional<std::string> run_process(const std::vector<std::string>& args) {
     if (args.empty()) return "no program to run";
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+    // posix_spawn needs API 28; the Android runtime has no use for helper programs.
+    return "running " + args[0] + " is not supported on this Android version";
+#else
     std::vector<char*> argv;
     for (const auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
     argv.push_back(nullptr);
@@ -84,6 +88,7 @@ std::optional<std::string> run_process(const std::vector<std::string>& args) {
     if (waitpid(pid, &status, 0) < 0) return "cannot wait for " + args[0];
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return args[0] + " failed";
     return std::nullopt;
+#endif
 }
 
 #endif
