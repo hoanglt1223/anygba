@@ -35,6 +35,7 @@ items = [
   "110 Nugget", "111 Heart Scale",
 ]
 vitamins = ["63 HP Up", "64 Protein", "65 Iron", "66 Carbos", "67 Calcium", "70 Zinc"]
+exp_multipliers = ["2 x2", "3 x3", "5 x5", "10 x10", "255 x255 (as much as one battle can give)"]
 # Wild encounter species, by internal species number (pret/pokeemerald include/constants/species.h).
 # Each value is the two Thumb instructions the encounter patch writes: movs r6, #min(n, 255) and
 # adds r6, #(n - 255 or 0), packed as one 32-bit word.
@@ -207,6 +208,43 @@ code = ["[03005D8C]+056C:{v:4}", "[03005D8C]+056E:0063^[03005D90]+00AC"]
 param = { label = "Vitamin", list = "vitamins" }
 default = 63
 
+[[cheat]]
+name = "Level/EXP multiplier"
+note = "ROM patch of the battle EXP award (Cmd_getexp): every Pokemon that earns EXP gets this many times more, up to 14335 before the trainer and traded bonuses (the game cannot show more). Replaces the Lucky Egg bonus"
+format = "raw"
+code = [
+  "0804A67A:464B", "0804A67C:6818", "0804A67E:21{v:2}", "0804A680:4348", "0804A682:2138",
+  "0804A684:0209", "0804A686:4288", "0804A688:DB00", "0804A68A:1E48", "0804A68C:6018",
+]
+param = { label = "Multiplier", list = "exp_multipliers" }
+default = 2
+
+# ---- Battle ----
+
+[[cheat]]
+name = "Battle/Infinite HP"
+note = "ROM patch of Cmd_healthbarupdate: damage to your side of the battle becomes 0 (your Pokemon keep the HP they had)"
+format = "raw"
+code = ["08047E6A:07D3", "08047E6C:D100", "08047E6E:6003", "08047E70:6800"]
+
+[[cheat]]
+name = "Battle/Infinite PP"
+note = "ROM patch of Cmd_ppreduce: your side's moves use no PP"
+format = "raw"
+code = ["08046B28:07E9"]
+
+[[cheat]]
+name = "Battle/One-hit KO"
+note = "Opposing Pokemon have 1 HP, so any hit that connects knocks them out"
+format = "cb"
+code = ["B2024104 0001", "82024104 0001", "B20241B4 0001", "820241B4 0001"]
+
+[[cheat]]
+name = "Battle/Every Poke Ball catches"
+note = "ROM patch of Cmd_handleballthrow: a ball that is thrown always catches (trainer Pokemon still block it)"
+format = "raw"
+code = ["08056566:46C0"]
+
 # ---- Wild Pokemon ----
 
 [[cheat]]
@@ -216,3 +254,4 @@ format = "raw"
 code = ["080B4E6C:{v:8}"]
 param = { label = "Species", list = "wild_species" }
 default = 0x36002619
+
