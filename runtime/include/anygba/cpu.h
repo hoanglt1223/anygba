@@ -101,6 +101,7 @@ void anygba_undefined(anygba_cpu* c, uint32_t addr, uint32_t raw);
 /* Nonzero when a ROM patch covers the code of the generated function at `entry`; that
  * function must not run its compiled body (the interpreter runs the patched code). */
 int anygba_rom_patched(anygba_cpu* c, uint32_t entry);
+int anygba_ram_code_valid(anygba_cpu* c, uint32_t entry, int thumb);
 
 /* ---- Inline helpers for generated code ---- */
 
@@ -255,6 +256,16 @@ static inline uint32_t ag_ror_c(uint32_t v, uint32_t n, uint32_t* carry) {
         }                                                                     \
     } while (0)
 
+/* First statement of every generated RAM function: the RAM must still hold the code it was
+   compiled from. If the game has put something else there, the dispatcher interprets it. */
+#define AG_ENTER_RAM(cpu, entry, thumb)                                       \
+    do {                                                                      \
+        if (!anygba_ram_code_valid((cpu), (entry), (thumb))) {                \
+            (cpu)->r[15] = (entry);                                           \
+            return;                                                           \
+        }                                                                     \
+    } while (0)
+
 /* Direct call: `fn` returns with r[15] = where execution continues. `ret` stays on the
    return stack while resuming, so code the interpreter runs for the callee (a veneer's
    target, say) stops at the return address instead of running on past it. */
@@ -289,6 +300,10 @@ typedef struct anygba_function_entry {
      * as one range; [0, 0) when unknown. ROM patches inside it bypass the function. */
     uint32_t code_begin;
     uint32_t code_end;
+    /* Functions outside the ROM (code the game copies into RAM): ROM address of the bytes
+     * [code_begin, code_end) were compiled from, or 0 if unknown. The function only runs
+     * while RAM still holds those bytes; otherwise the interpreter runs what is there. */
+    uint32_t code_src;
 } anygba_function_entry;
 
 typedef struct anygba_game {

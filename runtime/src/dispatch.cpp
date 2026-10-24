@@ -20,6 +20,9 @@ constexpr int kJumpFail = 3;
 
 anygba_fn System::lookup(std::uint32_t addr, bool thumb) const {
     anygba_fn fn = lookup_compiled(addr, thumb);
+    if (fn && (addr < 0x08000000 || addr >= 0x0E000000) && !ram_code_valid(addr, thumb)) {
+        return nullptr;  // the game has replaced the code: interpret what is there now
+    }
     if (fn && cpu_.rom_patched && addr >= 0x08000000 && addr < 0x0E000000 &&
         bypassed_.contains(0x08000000u + (addr & (Memory::kRomMax - 1)))) {
         return nullptr;  // a ROM patch covers its code: interpret it
@@ -42,12 +45,42 @@ anygba_fn System::lookup_compiled(std::uint32_t addr, bool thumb) const {
         }
         return nullptr;
     }
+    const anygba_function_entry* e = ram_function(addr, thumb);
+    return e ? e->fn : nullptr;
+}
+
+const anygba_function_entry* System::ram_function(std::uint32_t addr, bool thumb) const {
     const auto it = std::lower_bound(ram_functions_.begin(), ram_functions_.end(), addr,
                                      [](const anygba_function_entry& f, std::uint32_t a) { return f.addr < a; });
     if (it != ram_functions_.end() && it->addr == addr && (it->thumb != 0) == thumb) {
-        return it->fn;
+        return &*it;
     }
     return nullptr;
+}
+
+// Games reuse RAM for different code (overlays, routines built on the stack), so compiled RAM
+// code is checked against the ROM bytes it came from on every entry.
+bool System::ram_code_valid(std::uint32_t entry, bool thumb) const {
+    const anygba_function_entry* e = ram_function(entry, thumb);
+    if (!e || e->code_src < 0x08000000 || e->code_end <= e->code_begin) {
+        return false;
+    }
+    const std::uint32_t len = e->code_end - e->code_begin;
+    const std::uint32_t region = e->code_begin >> 24;
+    const std::vector<std::uint8_t>* ram = region == 0x02 ? &mem_.ewram : region == 0x03 ? &mem_.iwram : nullptr;
+    const std::uint32_t src = e->code_src - 0x08000000;
+    if (!ram || (e->code_begin & 0x00FFFFFF) + std::uint64_t{len} > ram->size() ||
+        std::uint64_t{src} + len > mem_.rom_size) {
+        return false;
+    }
+    // Compare with the unpatched ROM: a ROM patch cheat over the source changes the copy too.
+    if (cpu_.rom_patched) {
+        const auto it = rom_patches_.lower_bound((0x08000000 + src) & ~1u);
+        if (it != rom_patches_.end() && it->first < 0x08000000 + src + len) {
+            return false;
+        }
+    }
+    return std::memcmp(ram->data() + (e->code_begin & 0x00FFFFFF), mem_.rom.data() + src, len) == 0;
 }
 
 void System::run_once() {

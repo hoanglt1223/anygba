@@ -114,13 +114,21 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
         // A hand-written replacement does not read the ROM code, so patches never bypass it.
         const analysis::AddressRange code =
             info.replacements.contains(addr) ? analysis::AddressRange{} : code_footprint(fn, &image);
-        char buf[128];
-        std::snprintf(buf, sizeof buf, "    {0x%08xu, %d, %s, 0x%08xu, 0x%08xu},\n", addr,
-                      fn.mode == analysis::Mode::Thumb ? 1 : 0, function_name(addr).c_str(), code.begin, code.end);
+        // RAM code runs only while RAM holds the ROM bytes it was compiled from.
+        std::uint32_t source = 0;
+        if (!analysis::Image::is_rom(addr) && code.end > code.begin) {
+            if (const auto off = image.rom_offset(code.begin, code.end - code.begin)) {
+                source = analysis::kRomBase + *off;
+            }
+        }
+        char buf[160];
+        std::snprintf(buf, sizeof buf, "    {0x%08xu, %d, %s, 0x%08xu, 0x%08xu, 0x%08xu},\n", addr,
+                      fn.mode == analysis::Mode::Thumb ? 1 : 0, function_name(addr).c_str(), code.begin, code.end,
+                      source);
         dispatch += buf;
     }
     if (functions.empty()) {
-        dispatch += "    {0, 0, 0, 0, 0},\n";
+        dispatch += "    {0, 0, 0, 0, 0, 0},\n";
     }
     dispatch += "};\n\nconst anygba_game anygba_game_info = {\n    " + c_string(info.title) + ",\n    \"" +
                 info.rom_sha256 + "\",\n    " + std::to_string(info.rom_size) + "u,\n    functions,\n    " +

@@ -282,7 +282,11 @@ private:
     std::map<std::uint32_t, std::uint16_t> rom_patches_;
     std::map<std::uint32_t, std::uint16_t> rom_originals_;
     std::set<std::uint32_t> bypassed_;  // generated function entries covered by a ROM patch
-    anygba_fn lookup_compiled(std::uint32_t addr, bool thumb) const;  // ignores ROM patches
+    anygba_fn lookup_compiled(std::uint32_t addr, bool thumb) const;  // ignores ROM patches and RAM contents
+    const anygba_function_entry* ram_function(std::uint32_t addr, bool thumb) const;
+public:
+    // A generated RAM function at `entry` exists and RAM holds the bytes it was compiled from.
+    bool ram_code_valid(std::uint32_t entry, bool thumb) const;
 };
 
 System& system_of(anygba_cpu* c);

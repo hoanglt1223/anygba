@@ -38,7 +38,7 @@ std::optional<std::uint32_t> folded_literal(const Insn& in, const analysis::Imag
 }
 
 analysis::AddressRange code_footprint(const analysis::Function& fn, const analysis::Image* image) {
-    if (!analysis::Image::is_rom(fn.entry) || fn.insns.empty()) {
+    if (fn.insns.empty()) {
         return {};
     }
     std::uint32_t lo = UINT32_MAX;
@@ -174,6 +174,8 @@ std::string FunctionEmitter::run() {
     out_ += "void " + name + "(anygba_cpu* c) {\n";
     if (analysis::Image::is_rom(fn_.entry)) {
         line("AG_ENTER(c, %s);", hex(fn_.entry).c_str());
+    } else {
+        line("AG_ENTER_RAM(c, %s, %d);", hex(fn_.entry).c_str(), fn_.mode == analysis::Mode::Thumb ? 1 : 0);
     }
     if (!fn_.insns.empty() && fn_.insns.begin()->first != fn_.entry) {
         // Code is emitted in address order; a branch target below the entry comes first.

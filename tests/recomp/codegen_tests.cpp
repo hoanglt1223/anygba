@@ -192,7 +192,8 @@ TEST_CASE("a branch to a label the walk never decoded leaves through r[15]") {
     const std::string c = anygba::codegen::emit_function(fn, {});
     CHECK(c.find("goto L_03000100") == std::string::npos);
     CHECK(c.find("c->r[15] = 0x03000100u;") != std::string::npos);
-    CHECK(c.find("AG_ENTER") == std::string::npos);  // RAM code: ROM patches never cover it
+    CHECK(c.find("AG_ENTER(") == std::string::npos);  // RAM code: ROM patches never cover it
+    CHECK(c.find("AG_ENTER_RAM(c, 0x03000000u, 1);") != std::string::npos);
 }
 
 TEST_CASE("ROM functions start with AG_ENTER and report their code footprint") {

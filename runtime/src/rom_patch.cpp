@@ -52,3 +52,7 @@ void System::set_rom_patches(const std::map<std::uint32_t, std::uint16_t>& patch
 extern "C" int anygba_rom_patched(anygba_cpu* c, std::uint32_t entry) {
     return anygba::system_of(c).rom_bypassed(entry) ? 1 : 0;
 }
+
+extern "C" int anygba_ram_code_valid(anygba_cpu* c, std::uint32_t entry, int thumb) {
+    return anygba::system_of(c).ram_code_valid(entry, thumb != 0) ? 1 : 0;
+}
