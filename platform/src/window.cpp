@@ -60,8 +60,12 @@ Window::Window(const WindowConfig& config) : width_(config.width), height_(confi
     }
     const SDL_PixelFormat format = to_sdl(config.format);
 
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
+#if defined(__ANDROID__)
+    flags |= SDL_WINDOW_FULLSCREEN;  // immersive: SDLActivity hides the system bars
+#endif
     window_ = SDL_CreateWindow(config.title.c_str(), config.width * config.scale,
-                               config.height * config.scale, SDL_WINDOW_RESIZABLE);
+                               config.height * config.scale, flags);
     if (!window_) {
         detail::throw_sdl_error("SDL_CreateWindow");
     }
@@ -98,6 +102,15 @@ Window::~Window() {
     SDL_DestroyWindow(window_);
 }
 
+void Window::set_overlay(Overlay* overlay) {
+    overlay_ = overlay;
+    const SDL_RendererLogicalPresentation mode =
+        overlay ? SDL_LOGICAL_PRESENTATION_DISABLED : SDL_LOGICAL_PRESENTATION_INTEGER_SCALE;
+    if (!SDL_SetRenderLogicalPresentation(renderer_, width_, height_, mode)) {
+        detail::throw_sdl_error("SDL_SetRenderLogicalPresentation");
+    }
+}
+
 void Window::present(std::span<const std::uint16_t> pixels, Image* capture) {
     const auto expected = static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_);
     if (pixels.size() != expected) {
@@ -109,8 +122,30 @@ void Window::present(std::span<const std::uint16_t> pixels, Image* capture) {
         detail::throw_sdl_error("SDL_UpdateTexture");
     }
     SDL_SetRenderDrawColor(renderer_, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    if (!SDL_RenderClear(renderer_) || !SDL_RenderTexture(renderer_, texture_, nullptr, nullptr)) {
-        detail::throw_sdl_error("render");
+    if (!SDL_RenderClear(renderer_)) {
+        detail::throw_sdl_error("SDL_RenderClear");
+    }
+    if (overlay_) {
+        int w = 0, h = 0;
+        if (!SDL_GetCurrentRenderOutputSize(renderer_, &w, &h)) {
+            detail::throw_sdl_error("SDL_GetCurrentRenderOutputSize");
+        }
+        Rect safe{0, 0, static_cast<float>(w), static_cast<float>(h)};
+        SDL_Rect area{};
+        if (SDL_GetWindowSafeArea(window_, &area)) {
+            const float density = SDL_GetWindowPixelDensity(window_);
+            const float d = density > 0 ? density : 1.0f;
+            safe = {static_cast<float>(area.x) * d, static_cast<float>(area.y) * d, static_cast<float>(area.w) * d,
+                    static_cast<float>(area.h) * d};
+        }
+        const Rect r = overlay_->picture_rect(static_cast<float>(w), static_cast<float>(h), safe);
+        const SDL_FRect dst{r.x, r.y, r.w, r.h};
+        if (!SDL_RenderTexture(renderer_, texture_, nullptr, &dst)) {
+            detail::throw_sdl_error("SDL_RenderTexture");
+        }
+        overlay_->draw(renderer_, static_cast<float>(w), static_cast<float>(h));
+    } else if (!SDL_RenderTexture(renderer_, texture_, nullptr, nullptr)) {
+        detail::throw_sdl_error("SDL_RenderTexture");
     }
     if (capture) {
         *capture = read_output(renderer_);

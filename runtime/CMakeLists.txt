@@ -40,6 +40,9 @@ add_library(anygba_runtime STATIC
   src/player/speed.cpp
   src/player/script.cpp
   src/player/menu.cpp
+  src/player/touch.cpp
+  src/player/touch_overlay.cpp
+  src/player/lifecycle.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
@@ -61,3 +64,9 @@ add_library(anygba::game_main ALIAS anygba_game_main)
 target_link_libraries(anygba_game_main PUBLIC anygba_runtime PRIVATE anygba::common)
 target_include_directories(anygba_game_main PRIVATE src)
 anygba_configure_target(anygba_game_main)
+
+if(ANDROID)
+  # stdout and stderr go nowhere on Android; forward them to logcat (tag "anygba").
+  target_sources(anygba_game_main PRIVATE src/android/log_forward.cpp)
+  target_link_libraries(anygba_game_main PRIVATE log)
+endif()

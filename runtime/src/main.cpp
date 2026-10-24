@@ -5,10 +5,12 @@
 #include "cheats/cheat_list.h"
 #include "cheats/engine.h"
 #include "input_map.h"
+#include "player/lifecycle.h"
 #include "player/menu.h"
 #include "player/osd.h"
 #include "player/script.h"
 #include "player/speed.h"
+#include "player/touch_overlay.h"
 #include "save/save.h"
 
 #include <anyport/platform/audio.h>
@@ -19,6 +21,9 @@
 
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_stdinc.h>
+#if defined(__ANDROID__)
+#include <SDL3/SDL_main.h>  // main() becomes SDL_main(), which SDLActivity calls
+#endif
 
 #include <algorithm>
 #include <array>
@@ -346,6 +351,13 @@ public:
                     std::fprintf(stderr, "warning: %s\n", e.what());
                 }
             }
+#if defined(__ANDROID__)
+            const auto data = data_dir();
+            touch_ = std::make_unique<player::TouchOverlay>(data ? std::optional<fs::path>(*data / "anygba-touch.ini")
+                                                                 : std::nullopt);
+            window_->set_overlay(touch_.get());
+#endif
+            background_ = std::make_unique<player::BackgroundWatch>([this] { write_save(); });
         }
         reset_pacer();
         start_ns_ = platform::now_ns();
@@ -375,7 +387,7 @@ public:
             sys_.stop();
             return;
         }
-        const std::uint32_t held = anygba::input::hotkeys_held(mapping_, source());
+        const std::uint32_t held = hotkeys_held();
         const std::uint32_t pressed = held & ~hotkeys_prev_;
         hotkeys_prev_ = held;
         handle_hotkeys(pressed);
@@ -427,7 +439,19 @@ private:
     std::uint16_t gba_keys() const {
         std::uint16_t keys = anygba::input::gba_keys(mapping_, source());
         if (script_) keys = static_cast<std::uint16_t>(keys | script_->gba_held());
+        if (touch_) keys = static_cast<std::uint16_t>(keys | touch_->gba_keys());
         return keys;
+    }
+
+    std::uint32_t hotkeys_held() const {
+        return anygba::input::hotkeys_held(mapping_, source()) | (touch_ ? touch_->hotkeys() : 0u);
+    }
+
+    void write_save() {
+        if (!save_) return;
+        if (const auto error = save_->flush()) {
+            std::fprintf(stderr, "warning: %s\n", error->c_str());
+        }
     }
 
     // One host frame of input. Returns false when the window was closed.
@@ -440,6 +464,7 @@ private:
             events = input_->take_gamepad_events();
             key_presses_ = input_->take_key_presses();
         }
+        if (touch_) touch_->update();
         if (script_) {
             script_->advance(host_frame_);
             const auto scripted = script_->take_gamepad_events();
@@ -561,7 +586,7 @@ private:
                 sys_.stop();
                 return;
             }
-            const std::uint32_t held = anygba::input::hotkeys_held(mapping_, source());
+            const std::uint32_t held = hotkeys_held();
             const std::uint32_t pressed_hotkeys = held & ~hotkeys_prev_;
             hotkeys_prev_ = held;
 
@@ -613,7 +638,7 @@ private:
             }
         }
         trace_menu();
-        hotkeys_prev_ = anygba::input::hotkeys_held(mapping_, source());
+        hotkeys_prev_ = hotkeys_held();
         resampler_.reset();
     }
 
@@ -691,6 +716,8 @@ private:
     std::uint64_t cheats_seen_ = ~std::uint64_t{0};
     std::uint64_t start_ns_ = 0;
     std::uint64_t last_present_ns_ = 0;
+    std::unique_ptr<player::TouchOverlay> touch_;
+    std::unique_ptr<player::BackgroundWatch> background_;
 };
 
 std::vector<std::uint8_t> read_rom(const Args& args) {
