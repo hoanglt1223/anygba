@@ -143,6 +143,8 @@ void System::show_gpio() {
     }
 }
 
+std::array<std::int32_t, 4> System::affine_reference() const { return ppu_->line_reference(); }
+
 System::~System() {
     if (miss_file_) {
         std::fclose(miss_file_);

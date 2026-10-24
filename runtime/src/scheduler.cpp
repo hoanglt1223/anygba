@@ -68,6 +68,7 @@ void System::on_hblank() {
     hblank_ = true;
     if (line_ < kScreenHeight) {
         ppu_->render_line(line_, framebuffer_.data() + static_cast<std::size_t>(line_) * kScreenWidth);
+        if (on_line_rendered) on_line_rendered(*this, line_);
     }
     if (io_read16(0x004) & 0x10) {
         raise_irq(1u << 1);

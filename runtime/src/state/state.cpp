@@ -63,6 +63,7 @@ void System::serialize(state::Archive& ar) {
     ar.fixed(mem_.io, "IO registers");
     ar.fixed(mem_.palette, "palette");
     ar.fixed(mem_.vram, "VRAM");
+    ++vram_writes_;
     ar.fixed(mem_.oam, "OAM");
 
     ar.pod(budget_start_);

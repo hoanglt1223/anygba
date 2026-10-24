@@ -62,6 +62,21 @@ add_library(anygba_runtime STATIC
   src/control/symbols.cpp
   src/control/controller.cpp
   src/journal/journal.cpp
+  src/video/hd/keys.cpp
+  src/video/hd/frame.cpp
+  src/video/hd/renderer.cpp
+  src/video/hd/layer_scale.cpp
+  src/video/hd/png_io.cpp
+  src/video/hd/pack.cpp
+  src/video/hd/json.cpp
+  src/video/hd/dump.cpp
+  src/video/hd/widescreen.cpp
+  src/video/hd/providers.cpp
+  src/video/hd/pokeemerald.cpp
+  src/video/hd/onnx_patch.cpp
+  src/video/hd/process.cpp
+  src/video/hd/ai.cpp
+  src/video/hd/session.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
@@ -72,8 +87,9 @@ target_include_directories(anygba_runtime
   PRIVATE src)
 target_compile_definitions(anygba_runtime PRIVATE ANYGBA_VERSION="${PROJECT_VERSION}")
 # toml++ is header-only and compiled into the library, so installed games do not need it.
-target_include_directories(anygba_runtime SYSTEM PRIVATE "$<BUILD_INTERFACE:${tomlplusplus_SOURCE_DIR}>")
-target_link_libraries(anygba_runtime PUBLIC anyport::platform PRIVATE anygba_decode anygba::common)
+target_include_directories(anygba_runtime SYSTEM PRIVATE "$<BUILD_INTERFACE:${tomlplusplus_SOURCE_DIR}>"
+  "$<BUILD_INTERFACE:${onnxruntime_api_SOURCE_DIR}>" "$<BUILD_INTERFACE:${onnxruntime_ep_api_SOURCE_DIR}>")
+target_link_libraries(anygba_runtime PUBLIC anyport::platform ${CMAKE_DL_LIBS} PRIVATE anygba_decode anygba::common)
 if(WIN32)
   target_link_libraries(anygba_runtime PUBLIC ws2_32)  # the agent control server
 endif()

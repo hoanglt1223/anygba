@@ -18,6 +18,8 @@
 #include "player/stats.h"
 #include "player/touch_overlay.h"
 #include "save/save.h"
+#include "video/hd/png_io.h"
+#include "video/hd/session.h"
 #include "video/presenter.h"
 #include "video/settings.h"
 
@@ -63,6 +65,8 @@ using anygba::input::Hotkey;
 
 constexpr int kSampleRate = anygba::System::kAudioRate;
 
+fs::path utf8_arg(const char* s) { return fs::path(std::u8string(reinterpret_cast<const char8_t*>(s))); }
+
 struct CheatArg {
     cheats::Format format = cheats::Format::Auto;
     std::vector<std::string> lines;
@@ -96,6 +100,12 @@ struct Args {
     std::optional<fs::path> import_save;
     std::optional<fs::path> export_save;
     std::string video;  // --filter and --video, serialized
+    std::optional<fs::path> hd_pack;
+    std::optional<fs::path> hd_dump;
+    anygba::video::hd::DumpFilter dump_filter;
+    anygba::video::hd::ai::Device ai_device = anygba::video::hd::ai::Device::Auto;
+    std::vector<std::pair<std::uint64_t, fs::path>> screenshots;
+    std::pair<int, int> screenshot_size{0, 0};
     anygba::Options runtime;
     // Agent control and the play journal (docs/user/AI-CONTROL.md).
     bool control = false;
@@ -124,7 +134,15 @@ const char* const kUsage =
     "  --filter SPEC       video filter: a scaler, a screen effect and/or ghosting, e.g. xbrz4x+lcd-grid\n"
     "                      (docs/user/VIDEO.md)\n"
     "  --video SETTINGS    video settings key=value;...: filter, color, gamma, deband, output, fullscreen,\n"
-    "                      integer-scale\n"
+    "                      integer-scale, internal-scale, layer-filter, smooth-affine, hd-pack, hd-dump, ai,\n"
+    "                      ai-model, widescreen (docs/user/VIDEO.md, HD-PACKS.md, WIDESCREEN.md)\n"
+    "  --hd-pack DIR       use the HD pack in DIR (default: hdpacks/<game code>/ next to the program or in the\n"
+    "                      data folder)\n"
+    "  --hd-dump DIR       dump every tile, sprite and bitmap the game shows to DIR\n"
+    "  --hd-dump-filter F  what to dump: all, tiles, objs, bitmaps, bg0-bg3, blank (comma-separated)\n"
+    "  --ai-device D       AI upscaling on auto, dml, cuda or cpu (default auto)\n"
+    "  --screenshot N:FILE write the picture of frame N as a PNG; repeatable\n"
+    "  --screenshot-size WxH  size of --screenshot pictures (default: the picture's own size)\n"
     "  --frames N          stop after N frames\n"
     "  --seconds S         stop after S seconds of wall-clock time\n"
     "  --exit-on-idle      stop at the first branch-to-self and print the registers\n"
@@ -307,6 +325,32 @@ std::optional<Args> parse(int argc, char** argv) {
             }
         } else if (arg == "--symbols" && has_value) {
             a.symbol_files.emplace_back(argv[++i]);
+        } else if ((arg == "--hd-pack" || arg == "--hd-dump") && has_value) {
+            (arg == "--hd-pack" ? a.hd_pack : a.hd_dump) = utf8_arg(argv[++i]);
+            a.video += std::string(a.video.empty() ? "" : ";") + (arg == "--hd-pack" ? "hd-pack=true" : "hd-dump=true");
+        } else if (arg == "--hd-dump-filter" && has_value) {
+            if (const auto error = anygba::video::hd::parse_dump_filter(argv[++i], a.dump_filter)) {
+                std::fprintf(stderr, "--hd-dump-filter: %s\n", error->c_str());
+                return std::nullopt;
+            }
+        } else if (arg == "--ai-device" && has_value) {
+            const auto d = anygba::video::hd::ai::parse_device(argv[++i]);
+            if (!d) return std::nullopt;
+            a.ai_device = *d;
+        } else if (arg == "--screenshot" && has_value) {
+            const std::string spec = argv[++i];
+            const auto colon = spec.find(':');
+            const unsigned long long n = std::strtoull(spec.substr(0, colon).c_str(), &end, 10);
+            if (colon == std::string::npos || colon == 0 || *end != '\0' || n == 0) return std::nullopt;
+            a.screenshots.emplace_back(n, utf8_arg(spec.substr(colon + 1).c_str()));
+        } else if (arg == "--screenshot-size" && has_value) {
+            const std::string spec = argv[++i];
+            const auto x = spec.find('x');
+            const long w = std::strtol(spec.substr(0, x).c_str(), &end, 10);
+            const bool w_ok = *end == '\0';
+            const long h = x == std::string::npos ? 0 : std::strtol(spec.substr(x + 1).c_str(), &end, 10);
+            if (!w_ok || *end != '\0' || w < 1 || h < 1 || w > 16384 || h > 16384) return std::nullopt;
+            a.screenshot_size = {static_cast<int>(w), static_cast<int>(h)};
         } else if (!arg.starts_with("-") && a.rom.empty()) {
             a.rom = arg;
         } else {
@@ -524,6 +568,9 @@ public:
             background_ = std::make_unique<player::BackgroundWatch>([this] { write_save(); });
         }
         if (args.wav) wav_ = std::make_unique<WavWriter>(*args.wav);
+        hd_ = std::make_unique<anygba::video::hd::Session>(hd_setup());
+        hd_->set_options(video_options_);
+        sys_.on_line_rendered = [this](anygba::System& s, unsigned line) { hd_->on_line(s, line); };
         reset_pacer();
         start_ns_ = platform::now_ns();
         sync_rom_patches();
@@ -535,6 +582,19 @@ public:
             osd_.show("Speed " + std::to_string(speed_) + "%");
         }
     }
+
+    ~Player() { sys_.on_line_rendered = nullptr; }
+
+    // One line of HD timing on exit, when the HD path was in use.
+    void print_hd_stats() const {
+        if (!hd_->active()) return;
+        std::printf("hd: %.2f ms per render", hd_->render_ms());
+        if (hd_->ai_ms() > 0) std::printf(", AI %.2f ms per frame", hd_->ai_ms());
+        if (!hd_->scene().empty()) std::printf(", widescreen scene %s", hd_->scene().c_str());
+        std::printf("\n");
+    }
+    Player(const Player&) = delete;
+    Player& operator=(const Player&) = delete;
 
     void on_vblank() {
         if (args_.frames && sys_.frames() >= *args_.frames) {
@@ -575,6 +635,11 @@ public:
         present(unthrottled);
         if (mapping_.normal_speed_music || mp2k_.scaled()) {
             mp2k_.update(sys_.memory(), normal_speed_music() ? audio_speed() : 100);
+        }
+        hd_->between_frames();
+        for (auto& m : hd_->take_messages()) osd_.show(std::move(m));
+        for (const auto& [frame, file] : args_.screenshots) {
+            if (frame == sys_.frames()) screenshot(file);
         }
         sound_.clear();
         sys_.drain_audio(sound_);
@@ -920,7 +985,9 @@ private:
 
     void sync_rom_patches() {
         cheats_seen_ = cheats_.generation();
-        const auto patches = cheats::rom_patches(cheats_.active());
+        // Widescreen rule patches first, so a cheat on the same address wins.
+        auto patches = hd_ ? hd_->rom_patches() : std::map<std::uint32_t, std::uint16_t>{};
+        for (const auto& [addr, value] : cheats::rom_patches(cheats_.active())) patches[addr] = value;
         if (patches != sys_.rom_patches()) {
             sys_.set_rom_patches(patches);
         }
@@ -1201,6 +1268,10 @@ private:
         last_present_ns_ = now;
         ++presents_;  // counted headless too, as the pictures a window would show
         if (!window_) return;
+        if (const anygba::video::Image* hd = hd_picture()) {
+            video_->present(*hd, hd_->logical_width(), hd_->logical_height());
+            return;
+        }
         if (osd_.empty() && (!control_ || control_->indicator().empty()) && !mapping_.stats) {
             show(sys_.framebuffer());
             return;
@@ -1214,6 +1285,71 @@ private:
         video_->present(frame, anygba::kScreenWidth, anygba::kScreenHeight);
     }
 
+    anygba::video::hd::SessionSetup hd_setup() const {
+        anygba::video::hd::SessionSetup s;
+        const auto& rom = sys_.memory().rom;
+        for (std::size_t i = 0xAC; i < 0xB0; ++i) {
+            const char ch = static_cast<char>(rom[i]);
+            s.game_code += std::isalnum(static_cast<unsigned char>(ch)) ? ch : '_';
+        }
+        s.title = anygba_game_info.title;
+        for (const auto& dir : {program_dir(), data_dir()}) {
+            if (dir) s.search_dirs.push_back(*dir);
+        }
+        s.pack_dir = args_.hd_pack;
+        s.dump_dir = args_.hd_dump;
+        s.data_dir = data_dir();
+        s.dump_filter = args_.dump_filter;
+        s.ai_device = args_.ai_device;
+        return s;
+    }
+
+    // The HD picture with the on-screen messages on top (drawn at 1x, then pasted over the
+    // HD pixels they cover), or null when the HD path is off.
+    const anygba::video::Image* hd_picture() {
+        const anygba::video::Image* pic = hd_->picture();
+        if (!pic || osd_.empty()) return pic;
+        frame_copy_ = sys_.framebuffer();
+        osd_.draw(frame_copy_);
+        hd_copy_ = *pic;
+        const auto& before = sys_.framebuffer();
+        const int scale = hd_copy_.height / anygba::kScreenHeight;
+        const int left = (hd_->logical_width() - anygba::kScreenWidth) / 2 * scale;
+        for (int y = 0; y < anygba::kScreenHeight; ++y) {
+            for (int x = 0; x < anygba::kScreenWidth; ++x) {
+                const std::size_t i = static_cast<std::size_t>(y) * anygba::kScreenWidth + static_cast<std::size_t>(x);
+                if (frame_copy_[i] == before[i]) continue;
+                const std::uint32_t c = anygba::video::hd::expand(static_cast<std::uint16_t>(frame_copy_[i] & 0x7FFF));
+                for (int j = 0; j < scale; ++j) std::fill_n(hd_copy_.row(y * scale + j) + left + x * scale, scale, c);
+            }
+        }
+        return &hd_copy_;
+    }
+
+    // --screenshot: what a window would show (filters included), as a PNG.
+    void screenshot(const fs::path& file) {
+        const anygba::video::Image* hd = hd_picture();
+        shot_pipeline_.set_options(video_options_);
+        const int lw = hd ? hd_->logical_width() : anygba::kScreenWidth;
+        int w = args_.screenshot_size.first, h = args_.screenshot_size.second;
+        if (w == 0) {
+            w = hd ? hd->width : lw;
+            h = hd ? hd->height : anygba::kScreenHeight;
+        }
+        try {
+            const anygba::video::Image& image = hd ? shot_pipeline_.render(*hd, lw, anygba::kScreenHeight, w, h)
+                                                   : shot_pipeline_.render(sys_.framebuffer(), lw, anygba::kScreenHeight, w, h);
+            if (const auto error = anygba::video::hd::save_png(file, image)) {
+                std::fprintf(stderr, "error: %s\n", error->c_str());
+            } else {
+                std::printf("screenshot: frame %llu -> %s (%dx%d)\n", static_cast<unsigned long long>(sys_.frames()),
+                            file.string().c_str(), w, h);
+            }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "error: screenshot: %s\n", e.what());
+        }
+    }
+
     std::optional<fs::path> video_file() const {
         if (!state_dir_) return std::nullopt;
         return *state_dir_ / (game_file_stem() + ".video");
@@ -1221,6 +1357,8 @@ private:
 
     // Menu changes apply at once and are kept for the next run of this game.
     void apply_video() {
+        hd_->set_options(video_options_);
+        sync_rom_patches();  // widescreen rules may patch the ROM
         if (video_) {
             try {
                 video_->set_options(video_options_);
@@ -1311,6 +1449,9 @@ private:
     std::unique_ptr<platform::Window> window_;
     anygba::video::Options video_options_;
     std::unique_ptr<anygba::video::Presenter> video_;
+    std::unique_ptr<anygba::video::hd::Session> hd_;
+    anygba::video::Image hd_copy_;
+    anygba::video::Pipeline shot_pipeline_;
     std::unique_ptr<platform::AudioStream> audio_;
     std::unique_ptr<platform::Input> input_;
     std::unique_ptr<anygba::input::DeviceSource> device_;
@@ -1554,6 +1695,7 @@ int main(int argc, char** argv) {
         }
         const std::uint64_t start = anyport::platform::now_ns();
         sys.run();
+        player.print_hd_stats();
         const double elapsed = static_cast<double>(anyport::platform::now_ns() - start) / 1e9;
         int status = 0;
         if (const auto error = player.finish()) {

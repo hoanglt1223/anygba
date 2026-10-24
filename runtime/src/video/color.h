@@ -19,6 +19,9 @@ public:
 
     std::uint32_t convert(std::uint16_t bgr555) const { return table_[bgr555 & 0x7FFFu]; }
     void convert(std::span<const std::uint16_t> frame, int width, int height, Image& out) const;
+    // 8-bit RGBA pictures (HD frames): the same colour and gamma mapping through a 3D table with
+    // trilinear interpolation. Debanding only applies to 5-bit frames.
+    void convert(const Image& in, Image& out);
 
 private:
     std::uint32_t convert_precise(float r, float g, float b) const;  // channels in 0..1 of the 5-bit range
@@ -27,6 +30,7 @@ private:
     double gamma_;
     bool deband_;
     std::vector<std::uint32_t> table_;
+    std::vector<std::array<float, 3>> cube_;  // 33^3 grid for 8-bit input, built on first use
 };
 
 }  // namespace anygba::video

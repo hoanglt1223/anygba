@@ -20,6 +20,9 @@ constexpr std::array kEffects = {Effect::None, Effect::LcdGrid, Effect::Scanline
 constexpr std::array kColors = {Color::Raw, Color::GbaLcd};
 constexpr std::array kOutputs = {Output::Window, Output::P720, Output::P1080, Output::P1440, Output::P2160,
                                  Output::Desktop};
+constexpr std::array kAiModes = {Ai::Off, Ai::Frame, Ai::Layers};
+constexpr std::array kAiModels = {AiModel::GeneralX4v3, AiModel::X4Plus};
+constexpr std::array kWidescreens = {Widescreen::Off, Widescreen::W16x10, Widescreen::W16x9};
 
 template <typename T, std::size_t N>
 std::optional<T> find(const std::array<T, N>& all, std::string_view text) {
@@ -60,6 +63,38 @@ std::span<const Scaler> all_scalers() { return kScalers; }
 std::span<const Effect> all_effects() { return kEffects; }
 std::span<const Color> all_colors() { return kColors; }
 std::span<const Output> all_outputs() { return kOutputs; }
+std::span<const Ai> all_ai_modes() { return kAiModes; }
+std::span<const AiModel> all_ai_models() { return kAiModels; }
+std::span<const Widescreen> all_widescreens() { return kWidescreens; }
+
+std::string_view name(Ai a) {
+    switch (a) {
+    case Ai::Off: return "off";
+    case Ai::Frame: return "frame";
+    case Ai::Layers: return "layers";
+    }
+    return "?";
+}
+
+std::string_view name(AiModel m) { return m == AiModel::GeneralX4v3 ? "general-x4v3" : "x4plus"; }
+
+std::string_view name(Widescreen w) {
+    switch (w) {
+    case Widescreen::Off: return "off";
+    case Widescreen::W16x10: return "16:10";
+    case Widescreen::W16x9: return "16:9";
+    }
+    return "?";
+}
+
+int widescreen_extra(Widescreen w) {
+    // 160 lines at 16:10 are 256 columns, at 16:9 284 (284.4 rounded down to an even width).
+    switch (w) {
+    case Widescreen::W16x10: return 8;
+    case Widescreen::W16x9: return 22;
+    default: return 0;
+    }
+}
 
 std::string_view name(Scaler s) {
     switch (s) {
@@ -201,13 +236,50 @@ std::optional<std::string> apply_setting(Options& options, std::string_view key,
         options.gamma = g;
         return std::nullopt;
     }
+    if (key == "internal-scale") {
+        int n = 0;
+        const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), n);
+        if (ec != std::errc{} || end != value.data() + value.size() || n < 1 || n > kMaxInternalScale) {
+            return "internal-scale must be a whole number from 1 to " + std::to_string(kMaxInternalScale);
+        }
+        options.internal_scale = n;
+        return std::nullopt;
+    }
+    if (key == "layer-filter") {
+        const auto s = find(kScalers, value);
+        if (!s) return "layer-filter must be one of " + names(kScalers);
+        options.layer_filter = *s;
+        return std::nullopt;
+    }
+    if (key == "ai") {
+        const auto a = find(kAiModes, value);
+        if (!a) return "ai must be one of " + names(kAiModes);
+        options.ai = *a;
+        return std::nullopt;
+    }
+    if (key == "ai-model") {
+        const auto m = find(kAiModels, value);
+        if (!m) return "ai-model must be one of " + names(kAiModels);
+        options.ai_model = *m;
+        return std::nullopt;
+    }
+    if (key == "widescreen") {
+        const auto w = find(kWidescreens, value);
+        if (!w) return "widescreen must be one of " + names(kWidescreens);
+        options.widescreen = *w;
+        return std::nullopt;
+    }
     bool* flag = key == "deband"          ? &options.deband
                  : key == "fullscreen"    ? &options.fullscreen
                  : key == "integer-scale" ? &options.integer_scale
+                 : key == "smooth-affine" ? &options.smooth_affine
+                 : key == "hd-pack"       ? &options.hd_pack
+                 : key == "hd-dump"       ? &options.hd_dump
                                           : nullptr;
     if (!flag) {
         return "unknown video setting '" + std::string(key) +
-               "' (filter, color, gamma, deband, output, fullscreen, integer-scale)";
+               "' (filter, color, gamma, deband, output, fullscreen, integer-scale, internal-scale, layer-filter, "
+               "smooth-affine, hd-pack, hd-dump, ai, ai-model, widescreen)";
     }
     const auto b = parse_bool(value);
     if (!b) return std::string(key) + " must be true or false";
@@ -229,6 +301,14 @@ std::string serialize(const Options& o) {
     if (o.output != d.output) add("output", std::string(name(o.output)));
     if (o.fullscreen != d.fullscreen) add("fullscreen", o.fullscreen ? "true" : "false");
     if (o.integer_scale != d.integer_scale) add("integer-scale", o.integer_scale ? "true" : "false");
+    if (o.internal_scale != d.internal_scale) add("internal-scale", std::to_string(o.internal_scale));
+    if (o.layer_filter != d.layer_filter) add("layer-filter", std::string(name(o.layer_filter)));
+    if (o.smooth_affine != d.smooth_affine) add("smooth-affine", o.smooth_affine ? "true" : "false");
+    if (o.hd_pack != d.hd_pack) add("hd-pack", o.hd_pack ? "true" : "false");
+    if (o.hd_dump != d.hd_dump) add("hd-dump", o.hd_dump ? "true" : "false");
+    if (o.ai != d.ai) add("ai", std::string(name(o.ai)));
+    if (o.ai_model != d.ai_model) add("ai-model", std::string(name(o.ai_model)));
+    if (o.widescreen != d.widescreen) add("widescreen", std::string(name(o.widescreen)));
     return out;
 }
 

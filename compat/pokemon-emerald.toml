@@ -6,4 +6,6 @@ stage = "playable"
 evidence = "anygba build with two trace-feedback passes, Windows, headless, one scripted input list from boot: title, new game, naming, moving truck, house, setting the wall clock from the cartridge real-time clock, the rival's house, Route 101 and the first battle (frame 33229), then the lab and a wild encounter on Route 101. Compared with mGBA 0.10.5 on the same input: the truck (frame 10000) and Route 101 (frame 30807) are pixel-identical; the naming screen, Littleroot and the battle differ only in animation phase, typed letters, a walking NPC and the random gender of both Pokemon (mGBA runs a few frames behind). In-game Flash saves, save states and the cheats in cheats/BPEE.toml (incl. the wild species picker) checked in memory and on screen. 600-670 frames/s unpaced after feedback"
 blockers = []
 misses = 5
+widescreen = "partial"
+widescreen_notes = "widescreen/BPEE.toml: overworld widened at 16:9 and 16:10 with the map rebuilt beyond the game's tile buffer (pokeemerald-field provider), text boxes and menus kept in the middle; other scenes (title, intro, battles, bag, party) pillarboxed. Checked headless with screenshots."
 updated = 2026-10-24

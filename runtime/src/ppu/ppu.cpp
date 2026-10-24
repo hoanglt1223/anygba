@@ -54,6 +54,7 @@ void Ppu::reference_written(unsigned io_offset) {
 }
 
 void Ppu::render_line(unsigned line, std::uint16_t* out) {
+    line_reference_ = {ref_x_[0], ref_y_[0], ref_x_[1], ref_y_[1]};
     const std::uint16_t dispcnt = reg(0x000);
     if (dispcnt & 0x80) {
         std::fill(out, out + kScreenWidth, static_cast<std::uint16_t>(0x7FFF));  // forced blank: white

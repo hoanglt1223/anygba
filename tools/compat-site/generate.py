@@ -27,6 +27,7 @@ COLORS = {
     "perfect": "#4c1",
 }
 KINDS = ["commercial", "homebrew", "test-suite"]
+WIDESCREEN = ["none", "partial", "full"]
 REQUIRED = {"title": str, "kind": str, "stage": str}
 
 
@@ -50,6 +51,8 @@ def load(directory: pathlib.Path) -> list[dict]:
             raise CompatError(f"{path}: kind '{data['kind']}' is not one of {', '.join(KINDS)}")
         if data["kind"] == "commercial" and ("rom" in data or "checkpoint_hash" in data):
             raise CompatError(f"{path}: commercial titles carry only rom_id, never a ROM path or hash")
+        if data.get("widescreen", "none") not in WIDESCREEN:
+            raise CompatError(f"{path}: widescreen '{data['widescreen']}' is not one of {', '.join(WIDESCREEN)}")
         blockers = data.get("blockers", [])
         if not isinstance(blockers, list) or not all(isinstance(b, str) for b in blockers):
             raise CompatError(f"{path}: 'blockers' must be a list of strings")

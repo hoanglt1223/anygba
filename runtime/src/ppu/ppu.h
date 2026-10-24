@@ -28,6 +28,8 @@ public:
     void reference_written(unsigned io_offset);
     // Internal affine reference points for save states (line buffers are rebuilt every line).
     void serialize(state::Archive& ar);
+    // Internal BG2X, BG2Y, BG3X, BG3Y reference points the last rendered line started from.
+    const std::array<std::int32_t, 4>& line_reference() const { return line_reference_; }
 
     static constexpr std::uint16_t kTransparent = 0x8000;
 
@@ -55,6 +57,7 @@ private:
     std::array<bool, kScreenWidth> obj_window_{};
     std::array<std::int32_t, 2> ref_x_{};  // internal BG2/BG3 reference points, 20.8 fixed
     std::array<std::int32_t, 2> ref_y_{};
+    std::array<std::int32_t, 4> line_reference_{};
 };
 
 }  // namespace anygba

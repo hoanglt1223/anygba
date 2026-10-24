@@ -6,5 +6,5 @@ target_link_libraries(anygba_driver_lib PUBLIC anygba_recomp_lib anygba::common)
 anygba_configure_target(anygba_driver_lib)
 
 add_executable(anygba main.cpp)
-target_link_libraries(anygba PRIVATE anygba_driver_lib)
+target_link_libraries(anygba PRIVATE anygba_driver_lib anygba_hdpack_lib)
 anygba_configure_target(anygba)

@@ -165,7 +165,7 @@ void System::bus_write32(std::uint32_t addr, std::uint32_t value) {
         }
         break;
     case 0x05: store(mem_.palette, addr & (Memory::kPaletteSize - 1), value, 4); break;
-    case 0x06: store(mem_.vram, vram_offset(addr), value, 4); break;
+    case 0x06: store(mem_.vram, vram_offset(addr), value, 4); ++vram_writes_; break;
     case 0x07: store(mem_.oam, addr & (Memory::kOamSize - 1), value, 4); break;
     case 0x08:
         gpio_write(addr, static_cast<std::uint16_t>(value));
@@ -191,7 +191,7 @@ void System::bus_write16(std::uint32_t addr, std::uint32_t value) {
         }
         break;
     case 0x05: store(mem_.palette, addr & (Memory::kPaletteSize - 1), value, 2); break;
-    case 0x06: store(mem_.vram, vram_offset(addr), value, 2); break;
+    case 0x06: store(mem_.vram, vram_offset(addr), value, 2); ++vram_writes_; break;
     case 0x07: store(mem_.oam, addr & (Memory::kOamSize - 1), value, 2); break;
     case 0x08:
         gpio_write(addr, static_cast<std::uint16_t>(value));
@@ -244,6 +244,7 @@ void System::bus_write8(std::uint32_t addr, std::uint32_t value) {
         const bool bitmap = (io_read16(0) & 7) >= 3;
         if (off < (bitmap ? 0x14000u : 0x10000u)) {
             mem_.vram[off] = mem_.vram[off + 1] = byte;
+            ++vram_writes_;
         }
         break;
     }

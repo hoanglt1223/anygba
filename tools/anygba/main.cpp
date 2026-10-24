@@ -1,4 +1,5 @@
 #include "build.h"
+#include "hdpack.h"
 
 #include <cstdio>
 #include <exception>
@@ -16,9 +17,11 @@ const char* const kUsage =
     "Commands:\n"
     "  build <game.gba> [options]   recompile and compile a ROM into a native program or an Android app\n"
     "  android-launcher [options]   build the AnyGBA launcher app (AnyGBA-Launcher.apk) for game packages\n"
+    "  hdpack <command> ...         HD pack creator: dedupe, preview, import, ai-upscale\n"
     "  help [command]               show help\n"
     "\n"
-    "Run `anygba help build` for the build options. The recompiler alone is anygba-recomp.\n";
+    "Run `anygba help build` or `anygba help hdpack` for the options. The recompiler alone is\n"
+    "anygba-recomp.\n";
 
 const char* const kLauncherUsage =
     "usage: anygba android-launcher [-o DIR] [--prefix DIR] [--work DIR] [Android options]\n"
@@ -82,6 +85,8 @@ int main(int argc, char** argv) {
     if (args.empty() || args[0] == "help" || args[0] == "--help" || args[0] == "-h") {
         if (args.size() > 1 && args[1] == "build") {
             std::fputs(anygba::driver::build_usage().c_str(), stdout);
+        } else if (args.size() > 1 && args[1] == "hdpack") {
+            std::fputs(anygba::hdpack::usage().c_str(), stdout);
         } else {
             std::fputs(kUsage, args.empty() ? stderr : stdout);
         }
@@ -89,6 +94,9 @@ int main(int argc, char** argv) {
     }
     if (args[0] == "android-launcher") {
         return android_launcher(std::span<const std::string_view>(args.data() + 1, args.size() - 1));
+    }
+    if (args[0] == "hdpack") {
+        return anygba::hdpack::run(std::span<const std::string_view>(args.data() + 1, args.size() - 1));
     }
     if (args[0] != "build") {
         std::fprintf(stderr, "anygba: unknown command '%.*s'\n\n%s", static_cast<int>(args[0].size()), args[0].data(),

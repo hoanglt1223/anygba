@@ -1,0 +1,25 @@
+# Pokemon Emerald (USA, Europe): widescreen rules for AnyGBA (docs/user/WIDESCREEN.md).
+#
+# Addresses follow the pret/pokeemerald decompilation and were checked on a US/EU ROM by reading
+# memory while the game runs: gMain.callback2 at 0x030022C4, gMapHeader at 0x02037318,
+# gBackupMapLayout at 0x03005DC0, gSaveBlock1Ptr at 0x03005D8C.
+title = "Pokemon - Emerald Version (USA, Europe)"
+
+# Anything not listed below keeps the GBA picture between black bars.
+[default]
+mode = "pillarbox"
+
+# The overworld (callback2 = CB2_Overworld). The game only keeps the map one metatile wider than
+# the screen, so the pokeemerald-field provider rebuilds the extra columns of BG1-BG3 from the
+# map grid and tilesets. Text boxes and menus are on BG0 and stay in the middle.
+[[scene]]
+name = "overworld"
+when = ["u32 0x030022C4 == 0x08085E5D"]
+mode = "widen"
+hud = ["bg0"]
+provider = "pokeemerald-field"
+
+[scene.settings]
+map_header = 0x02037318
+backup_layout = 0x03005DC0
+save_block1_ptr = 0x03005D8C

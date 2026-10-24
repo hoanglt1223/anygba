@@ -28,11 +28,22 @@ void Presenter::set_options(const Options& options) {
 }
 
 void Presenter::present(std::span<const std::uint16_t> frame, int width, int height, pf::Image* capture) {
+    show(width, height, capture, [&](int w, int h) { return pipeline_.prepare(frame, width, height, w, h); },
+         [&](int w, int h) -> const Image& { return pipeline_.render(frame, width, height, w, h); });
+}
+
+void Presenter::present(const Image& frame, int logical_w, int logical_h, pf::Image* capture) {
+    show(logical_w, logical_h, capture, [&](int w, int h) { return pipeline_.prepare(frame, logical_w, logical_h, w, h); },
+         [&](int w, int h) -> const Image& { return pipeline_.render(frame, logical_w, logical_h, w, h); });
+}
+
+void Presenter::show(int width, int height, pf::Image* capture, const std::function<Prepared(int, int)>& prepare,
+                     const std::function<const Image&(int, int)>& render) {
     const auto [rw, rh] = window_.render_size();
     if (rw <= 0 || rh <= 0) return;  // minimised
     if (gpu_) {
         const Rect area = fit(rw, rh, width, height, options().integer_scale);
-        const Prepared p = pipeline_.prepare(frame, width, height, area.w, area.h);
+        const Prepared p = prepare(area.w, area.h);
         pf::Overlay overlay;
         if (p.overlay) overlay = {p.overlay->pixels, p.overlay->width, p.overlay->height, p.overlay_version};
         window_.present_rgba(p.image->pixels, p.image->width, p.image->height, {area.x, area.y, area.w, area.h},
@@ -40,7 +51,7 @@ void Presenter::present(std::span<const std::uint16_t> frame, int width, int hei
                              capture);
         return;
     }
-    const Image& image = pipeline_.render(frame, width, height, rw, rh);
+    const Image& image = render(rw, rh);
     window_.present_rgba(image.pixels, image.width, image.height, {0, 0, rw, rh}, pf::Scaling::Nearest, nullptr,
                          capture);
 }

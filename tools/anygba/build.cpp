@@ -111,6 +111,19 @@ bool config_has_symbols(const fs::path& config) {
     }
 }
 
+// Widescreen rules for this ROM shipped in <prefix>/share/anygba/widescreen/<game code>.toml
+// (docs/user/WIDESCREEN.md).
+std::vector<fs::path> widescreen_rules(const fs::path& prefix, const std::vector<std::uint8_t>& rom) {
+    if (rom.size() < 0xB0) return {};
+    std::string code(rom.begin() + 0xAC, rom.begin() + 0xB0);
+    for (char& ch : code) {
+        if (!std::isalnum(static_cast<unsigned char>(ch))) ch = '_';
+    }
+    const fs::path p = prefix / "share" / "anygba" / "widescreen" / (code + ".toml");
+    if (fs::exists(p)) return {p};
+    return {};
+}
+
 std::vector<std::uint8_t> read_file(const fs::path& p) {
     std::ifstream in(p, std::ios::binary);
     if (!in) {
@@ -338,6 +351,7 @@ fs::path build(const BuildOptions& o) {
     fs::create_directories(o.output_dir);
     const std::vector<std::uint8_t> rom = read_file(o.rom);
     const std::vector<fs::path> databases = shipped_files(prefix, rom, "cheats");
+    const std::vector<fs::path> rules = widescreen_rules(prefix, rom);
     std::vector<std::pair<fs::path, std::string>> symbols;  // source, file name
     for (const auto& f : shipped_files(prefix, rom, "symbols")) symbols.emplace_back(f, f.filename().string());
     if (o.config && config_has_symbols(*o.config)) {
@@ -349,7 +363,7 @@ fs::path build(const BuildOptions& o) {
         std::erase_if(symbols, [&](const auto& s) { return s.second == code + ".toml"; });
         symbols.emplace_back(*o.config, code + ".toml");
     }
-    const auto copy_databases = [&databases, &symbols](const fs::path& dir) {
+    const auto copy_databases = [&databases, &symbols, &rules](const fs::path& dir) {
         if (!databases.empty()) fs::create_directories(dir / "cheats");
         for (const auto& db : databases) {
             fs::copy_file(db, dir / "cheats" / db.filename(), fs::copy_options::overwrite_existing);
@@ -359,6 +373,11 @@ fs::path build(const BuildOptions& o) {
         for (const auto& [src, name] : symbols) {
             fs::copy_file(src, dir / "symbols" / name, fs::copy_options::overwrite_existing);
             std::printf("anygba: symbols %s\n", path_string(dir / "symbols" / name).c_str());
+        }
+        if (!rules.empty()) fs::create_directories(dir / "widescreen");
+        for (const auto& f : rules) {
+            fs::copy_file(f, dir / "widescreen" / f.filename(), fs::copy_options::overwrite_existing);
+            std::printf("anygba: widescreen rules %s\n", path_string(dir / "widescreen" / f.filename()).c_str());
         }
     };
 #if defined(__APPLE__)

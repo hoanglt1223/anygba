@@ -57,3 +57,6 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/cheats/" DESTINATION ${CMAKE_INSTALL_DA
 # Named memory for AI agents; `anygba build` copies the file for the ROM next to the game.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/compat/symbols/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/symbols
   FILES_MATCHING PATTERN "*.toml")
+# Per-game widescreen rules, copied next to the game the same way.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/widescreen/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/widescreen
+  FILES_MATCHING PATTERN "*.toml")
