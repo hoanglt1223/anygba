@@ -154,6 +154,7 @@ std::string hotkey_name(Hotkey hotkey) {
     case Hotkey::AiControl: return "AiControl";
     case Hotkey::Journal: return "Journal";
     case Hotkey::Stats: return "Stats";
+    case Hotkey::Smoothing: return "Smoothing";
     default: return "?";
     }
 }
@@ -194,6 +195,7 @@ Mapping default_mapping() {
     set(Hotkey::AiControl, {"F10"}, {});
     set(Hotkey::Journal, {"F11"}, {});
     set(Hotkey::Stats, {"Ctrl+F"}, {});
+    set(Hotkey::Smoothing, {"Ctrl+I"}, {});
     m.pad_hotkeys[static_cast<int>(Hotkey::SaveState1)] = {"Back+RightShoulder"};
     m.pad_hotkeys[static_cast<int>(Hotkey::LoadState1)] = {"Back+LeftShoulder"};
     return m;
@@ -276,7 +278,7 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
         if (button < 0 && hotkey < 0) {
             fail("unknown name '" + std::string(key) +
                  "' (GBA buttons A, B, Select, Start, Right, Left, Up, Down, R, L; hotkeys SaveState1-9, LoadState1-9, "
-                 "SpeedUp, SpeedDown, Menu, FastForward, CheatButton, AiControl, Journal, Stats)");
+                 "SpeedUp, SpeedDown, Menu, FastForward, CheatButton, AiControl, Journal, Stats, Smoothing)");
         }
         if (section == Section::Keyboard) {
             std::vector<std::string> keys;

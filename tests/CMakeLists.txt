@@ -35,6 +35,7 @@ add_executable(anygba-tests
   runtime/system_tests.cpp
   runtime/bios_tests.cpp
   runtime/ppu_tests.cpp
+  runtime/motion_tests.cpp
   runtime/apu_tests.cpp
   runtime/save_tests.cpp
   runtime/state_tests.cpp

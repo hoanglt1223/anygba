@@ -327,6 +327,15 @@ bool Window::accelerated() const {
     return name && std::strcmp(name, SDL_SOFTWARE_RENDERER) != 0;
 }
 
+double Window::refresh_rate() const {
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window_));
+    if (!mode) return 0;
+    if (mode->refresh_rate_numerator > 0 && mode->refresh_rate_denominator > 0) {
+        return static_cast<double>(mode->refresh_rate_numerator) / mode->refresh_rate_denominator;
+    }
+    return mode->refresh_rate > 0 ? mode->refresh_rate : 0.0;
+}
+
 std::pair<int, int> Window::desktop_size() {
     const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
     if (!mode) return {0, 0};

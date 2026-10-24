@@ -64,6 +64,8 @@ struct Options {
     Ai ai = Ai::Off;
     AiModel ai_model = AiModel::GeneralX4v3;
     Widescreen widescreen = Widescreen::Off;
+    // Pictures between frames on high-refresh displays, from the PPU's scroll and sprite motion.
+    bool smoothing = false;
 
     bool operator==(const Options&) const = default;
 };
@@ -104,7 +106,7 @@ std::string filter_spec(const Options& options);
 
 // One setting by key, as on the command line and in the game TOML: filter, color, gamma, deband,
 // output, fullscreen, integer-scale, internal-scale, layer-filter, smooth-affine, hd-pack, hd-dump,
-// ai, ai-model, widescreen. Booleans take true/false/on/off/1/0. Returns an error message.
+// ai, ai-model, widescreen, smoothing. Booleans take true/false/on/off/1/0. Returns an error message.
 std::optional<std::string> apply_setting(Options& options, std::string_view key, std::string_view value);
 
 // "key=value;key=value" with every setting that differs from the defaults (embedded in generated

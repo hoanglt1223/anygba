@@ -91,6 +91,7 @@ std::vector<MenuItem> menu_items(const Options& o) {
         {"AI upscaling", std::string(name(o.ai))},
         {"AI model", std::string(name(o.ai_model))},
         {"Widescreen", std::string(name(o.widescreen))},
+        {"Smoothing", on_off(o.smoothing)},
     };
 }
 
@@ -119,6 +120,7 @@ void menu_step(Options& o, int item, int dir) {
     case 14: cycle(o.ai, all_ai_modes(), dir); break;
     case 15: cycle(o.ai_model, all_ai_models(), dir); break;
     case 16: cycle(o.widescreen, all_widescreens(), dir); break;
+    case 17: o.smoothing = !o.smoothing; break;
     default: break;
     }
 }

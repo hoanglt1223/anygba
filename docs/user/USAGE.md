@@ -77,6 +77,7 @@ Options (`anygba help build`):
 | F10 | | AI control on/off ([AI-CONTROL.md](AI-CONTROL.md)) |
 | F11 | | play journal on/off |
 | Ctrl+F | | stats overlay on/off (see below) |
+| Ctrl+I | | smoothing on/off ([VIDEO.md](VIDEO.md#smoothing)) |
 
 All of them can be changed in the Controls page of the menu or in
 [INPUT_MAPPING.md](INPUT_MAPPING.md). Messages about slots, speed, cheats and gamepads appear at the bottom

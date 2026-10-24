@@ -92,6 +92,9 @@ public:
     void set_window_size(int width, int height);
     // False for SDL's software renderer (no GPU).
     bool accelerated() const;
+    // Refresh rate of the display the window is on (it changes when the window moves to
+    // another monitor), or 0 when unknown.
+    double refresh_rate() const;
     // The primary display's desktop mode, or (0, 0) when unknown.
     static std::pair<int, int> desktop_size();
     // While an overlay is set it places the picture instead of the integer-scale letterbox.

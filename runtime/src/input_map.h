@@ -31,6 +31,7 @@ enum class Hotkey : std::uint8_t {
     AiControl,    // agent control server on/off (docs/user/AI-CONTROL.md)
     Journal,      // play journal on/off
     Stats,        // the stats overlay on/off
+    Smoothing,    // smoothing between frames on/off
     Count,
 };
 inline constexpr int kHotkeys = static_cast<int>(Hotkey::Count);

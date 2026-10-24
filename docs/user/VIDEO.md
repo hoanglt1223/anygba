@@ -61,6 +61,7 @@ ports of the reference code, so their output is close to but not identical with 
 | `integer-scale` | `true`/`false`: only whole multiples of 240x160 | false |
 | `internal-scale`, `layer-filter`, `smooth-affine`, `hd-pack`, `hd-dump`, `ai`, `ai-model` | HD rendering, packs and AI upscaling: [HD-PACKS.md](HD-PACKS.md) | off |
 | `widescreen` | `off`, `16:10`, `16:9`: [WIDESCREEN.md](WIDESCREEN.md) | `off` |
+| `smoothing` | `true`/`false`: pictures between frames on high-refresh monitors (below) | false |
 
 ```sh
 <Title> --video "color=gba-lcd;gamma=1.2;output=1080p;fullscreen=true"
@@ -69,6 +70,21 @@ ports of the reference code, so their output is close to but not identical with 
 `window` renders at the window's own size. The fixed outputs render at that resolution and scale the
 result to the window or screen, keeping 3:2 with black bars; in a window they also resize the window
 when it fits on the desktop. Output is always 32-bit colour.
+
+## Smoothing
+
+The game always runs at the GBA's 59.73 frames per second; a faster monitor cannot make it run
+faster without speeding the game up. On a monitor of 120 Hz or more, `smoothing` fills the extra
+refreshes with pictures between two GBA frames: the PPU draws the current frame again with the
+background scroll, rotation reference points and sprite positions moved part of the way from the
+previous frame. It does this only when the two frames differ by small movement alone (at most 16
+pixels, no palette, register, sprite size or visibility changes, no bitmap modes); every other frame
+is shown as it is, so smoothing never shows pixels the game would not draw. It is off with the HD
+renderer, fast-forward and speeds other than 100%, and on monitors below 120 Hz.
+
+Smoothing adds up to one GBA frame (about 17 ms) of input latency, because the pictures between
+two frames can only be drawn once the second one exists. Turn it on in the Video page or with
+Ctrl+I (the `Smoothing` hotkey).
 
 ## In the menu
 

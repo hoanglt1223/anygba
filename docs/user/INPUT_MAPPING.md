@@ -40,6 +40,7 @@ CheatButton = F12
 AiControl = F10
 Journal = F11
 Stats = Ctrl+F
+Smoothing = Ctrl+I
 
 [gamepad]
 A = South

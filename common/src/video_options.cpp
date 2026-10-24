@@ -275,11 +275,12 @@ std::optional<std::string> apply_setting(Options& options, std::string_view key,
                  : key == "smooth-affine" ? &options.smooth_affine
                  : key == "hd-pack"       ? &options.hd_pack
                  : key == "hd-dump"       ? &options.hd_dump
+                 : key == "smoothing"     ? &options.smoothing
                                           : nullptr;
     if (!flag) {
         return "unknown video setting '" + std::string(key) +
                "' (filter, color, gamma, deband, output, fullscreen, integer-scale, internal-scale, layer-filter, "
-               "smooth-affine, hd-pack, hd-dump, ai, ai-model, widescreen)";
+               "smooth-affine, hd-pack, hd-dump, ai, ai-model, widescreen, smoothing)";
     }
     const auto b = parse_bool(value);
     if (!b) return std::string(key) + " must be true or false";
@@ -309,6 +310,7 @@ std::string serialize(const Options& o) {
     if (o.ai != d.ai) add("ai", std::string(name(o.ai)));
     if (o.ai_model != d.ai_model) add("ai-model", std::string(name(o.ai_model)));
     if (o.widescreen != d.widescreen) add("widescreen", std::string(name(o.widescreen)));
+    if (o.smoothing != d.smoothing) add("smoothing", o.smoothing ? "true" : "false");
     return out;
 }
 

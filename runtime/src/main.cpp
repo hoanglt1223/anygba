@@ -16,6 +16,7 @@
 #include "player/script.h"
 #include "player/speed.h"
 #include "player/stats.h"
+#include "video/motion.h"
 #include "player/touch_overlay.h"
 #include "save/save.h"
 #include "video/hd/png_io.h"
@@ -572,7 +573,10 @@ public:
         if (args.wav) wav_ = std::make_unique<WavWriter>(*args.wav);
         hd_ = std::make_unique<anygba::video::hd::Session>(hd_setup());
         hd_->set_options(video_options_);
-        sys_.on_line_rendered = [this](anygba::System& s, unsigned line) { hd_->on_line(s, line); };
+        sys_.on_line_rendered = [this](anygba::System& s, unsigned line) {
+            hd_->on_line(s, line);
+            if (smoothing_wanted()) motion_->on_line(s, line);
+        };
         reset_pacer();
         start_ns_ = platform::now_ns();
         sync_rom_patches();
@@ -654,8 +658,10 @@ public:
         if (audio_) {
             feed_audio_and_wait(unthrottled);
         } else if (pacer_ && !unthrottled) {
+            while (!between_.empty() && platform::now_ns() < between_.front().at) show_between(false);
             pacer_->wait();
         }
+        show_between(true);
         osd_.tick();
         if (touch_ && touch_->paused()) run_touch_pause();
         poll_dialog();
@@ -689,7 +695,10 @@ public:
         hooks.set_speed = [this](int speed) { apply_speed(speed); };
         hooks.state_dir = [this] { return state_dir_; };
         hooks.state_stem = [] { return game_file_stem(); };
-        hooks.after_load = [this] { reset_audio(); };
+        hooks.after_load = [this] {
+            reset_audio();
+            motion_->reset();
+        };
         hooks.osd = [this](const std::string& text) { osd_.show(text); };
         hooks.cheats_changed = [this] {
             sync_rom_patches();
@@ -787,6 +796,11 @@ private:
         if (control_ && anygba::input::has(pressed, Hotkey::AiControl)) control_->set_control(!control_->control_on(), "user");
         if (control_ && anygba::input::has(pressed, Hotkey::Journal)) control_->set_journal(!control_->journal_on(), "user");
         if (anygba::input::has(pressed, Hotkey::Stats)) toggle_stats();
+        if (anygba::input::has(pressed, Hotkey::Smoothing)) {
+            video_options_.smoothing = !video_options_.smoothing;
+            apply_video();
+            osd_.show(video_options_.smoothing ? "Smoothing on" : "Smoothing off");
+        }
     }
 
     // The floating button's quick menu (Android): carries out its choices and tells it what
@@ -1412,6 +1426,10 @@ private:
 
     void present(bool unthrottled) {
         const std::uint64_t now = platform::now_ns();
+        if (smoothing_wanted()) {
+            motion_->end_frame();
+            if (!unthrottled && effective_speed() == 100 && !hd_->picture() && plan_between(now)) return;
+        }
         if ((unthrottled || effective_speed() > 100) && now - last_present_ns_ < 15'000'000) {
             return;  // fast play: show at most about 60 pictures a second
         }
@@ -1430,6 +1448,52 @@ private:
         frame_copy_ = sys_.framebuffer();
         decorate();
         show(frame_copy_);
+    }
+
+    bool smoothing_wanted() const { return video_options_.smoothing && window_; }
+
+    // Pictures this many times the GBA frame rate fit the display (1: no room for any).
+    int pictures_per_frame() {
+        const std::uint64_t now = platform::now_ns();
+        if (now - refresh_checked_ns_ > 1'000'000'000ull) {
+            refresh_checked_ns_ = now;
+            display_hz_ = window_->refresh_rate();
+        }
+        return std::max(1, static_cast<int>(display_hz_ / anygba::kFramesPerSecond + 0.1));
+    }
+
+    // Queues the pictures between the previous frame and this one, spread over one GBA
+    // frame from now and ending with the real frame. False when there is nothing to smooth.
+    bool plan_between(std::uint64_t now) {
+        between_.clear();
+        const int n = pictures_per_frame();
+        if (n < 2 || !motion_->smooth()) return false;
+        const double period = 1e9 / anygba::kFramesPerSecond;
+        for (int k = 1; k <= n; ++k) {
+            between_.push_back({now + static_cast<std::uint64_t>(period * (k - 1) / n), static_cast<double>(k) / n});
+        }
+        between_vram_ = sys_.memory().vram;
+        between_frame_.assign(sys_.framebuffer().begin(), sys_.framebuffer().end());
+        show_between(false);
+        return true;
+    }
+
+    // Shows the queued pictures that are due (all of them when `all`).
+    void show_between(bool all) {
+        while (!between_.empty() && (all || platform::now_ns() >= between_.front().at)) {
+            const Between b = between_.front();
+            between_.erase(between_.begin());
+            if (all && !between_.empty()) continue;  // late: skip straight to the real frame
+            ++presents_;
+            if (b.t >= 1.0) {
+                frame_copy_ = {};
+                std::copy(between_frame_.begin(), between_frame_.end(), frame_copy_.begin());
+            } else {
+                frame_copy_ = motion_->render(b.t, between_vram_);
+            }
+            decorate();
+            show(frame_copy_);
+        }
     }
 
     void show(std::span<const std::uint16_t> frame) {
@@ -1576,6 +1640,7 @@ private:
         }
         audio_->push(squeezed_);
         while (!unthrottled && audio_->queued_frames() > target) {
+            show_between(false);
             platform::sleep_ns(1'000'000);
         }
     }
@@ -1610,6 +1675,16 @@ private:
     std::unique_ptr<anygba::input::DeviceSource> device_;
     NoInput no_input_;
     std::unique_ptr<platform::FramePacer> pacer_;
+    std::unique_ptr<anygba::video::MotionInterpolator> motion_ = std::make_unique<anygba::video::MotionInterpolator>();
+    struct Between {
+        std::uint64_t at = 0;  // host time to show it
+        double t = 1;          // 1: the real frame
+    };
+    std::vector<Between> between_;
+    std::vector<std::uint8_t> between_vram_;
+    std::vector<std::uint16_t> between_frame_;
+    double display_hz_ = 0;
+    std::uint64_t refresh_checked_ns_ = 0;
     player::Resampler resampler_;
     player::TimeStretch stretch_;
     bool stretching_ = false;
