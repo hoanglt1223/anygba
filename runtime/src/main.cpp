@@ -10,6 +10,7 @@
 #include "player/lifecycle.h"
 #include "journal/journal.h"
 #include "player/menu.h"
+#include "player/mp2k.h"
 #include "player/osd.h"
 #include "player/script.h"
 #include "player/speed.h"
@@ -89,6 +90,7 @@ struct Args {
     std::vector<fs::path> cheat_files;
     std::vector<fs::path> cheat_dbs;
     std::vector<std::pair<std::string, fs::path>> dumps;
+    std::optional<fs::path> wav;
     std::string video;  // --filter and --video, serialized
     anygba::Options runtime;
     // Agent control and the play journal (docs/user/AI-CONTROL.md).
@@ -135,6 +137,7 @@ const char* const kUsage =
     "  --cheat-db FILE     use a cheat database besides the ones found in cheats/ folders; repeatable\n"
     "  --dump REGION:FILE  write memory on exit; REGION is ewram, iwram, io, palette, vram, oam, or frame (the\n"
     "                      last picture, 240x160 RGB555 little-endian); repeatable\n"
+    "  --wav FILE          record the sound as played (after speed changes) to a WAV file, also headless\n"
     "  --input FILE        input mapping (default: anygba-input.ini next to the program, else in the data folder)\n"
     "  --write-input FILE  write the current input mapping to FILE and exit\n"
     "  --script FILE       scripted input (keys, gamepad, menu use) by host frame; repeatable\n"
@@ -245,6 +248,8 @@ std::optional<Args> parse(int argc, char** argv) {
                 return std::nullopt;
             }
             a.dumps.emplace_back(region, fs::path(spec.substr(colon + 1)));
+        } else if (arg == "--wav" && has_value) {
+            a.wav = fs::path(argv[++i]);
         } else if (arg == "--cheat-db" && has_value) {
             a.cheat_dbs.emplace_back(argv[++i]);
         } else if (arg == "--input" && has_value) {
@@ -399,6 +404,60 @@ LoadedMapping load_input(const Args& args) {
     return {anygba::input::default_mapping(), dir ? std::optional<fs::path>(*dir / "anygba-input.ini") : std::nullopt};
 }
 
+// 16-bit stereo PCM WAV at the audio rate, sizes patched in by finish().
+class WavWriter {
+public:
+    explicit WavWriter(const fs::path& path) : path_(path), out_(path, std::ios::binary | std::ios::trunc) {
+        if (!out_) throw std::runtime_error("cannot write " + path.string());
+        header(0);
+    }
+    void write(std::span<const std::int16_t> samples) {
+        for (const std::int16_t s : samples) {
+            const auto u = static_cast<std::uint16_t>(s);
+            const char bytes[2] = {static_cast<char>(u & 0xFF), static_cast<char>(u >> 8)};
+            out_.write(bytes, 2);
+        }
+        bytes_ += static_cast<std::uint32_t>(samples.size() * 2);
+    }
+    // Returns an error message.
+    std::optional<std::string> finish() {
+        out_.seekp(0);
+        header(bytes_);
+        out_.close();
+        if (!out_) return "cannot write " + path_.string();
+        return std::nullopt;
+    }
+
+private:
+    void header(std::uint32_t data_bytes) {
+        const auto u32 = [this](std::uint32_t v) {
+            const char b[4] = {static_cast<char>(v), static_cast<char>(v >> 8), static_cast<char>(v >> 16),
+                               static_cast<char>(v >> 24)};
+            out_.write(b, 4);
+        };
+        const auto u16 = [this](std::uint16_t v) {
+            const char b[2] = {static_cast<char>(v), static_cast<char>(v >> 8)};
+            out_.write(b, 2);
+        };
+        out_.write("RIFF", 4);
+        u32(36 + data_bytes);
+        out_.write("WAVEfmt ", 8);
+        u32(16);
+        u16(1);  // PCM
+        u16(2);
+        u32(kSampleRate);
+        u32(kSampleRate * 4);
+        u16(4);
+        u16(16);
+        out_.write("data", 4);
+        u32(data_bytes);
+    }
+
+    fs::path path_;
+    std::ofstream out_;
+    std::uint32_t bytes_ = 0;
+};
+
 class NoInput final : public anygba::input::Source {
 public:
     bool key_held(std::string_view) const override { return false; }
@@ -460,6 +519,7 @@ public:
 #endif
             background_ = std::make_unique<player::BackgroundWatch>([this] { write_save(); });
         }
+        if (args.wav) wav_ = std::make_unique<WavWriter>(*args.wav);
         reset_pacer();
         start_ns_ = platform::now_ns();
         sync_rom_patches();
@@ -509,8 +569,12 @@ public:
         if (effective_speed() != pacer_speed_) reset_pacer();
         const bool unthrottled = this->unthrottled();
         present(unthrottled);
+        if (mapping_.normal_speed_music || mp2k_.scaled()) {
+            mp2k_.update(sys_.memory(), normal_speed_music() ? audio_speed() : 100);
+        }
         sound_.clear();
         sys_.drain_audio(sound_);
+        if (audio_ || wav_) process_audio();
         if (audio_) {
             feed_audio_and_wait(unthrottled);
         } else if (pacer_ && !unthrottled) {
@@ -526,6 +590,14 @@ public:
         vblank_end_ns_ = platform::now_ns();
     }
 
+    // After the run: completes the --wav file. Returns an error message.
+    std::optional<std::string> finish() {
+        if (!wav_) return std::nullopt;
+        auto error = wav_->finish();
+        wav_.reset();
+        return error;
+    }
+
     void stop() {
         stopping_ = true;
         sys_.stop();
@@ -539,7 +611,7 @@ public:
         hooks.set_speed = [this](int speed) { apply_speed(speed); };
         hooks.state_dir = [this] { return state_dir_; };
         hooks.state_stem = [] { return game_file_stem(); };
-        hooks.after_load = [this] { resampler_.reset(); };
+        hooks.after_load = [this] { reset_audio(); };
         hooks.osd = [this](const std::string& text) { osd_.show(text); };
         hooks.cheats_changed = [this] {
             sync_rom_patches();
@@ -832,7 +904,7 @@ private:
         sys_.request_safe_point([this, slot, bytes](anygba::System& s) {
             try {
                 s.load_state(*bytes);
-                resampler_.reset();
+                reset_audio();
                 osd_.show("Loaded state " + std::to_string(slot));
                 user_event("state_load", anygba::control::Json(anygba::control::Json::Object{{"slot", slot}}));
             } catch (const std::exception& e) {
@@ -935,7 +1007,7 @@ private:
         }
         trace_menu();
         hotkeys_prev_ = hotkeys_held();
-        resampler_.reset();
+        reset_audio();
     }
 
     // Headless runs print the menu whenever it changes, for scripted tests and debugging.
@@ -996,6 +1068,40 @@ private:
         return anygba::control::Json(anygba::control::Json::Object{{"active", std::move(names)}});
     }
 
+    // The speed the sound is squeezed by: the game speed, also in unpaced runs (so --wav
+    // records what a paced run plays), and 400% for unlimited fast-forward.
+    int audio_speed() const {
+        return fast_forward_held_ && mapping_.fast_forward == player::kUnlimited ? 400 : effective_speed();
+    }
+
+    // Normal-speed music: MP2K games get their sequencer slowed by the speed, and the sound is
+    // time-stretched instead of resampled, so it keeps its pitch.
+    bool normal_speed_music() const {
+        return mapping_.normal_speed_music && audio_speed() > 100 &&
+               !(fast_forward_held_ && mapping_.fast_forward == player::kUnlimited);
+    }
+
+    // Squeezes this frame's sound (sound_) into squeezed_, for the device and --wav.
+    void process_audio() {
+        squeezed_.clear();
+        const bool stretch = normal_speed_music();
+        if (stretch != stretching_) {
+            reset_audio();
+            stretching_ = stretch;
+        }
+        if (stretch) {
+            stretch_.process(sound_, audio_speed() / 100.0, squeezed_);
+        } else {
+            resampler_.process(sound_, audio_speed() / 100.0, squeezed_);
+        }
+        if (wav_) wav_->write(squeezed_);
+    }
+
+    void reset_audio() {
+        resampler_.reset();
+        stretch_.reset();
+    }
+
     // Audio-led pacing: the device consumes 32768 frames per second of sound (SDL resamples
     // to the device rate), so keeping the queue near two video frames ties emulation speed to
     // the sound card's clock. Faster speeds squeeze each frame's sound by the speed factor, so
@@ -1003,8 +1109,6 @@ private:
     // at a set rate works the same way; only unlimited fast-forward drops sound.
     void feed_audio_and_wait(bool unthrottled) {
         const std::size_t target = 2 * kSampleRate / 60;
-        squeezed_.clear();
-        resampler_.process(sound_, unthrottled ? 4.0 : effective_speed() / 100.0, squeezed_);
         if (unthrottled && audio_->queued_frames() > target) {
             return;  // drop what the device cannot play
         }
@@ -1040,6 +1144,10 @@ private:
     NoInput no_input_;
     std::unique_ptr<platform::FramePacer> pacer_;
     player::Resampler resampler_;
+    player::TimeStretch stretch_;
+    bool stretching_ = false;
+    player::Mp2kTempo mp2k_;
+    std::unique_ptr<WavWriter> wav_;
     std::vector<std::int16_t> sound_;
     std::vector<std::int16_t> squeezed_;
     std::array<std::uint16_t, anygba::kScreenWidth * anygba::kScreenHeight> frame_copy_{};
@@ -1264,6 +1372,10 @@ int main(int argc, char** argv) {
         sys.run();
         const double elapsed = static_cast<double>(anyport::platform::now_ns() - start) / 1e9;
         int status = 0;
+        if (const auto error = player.finish()) {
+            std::fprintf(stderr, "error: %s\n", error->c_str());
+            status = 1;
+        }
         if (save) {
             if (const auto error = save->flush()) {
                 std::fprintf(stderr, "error: %s\n", error->c_str());

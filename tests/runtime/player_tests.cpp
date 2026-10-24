@@ -1,6 +1,7 @@
 #include "cheats/cheat_list.h"
 #include "input_map.h"
 #include "player/menu.h"
+#include "player/mp2k.h"
 #include "player/osd.h"
 #include "player/script.h"
 #include "player/speed.h"
@@ -416,10 +417,120 @@ TEST_CASE("fast-forward speed: steps, settings file and the menu's Speed page") 
     CHECK(mapping.fast_forward == 500);
     press(Left);
     CHECK(mapping.fast_forward == 400);
+    press(Down);
+    CHECK(menu.lines()[3] == "> Normal-speed music  Off");
+    press(A);
+    CHECK(mapping.normal_speed_music);
+    CHECK(anygba::input::parse_mapping(anygba::input::format_mapping(mapping), "rt").normal_speed_music);
     press(B);
     CHECK(menu.lines()[0] == "== AnyGBA ==");
-    CHECK(std::count(actions.begin(), actions.end(), MenuAction::MappingChanged) == 3);
+    CHECK(std::count(actions.begin(), actions.end(), MenuAction::MappingChanged) == 4);
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::SpeedChanged) == 2);
+}
+
+TEST_CASE("time-stretch keeps the pitch and shortens the sound by the ratio") {
+    // 440 Hz tone bursts: 0.3 s on at the start of every 0.9 s, in video-frame blocks.
+    for (const double ratio : {1.0, 1.5, 3.0, 8.0}) {
+        anygba::player::TimeStretch stretch;
+        std::vector<std::int16_t> out;
+        const std::size_t total = 32768 * 12;
+        for (std::size_t at = 0; at < total;) {
+            const std::size_t n = std::min<std::size_t>(547, total - at);
+            std::vector<std::int16_t> in;
+            for (std::size_t i = at; i < at + n; ++i) {
+                const double t = static_cast<double>(i) / 32768.0;
+                const bool on = std::fmod(t, 0.9) < 0.3;
+                const auto s = static_cast<std::int16_t>(on ? std::lround(8000 * std::sin(2 * std::numbers::pi * 440 * t)) : 0);
+                in.push_back(s);
+                in.push_back(s);
+            }
+            at += n;
+            stretch.process(in, ratio, out);
+        }
+        CAPTURE(ratio);
+        const double frames = static_cast<double>(out.size() / 2);
+        CHECK(std::abs(frames - static_cast<double>(total) / ratio) <= 2048 + total / ratio * 0.01);
+        // Burst starts, from where the level rises: one every 0.9 / ratio s.
+        std::vector<double> starts;
+        bool loud = false;
+        for (std::size_t f = 0; f + 64 < out.size() / 2; f += 64) {
+            double e = 0;
+            for (std::size_t k = 0; k < 64; ++k) e += std::abs(out[(f + k) * 2]);
+            const bool now = e / 64 > 2000;
+            if (now && !loud) starts.push_back(static_cast<double>(f) / 32768.0);
+            loud = now;
+        }
+        REQUIRE(starts.size() >= 10);
+        const double period = (starts[starts.size() - 2] - starts[1]) / static_cast<double>(starts.size() - 3);
+        CHECK(period == doctest::Approx(0.9 / ratio).epsilon(0.03));
+        // Pitch: zero crossings inside the first full burst stay at 880 a second.
+        const auto first = static_cast<std::size_t>(starts[1] * 32768) + 256;
+        const double burst = 0.3 / ratio * 32768 - 512;
+        if (burst > 500) {
+            const auto span = static_cast<std::size_t>(burst);
+            int crossings = 0;
+            for (std::size_t f = first + 1; f < first + span; ++f) {
+                crossings += (out[f * 2] >= 0) != (out[(f - 1) * 2] >= 0);
+            }
+            CHECK(crossings / (static_cast<double>(span) / 32768.0) == doctest::Approx(880).epsilon(0.03));
+        }
+    }
+}
+
+TEST_CASE("MP2K: tempo and envelopes slowed by the speed, then put back") {
+    anygba::Memory mem;
+    const auto put32 = [&](std::uint32_t addr, std::uint32_t v) {
+        auto& ram = (addr >> 24) == 3 ? mem.iwram : mem.ewram;
+        const std::uint32_t off = addr & static_cast<std::uint32_t>(ram.size() - 1);
+        for (int i = 0; i < 4; ++i) ram[off + static_cast<std::uint32_t>(i)] = static_cast<std::uint8_t>(v >> (8 * i));
+    };
+    const auto get16 = [&](std::uint32_t addr) {
+        const std::uint32_t off = addr & 0x7FFF;
+        return static_cast<int>(mem.iwram[off] | mem.iwram[off + 1] << 8);
+    };
+    const auto byte = [&](std::uint32_t addr) -> std::uint8_t& { return mem.iwram[addr & 0x7FFF]; };
+    constexpr std::uint32_t info = 0x03006380, player1 = 0x03007420, player2 = 0x02010000;
+    constexpr std::uint32_t ident = anygba::player::Mp2kTempo::kIdent;
+    anygba::player::Mp2kTempo tempo;
+    CHECK(!tempo.update(mem, 300));  // no engine
+
+    put32(0x03007FF0, info);
+    put32(info, ident);
+    put32(info + 0x24, player1);
+    put32(player1 + 0x1C, 184 | 256u << 16);  // tempoD 184, tempoU 0x100
+    put32(player1 + 0x20, 184);               // tempoI
+    put32(player1 + 0x34, ident);
+    put32(player1 + 0x3C, player2);
+    put32(player2 + 0x34, ident);            // second player, tempo 0
+    const std::uint32_t chan = info + 0x50 + 2 * 0x40;  // third DirectSound channel
+    byte(chan) = 0x83;                                  // playing
+    byte(chan + 4) = 255;                               // attack
+    byte(chan + 5) = 192;                               // decay
+    byte(chan + 7) = 128;                               // release
+
+    REQUIRE(tempo.update(mem, 300));
+    CHECK(tempo.scaled());
+    int sum = get16(player1 + 0x20);
+    for (int frame = 1; frame < 3; ++frame) {
+        tempo.update(mem, 300);
+        sum += get16(player1 + 0x20);
+    }
+    CHECK(sum == 184);  // 61, 61, 62: exact over three frames
+    CHECK(byte(chan + 4) == 85);
+    CHECK(byte(chan + 5) == 233);  // 0.75^(1/3) * 256
+    CHECK(byte(chan + 7) == 203);  // 0.5^(1/3) * 256
+
+    put32(info, ident + 1);  // locked: left alone
+    put32(player1 + 0x20, 7);
+    tempo.update(mem, 100);
+    CHECK(get16(player1 + 0x20) == 7);
+    put32(info, ident);
+    tempo.update(mem, 100);
+    CHECK(!tempo.scaled());
+    CHECK(get16(player1 + 0x20) == 184);
+    CHECK(byte(chan + 4) == 255);
+    CHECK(byte(chan + 5) == 192);
+    CHECK(byte(chan + 7) == 128);
 }
 
 TEST_CASE("stats overlay: hotkey, setting and lines") {

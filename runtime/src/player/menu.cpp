@@ -225,6 +225,9 @@ void Menu::update_speed(std::uint16_t press, std::vector<MenuAction>& out) {
             say("Fast-forward " + format_fast_forward(next));
             out.push_back(MenuAction::MappingChanged);
         }
+    } else if (cursor_ == 2) {
+        mapping_.normal_speed_music = !mapping_.normal_speed_music;
+        out.push_back(MenuAction::MappingChanged);
     }
 }
 
@@ -550,6 +553,7 @@ std::vector<Menu::Row> Menu::rows() const {
     case Page::Speed:
         out.push_back({"Speed", "< " + std::to_string(speed_) + "% >", 0});
         out.push_back({"Fast-forward speed", "< " + format_fast_forward(mapping_.fast_forward) + " >", 1});
+        out.push_back({"Normal-speed music", mapping_.normal_speed_music ? "On" : "Off", 2});
         break;
     case Page::Settings:
         if (settings_) {

@@ -44,4 +44,23 @@ private:
     std::int16_t last_[2] = {0, 0};
 };
 
+// Stereo 16-bit time-stretch (WSOLA): plays sound `ratio` times faster at its own pitch.
+// Each output step overlap-adds a Hann-windowed segment of kSegment frames taken near the
+// nominal input position, shifted by up to kSearch frames to where it best continues the
+// previous segment, so tones stay in phase. Output lags input by about one segment.
+class TimeStretch {
+public:
+    static constexpr int kSegment = 1024;  // frames; half of it is the output step
+    static constexpr int kSearch = 256;
+
+    void process(std::span<const std::int16_t> in, double ratio, std::vector<std::int16_t>& out);
+    void reset();
+
+private:
+    std::vector<float> in_;    // interleaved input still needed
+    std::vector<float> tail_;  // second half of the last segment, windowed
+    double next_ = 0;          // nominal start of the next segment, frames into in_
+    std::ptrdiff_t natural_ = -1;  // where the last segment would go on, frames into in_; -1: none
+};
+
 }  // namespace anygba::player

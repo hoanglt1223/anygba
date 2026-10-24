@@ -64,6 +64,8 @@ FastForward = RightTrigger
 Speed = 100
 # Speed while FastForward is held: 150, 200, 300, 400, 500, 800 or unlimited (no sound).
 FastForwardSpeed = 300
+# Music keeps its 1x tempo and pitch when the game runs faster: on or off.
+NormalSpeedMusic = off
 # The stats overlay (Stats hotkey) is shown: on or off.
 Stats = off
 # Left stick travel ignored before it presses the d-pad (0-32767).

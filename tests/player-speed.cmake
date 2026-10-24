@@ -52,3 +52,19 @@ if(NOT found OR CMAKE_MATCH_1 LESS 0.8 OR (NOT no_upper AND CMAKE_MATCH_1 GREATE
   message(FATAL_ERROR "fast-forward at 400% from the input file: expected 0.8-1.6 s:\n${out}")
 endif()
 message(STATUS "fast-forward 400%: ${CMAKE_MATCH_1} s")
+
+# --wav records the sound as played: at 200% the 120 frames of sound (about 2.0 s at 32768 Hz)
+# are squeezed into about 1.0 s, resampled, or time-stretched with NormalSpeedMusic.
+file(WRITE "${WORK}/music.ini" "[player]\nNormalSpeedMusic = on\n")
+foreach(case "resample;" "stretch;--input;${WORK}/music.ini")
+  list(POP_FRONT case name)
+  run_game(out --speed 200 --frames 120 --no-save --wav "${WORK}/${name}.wav" ${case})
+  file(SIZE "${WORK}/${name}.wav" bytes)
+  math(EXPR seconds_x100 "(${bytes} - 44) * 100 / (32768 * 4)")
+  message(STATUS "--wav at 200% (${name}): ${bytes} bytes")
+  if(seconds_x100 LESS 90 OR seconds_x100 GREATER 105)
+    message(FATAL_ERROR "--wav at 200% (${name}): ${bytes} bytes, expected about 1.0 s of sound")
+  endif()
+  expect_bytes("${WORK}/${name}.wav" 0 "52494646")  # RIFF
+  expect_bytes("${WORK}/${name}.wav" 8 "57415645")  # WAVE
+endforeach()

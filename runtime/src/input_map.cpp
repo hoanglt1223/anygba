@@ -250,11 +250,14 @@ Mapping parse_mapping(std::string_view text, std::string_view source_name) {
             } else if (key == "Stats") {
                 if (value != "on" && value != "off") fail("Stats must be on or off");
                 m.stats = value == "on";
+            } else if (key == "NormalSpeedMusic") {
+                if (value != "on" && value != "off") fail("NormalSpeedMusic must be on or off");
+                m.normal_speed_music = value == "on";
             } else if (key == "StickDeadzone") {
                 if (*end != '\0' || n < 0 || n > 32767) fail("StickDeadzone must be 0 to 32767");
                 m.stick_deadzone = static_cast<int>(n);
             } else {
-                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, Stats, StickDeadzone)");
+                fail("unknown [player] setting '" + std::string(key) + "' (Speed, FastForwardSpeed, NormalSpeedMusic, Stats, StickDeadzone)");
             }
             continue;
         }
@@ -341,6 +344,7 @@ std::string format_mapping(const Mapping& m) {
     }
     out += "\n[player]\nSpeed = " + std::to_string(m.speed) +
            "\nFastForwardSpeed = " + player::format_fast_forward(m.fast_forward, false) +
+           "\nNormalSpeedMusic = " + (m.normal_speed_music ? "on" : "off") +
            "\nStats = " + (m.stats ? "on" : "off") +
            "\nStickDeadzone = " + std::to_string(m.stick_deadzone) + "\n";
     return out;

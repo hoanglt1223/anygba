@@ -40,6 +40,7 @@ add_library(anygba_runtime STATIC
   src/player/osd.cpp
   src/player/speed.cpp
   src/player/stats.cpp
+  src/player/mp2k.cpp
   src/player/script.cpp
   src/player/menu.cpp
   src/video/parallel.cpp

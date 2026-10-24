@@ -55,6 +55,7 @@ Options (`anygba help build`):
 - `--exit-on-idle`: stop at the first branch-to-self (test ROMs end this way) and print the registers.
 - `--dump REGION:FILE`: write memory (`ewram`, `iwram`, `io`, `palette`, `vram`, `oam`) or the last
   picture (`frame`, 240x160 RGB555) to a file on exit. Handy for finding cheat addresses.
+- `--wav FILE`: record the sound as it is played (after speed changes) to a WAV file, also headless.
 - `--control`, `--journal`, `--symbols FILE` and the other `--control-*` and `--journal-*` options: AI agent
   control and the play journal ([AI-CONTROL.md](AI-CONTROL.md)).
 
@@ -88,6 +89,16 @@ the card cannot keep up with. Set it in the menu (Speed page), with `FastForward
 `[player]` section, or for one run with `--ff-speed N|unlimited`. A change in the menu is saved to the
 input file.
 
+*Normal-speed music* (Speed page, `NormalSpeedMusic = on` in `[player]`; off by default) keeps the music
+at 1x while the game runs faster, at any speed above 100% and while fast-forward is held (not at
+*unlimited*). In games that use Nintendo's MusicPlayer2000 sound engine (most first-party and many other
+games, Pokemon Emerald among them), the engine's sequencer is slowed by the speed, so songs and sound
+effects keep their tempo; the engine's note envelopes are slowed too, while its GB-channel envelopes still
+run at game speed. In every game the sound is then time-stretched instead of resampled, so it keeps its
+pitch; in games without that engine the music plays faster at its normal pitch.
+`tests/normal-speed-music.py --game <your game>` checks the tempo on a build of your own Pokemon
+Emerald dump.
+
 ## Stats overlay
 
 Ctrl+F (the `Stats` hotkey) shows figures in the top-left corner, updated every second: pictures shown
@@ -113,7 +124,8 @@ Escape (gamepad: Back+Start) pauses the game and opens the menu; the GBA buttons
 A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes it.
 
 - **Save state / Load state**: Left/Right picks the slot.
-- **Speed**: Left/Right changes the speed; A opens the Speed page with *Speed* and *Fast-forward speed*.
+- **Speed**: Left/Right changes the speed; A opens the Speed page with *Speed*, *Fast-forward speed* and
+  *Normal-speed music*.
 - **Cheats**: the cheat databases for this game and your own codes ([CHEATS.md](CHEATS.md)).
 - **Controls**: every GBA button and hotkey with its keyboard and gamepad bindings. Choose one, then press
   the new key (with Ctrl, Alt or Shift for a hotkey chord) or gamepad button (hold another gamepad button
