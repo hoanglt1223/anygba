@@ -253,6 +253,24 @@ std::optional<std::string> parse_build_args(std::span<const std::string_view> ar
     return std::nullopt;
 }
 
+// MSBuild fails when an intermediate path (game.dir\Release\game.tlog\..., object files) passes
+// 260 characters, so a deep work folder gets its CMake build tree in a short folder under the
+// temp directory, named by a hash of the work folder so rebuilds reuse it.
+static fs::path build_tree(const fs::path& work) {
+    const fs::path bin = fs::absolute(work / "out");
+#if defined(_WIN32)
+    constexpr std::size_t kMaxBuildTreeLength = 80;
+    const std::string text = path_string(bin);
+    if (text.size() > kMaxBuildTreeLength) {
+        char name[32];
+        std::snprintf(name, sizeof name, "anygba-%08x",
+                      anygba::crc32({reinterpret_cast<const std::uint8_t*>(text.data()), text.size()}));
+        return fs::temp_directory_path() / name;
+    }
+#endif
+    return bin;
+}
+
 fs::path build(const BuildOptions& o) {
     recomp::Options ro;
     ro.rom = o.rom;
@@ -281,7 +299,7 @@ fs::path build(const BuildOptions& o) {
         return o.target == Target::Android ? android::build_apk(game, paths, o.android)
                                            : android::build_package(game, paths, o.android);
     }
-    const fs::path bin = work / "out";
+    const fs::path bin = build_tree(work);
     std::vector<std::string> configure = {o.cmake, "-S", path_string(ro.output_dir), "-B", path_string(bin),
                                           "-DCMAKE_PREFIX_PATH=" + path_string(prefix),
                                           "-DCMAKE_BUILD_TYPE=" + o.build_type};
