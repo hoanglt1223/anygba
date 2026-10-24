@@ -21,14 +21,16 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 |---|---|---|
 | `cmake/` | | `toolchain` (language levels, output dirs, MSVC flags), `warnings`, `sanitizers`, `dependencies` (pinned FetchContent) |
 | `platform/` | `anyport_platform` (`anyport::platform`) | Host layer on SDL3: context, window, audio, input, timing, log |
-| `common/` | `anygba_common` | SHA-256 (ties generated code to its ROM) |
+| `common/` | `anygba_common` | SHA-256 (ties generated code to its ROM), embedded-ROM trailer |
 | `runtime/` | `anygba_runtime` (`anygba::runtime`, file `anygba`) | `libanygba`: `System` (bus, IO, scheduler, IRQ, DMA, timers, dispatch, fallback interpreter); C ABI for generated code in `include/anygba/cpu.h` |
+| `runtime/src/save/`, `input_map.cpp` | `anygba_runtime` | Backup memory (SRAM, Flash, EEPROM), save files, `anygba-input.ini` |
 | `runtime/src/main.cpp` | `anygba_game_main` (`anygba::game_main`) | `main()` for generated games |
 | `tools/recomp/decode/` | `anygba_decode` | ARMv4T ARM/Thumb decoder (`Insn`) and Capstone-syntax disassembler; shared with the runtime interpreter |
 | `tools/recomp/analysis/` | `anygba_recomp_lib` | ROM image with RAM regions, CFG walker with constant tracking, jump tables, function discovery |
 | `tools/recomp/config/`, `io/` | `anygba_recomp_lib` | Per-game TOML config, runtime miss-log reader ([GAME-CONFIG.md](GAME-CONFIG.md)) |
 | `tools/recomp/codegen/` | `anygba_recomp_lib` | C emitter (`c_emitter`, `arm_ops`, `thumb_ops`) and project writer (`dispatch_table`) |
 | `tools/recomp/src/` | `anygba_recomp_lib`, `anygba-recomp` | CLI and pipeline |
+| `tools/anygba/` | `anygba_driver_lib`, `anygba` | `anygba build`: recompile, compile against the install tree, embed the ROM, package |
 | `cmake/anygba_game.cmake` | | `anygba_add_game()`: recompile a ROM inside this build (used by the corpus tests) |
 | `tests/` | `anygba-tests`, `platform-smoke` | doctest unit tests by module, smoke app, corpus lock and fetch scripts |
 | `tests/oracle/` | | Scripts that produce reference data with mGBA (not built; see its README) |
@@ -75,6 +77,16 @@ mirrors, VRAM's 32 KiB mirror, byte writes to palette (doubled), VRAM (BG only) 
 line end, timer overflows); video timing is 1232 cycles per line and 228 lines per frame. DMA channels
 run instantly on their trigger; timers are read lazily and cascade. Errors the runtime will not guess
 about (unknown SWI, undefined instruction) stop `System::run` with `anygba::Error`.
+
+### Saves
+
+`runtime/src/save/` implements the cartridge backup chips behind one `save::Backup` interface; `System`
+picks the type from `Options::save_type`, then the generated game's config value, then the ROM's library ID
+string. The bus sends 0x0E/0x0F bytes to it. With an EEPROM, page 0x0D leaves the fast path and halfword
+accesses there (all of 0x0D on carts up to 16 MB, 0x0DFFFF00+ on 32 MB carts) reach the serial port;
+`run_dma` passes the DMA 3 length along so the first request fixes the address width (6 or 14 bits).
+Flash erase and program finish instantly. `save::SaveFile` (used by `main.cpp`) persists `Backup::data()`
+after 30 unchanged frames and on exit: write `.tmp`, copy the old file to `.bak`, rename.
 
 ### HLE BIOS
 

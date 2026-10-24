@@ -72,6 +72,9 @@ jobs:
           cmake -S smoke-gen -B smoke-gen/out ${{ matrix.configure }} -DCMAKE_BUILD_TYPE=Release \
             "-DCMAKE_PREFIX_PATH=$PWD/dist/$PKG"
           cmake --build smoke-gen/out --config Release
+          # The same through the driver, which also embeds the ROM and packages the program.
+          "dist/$PKG/bin/anygba" build smoke.gba -o smoke-dist --name Smoke
+          ls smoke-dist
 
       - name: Archive (zip)
         if: matrix.archive == 'zip'

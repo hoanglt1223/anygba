@@ -6,6 +6,8 @@ are errors, so a typo cannot silently disable a setting. Addresses are integers;
 ```toml
 [game]
 title = "tonc irq_demo"
+save = "flash128"       # none, sram, flash64, flash128, eeprom, eeprom512, eeprom8k (default: detect)
+sources = ["hacks.c"]   # C files compiled into the game, relative to this file
 
 # Extra function entry points the static analysis cannot see.
 [[entry]]
@@ -31,7 +33,42 @@ end = 0x08001200        # exclusive
 [[patch]]
 addr = 0x08000010
 bytes = "00 00 a0 e1"   # memory order; spaces and underscores are ignored
+
+# The function at addr runs a hand-written C function from `sources` instead of its
+# translation. The address becomes an entry point.
+[[replace]]
+addr = 0x08000400
+mode = "thumb"
+function = "skip_intro"
 ```
+
+## Replacement functions
+
+A replacement has the generated functions' signature, `void name(anygba_cpu* c)`, and must leave the CPU
+the way the original would: results in `c->r[...]`, and `c->r[15]` set to where execution continues.
+`ag_return(c)` does what `bx lr` does. Memory goes through the same helpers generated code uses
+(`ag_ldr`, `ag_wr16`, ... in `anygba/cpu.h`):
+
+```c
+#include <anygba/cpu.h>
+
+/* The intro's frame counter: return 0 so the title screen comes up at once. */
+void skip_intro(anygba_cpu* c) {
+    c->r[0] = 0;
+    ag_return(c);
+}
+```
+
+Every call reaches the replacement, including direct calls from other generated functions: the original
+`f_XXXXXXXX` becomes a one-line call to it. Function names may not start with `f_`, `ag_` or `anygba_`.
+`[[replace]]` without `sources` is an error.
+
+## Save type
+
+Without `save`, the runtime picks the type from the library ID string in the ROM (`SRAM_V`, `FLASH_V`,
+`FLASH512_V`, `FLASH1M_V`, `EEPROM_V`). Set it when a ROM has no ID or the wrong one. Plain `eeprom`
+decides between 512 bytes and 8 KB from the length of the first EEPROM DMA transfer; set `eeprom512` or
+`eeprom8k` for games that access the EEPROM without DMA. A generated game's `--save-type` overrides both.
 
 ## Trace feedback
 

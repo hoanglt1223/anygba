@@ -31,7 +31,6 @@ add_library(anygba_runtime STATIC
   src/save/eeprom.cpp
   src/save/save_file.cpp
   src/input_map.cpp
-  src/embedded_rom.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)

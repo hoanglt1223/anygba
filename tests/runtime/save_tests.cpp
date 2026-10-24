@@ -1,5 +1,5 @@
 #include "anygba/system.hpp"
-#include "embedded_rom.h"
+#include "anygba/embedded_rom.h"
 #include "input_map.h"
 #include "save/save.h"
 
@@ -264,11 +264,8 @@ TEST_CASE("embedded ROM trailer") {
     {
         std::ofstream out(exe, std::ios::binary);
         out << "MZ program bytes";
-        out.write(reinterpret_cast<const char*>(rom.data()), static_cast<std::streamsize>(rom.size()));
-        std::uint64_t size = rom.size();
-        for (int i = 0; i < 8; ++i) out.put(static_cast<char>((size >> (8 * i)) & 0xFF));
-        out << anygba::kEmbeddedRomMagic;
     }
+    anygba::append_rom(exe, rom);
     const auto got = anygba::read_appended_rom(exe);
     REQUIRE(got);
     CHECK(*got == rom);

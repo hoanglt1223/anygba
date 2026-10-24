@@ -22,11 +22,19 @@ What works:
   DirectSound FIFOs fed by DMA, mixed per GBATEK at 32768 Hz. Self-authored test tones correlate with
   mGBA's output above 0.99 (noise 0.98, a panned mix 0.988); tonc's snd1_demo and a Varooom 3D sound
   effect match as well. Generated games print a count of DirectSound FIFO underruns on exit.
+- Saves: SRAM, Flash 64/128 KB and EEPROM 512 B/8 KB, detected from the ROM or set per game, written to
+  the per-user data folder with a backup of the previous file. jsmolka's save tests pass and keep their
+  save across restarts.
+- `anygba build game.gba`: one command from ROM to a program with the ROM embedded
+  ([docs/user/USAGE.md](docs/user/USAGE.md)). Controls come from `anygba-input.ini`
+  ([docs/user/INPUT_MAPPING.md](docs/user/INPUT_MAPPING.md)).
 
 What does not work yet:
 
-- Audio: never played through a real sound device on the development PC (headless only), so
-  windowed playback, audio-led pacing and fast-forward are untested.
+- Audio and windows: never run on a real sound device or window on the development PC (headless
+  only), so windowed playback, keyboard/gamepad input, audio-led pacing and fast-forward are untested.
+- EEPROM is checked by unit tests only; no open-source test ROM in the corpus uses it.
+- The macOS `.app` bundle and its ad-hoc signing are written but have not been run on a Mac.
 - The sprite-per-line cycle limit is implemented but no test content reaches it.
 - The BIOS sound driver (SWI 0x1A-0x1E, 0x20-0x24, 0x28-0x2A) and MultiBoot are stubs that log once.
   Games that use their own sound engine (most of them) do not call these.
@@ -67,14 +75,12 @@ CMake options:
 With an installed package (built as above, or a release archive):
 
 ```sh
-<prefix>/bin/anygba-recomp game.gba --output game-src [--config game.toml]
-cmake -S game-src -B game-src/out -DCMAKE_PREFIX_PATH=<prefix>
-cmake --build game-src/out --config Release
-game-src/out/<config>/game game.gba          # window; --headless for none
+<prefix>/bin/anygba build game.gba [--config game.toml] [-o dist]   # dist/<Title>.exe, ROM embedded
 ```
 
-Code the static analysis missed runs in the interpreter and is listed in `anygba-miss.log`. Recompile
-with `--miss-log anygba-miss.log` and rebuild to turn it into native code.
+Code the static analysis missed runs in the interpreter and is listed in `anygba-miss.log`. Rebuild
+with `--miss-log anygba-miss.log` to turn it into native code. Saves, controls, and the separate
+recompile/configure/build steps: [docs/user/USAGE.md](docs/user/USAGE.md).
 
 ## Releases
 
@@ -87,16 +93,20 @@ GitHub Release.
 - `anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]`: recompiler
   CLI. Writes a C project to the output directory; `--list` prints the discovered functions with
   disassembly instead. Config schema and the miss-log format: [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
-- A generated game: `game <rom.gba> [--headless] [--pace | --fast] [--frames N] [--seconds S]
-  [--exit-on-idle] [--miss-log FILE | --no-miss-log] [--scale N]`. It only accepts the ROM it was generated
-  from (SHA-256). With a window it paces to the audio device and Tab fast-forwards; headless runs are
-  unpaced unless `--pace`. Addresses it had to interpret are appended to `anygba-miss.log`.
+- `anygba build <rom.gba> [options]`: recompile, compile and package in one step (`anygba help build`).
+- A generated game: `game [rom.gba] [--headless] [--pace | --fast] [--frames N] [--seconds S]
+  [--exit-on-idle] [--dump-frame-hash] [--save-dir DIR | --no-save] [--save-type T] [--input FILE]
+  [--miss-log FILE | --no-miss-log] [--scale N]`. It only accepts the ROM it was generated from (SHA-256);
+  without a ROM argument it uses the one `anygba build` embedded. With a window it paces to the audio
+  device and Tab fast-forwards; headless runs are unpaced unless `--pace`. Addresses it had to interpret
+  are appended to `anygba-miss.log`.
 - `platform-smoke`: opens a window with a test pattern and plays a 440/660 Hz tone. Held buttons light up
   along the bottom; Escape quits. `--headless` runs on SDL's dummy drivers, checks the scaled output, the
   audio drain, and keyboard routing, and exits non-zero on a mismatch. CTest runs it this way.
 
-Default keys: arrows = d-pad, X = South (A), Z = East (B), A = West, S = North, Q/W = shoulders,
-Return = Start, Backspace = Back. Any SDL gamepad works as well.
+Default keys in `platform-smoke`: arrows = d-pad, X = South (A), Z = East (B), A = West, S = North,
+Q/W = shoulders, Return = Start, Backspace = Back. Any SDL gamepad works as well. Games use
+`anygba-input.ini` ([docs/user/INPUT_MAPPING.md](docs/user/INPUT_MAPPING.md)).
 
 ## Test corpus
 

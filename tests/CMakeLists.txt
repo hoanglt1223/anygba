@@ -36,12 +36,14 @@ add_executable(anygba-tests
   runtime/bios_tests.cpp
   runtime/ppu_tests.cpp
   runtime/apu_tests.cpp
-  runtime/save_tests.cpp)
+  runtime/save_tests.cpp
+  driver/driver_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
   anygba::common
   anygba_recomp_lib
+  anygba_driver_lib
   capstone_static
   anygba_codegen_fixture
   doctest::doctest)
@@ -127,6 +129,14 @@ set(test_prefix "${CMAKE_BINARY_DIR}/test-prefix")
 add_test(NAME install-runtime
   COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config $<CONFIG> --prefix "${test_prefix}")
 set_tests_properties(install-runtime PROPERTIES FIXTURES_SETUP runtime_install)
+if(EXISTS "${corpus}/gba-tests/save/sram.gba")
+  add_test(NAME driver-build
+    COMMAND "${CMAKE_COMMAND}"
+      "-DDRIVER=$<TARGET_FILE:anygba>" "-DPREFIX=${test_prefix}" "-DROM=${corpus}/gba-tests/save/sram.gba"
+      "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/driver-build" -DCONFIG=$<CONFIG> "-DGENERATOR=${CMAKE_GENERATOR}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/driver-build.cmake")
+  set_tests_properties(driver-build PROPERTIES FIXTURES_REQUIRED runtime_install LABELS slow TIMEOUT 900)
+endif()
 foreach(demo irq_demo dma_demo)
   if(EXISTS "${corpus}/tonc/bin/${demo}.gba")
     add_test(NAME feedback-${demo}

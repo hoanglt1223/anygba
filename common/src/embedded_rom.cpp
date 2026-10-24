@@ -1,4 +1,4 @@
-#include "embedded_rom.h"
+#include "anygba/embedded_rom.h"
 
 #include <array>
 #include <cstring>
@@ -78,6 +78,20 @@ std::optional<std::vector<std::uint8_t>> read_appended_rom(const std::filesystem
         throw std::runtime_error("cannot read the embedded ROM from " + file.string());
     }
     return rom;
+}
+
+void append_rom(const std::filesystem::path& file, std::span<const std::uint8_t> rom) {
+    std::ofstream out(file, std::ios::binary | std::ios::app);
+    out.write(reinterpret_cast<const char*>(rom.data()), static_cast<std::streamsize>(rom.size()));
+    const std::uint64_t size = rom.size();
+    for (int i = 0; i < 8; ++i) {
+        out.put(static_cast<char>((size >> (8 * i)) & 0xFF));
+    }
+    out.write(kEmbeddedRomMagic.data(), static_cast<std::streamsize>(kEmbeddedRomMagic.size()));
+    out.close();
+    if (!out) {
+        throw std::runtime_error("cannot append the ROM to " + file.string());
+    }
 }
 
 std::optional<std::vector<std::uint8_t>> read_embedded_rom() {

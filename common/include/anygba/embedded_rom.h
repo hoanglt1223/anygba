@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -19,5 +20,7 @@ std::optional<std::filesystem::path> executable_path();
 // the trailer is present but the data is cut short.
 std::optional<std::vector<std::uint8_t>> read_embedded_rom();
 std::optional<std::vector<std::uint8_t>> read_appended_rom(const std::filesystem::path& file);
+// Appends `rom` and the trailer to `file`. Throws std::runtime_error on I/O failure.
+void append_rom(const std::filesystem::path& file, std::span<const std::uint8_t> rom);
 
 }  // namespace anygba

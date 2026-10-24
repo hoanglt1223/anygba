@@ -1,6 +1,6 @@
 #include "anygba/sha256.h"
 #include "anygba/system.hpp"
-#include "embedded_rom.h"
+#include "anygba/embedded_rom.h"
 #include "input_map.h"
 #include "save/save.h"
 
