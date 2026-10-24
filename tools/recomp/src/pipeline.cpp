@@ -45,6 +45,13 @@ Analysis analyze(const Options& options) {
         if (!game.title.empty()) {
             result.title = game.title;
         }
+        result.save_type = game.save_type;
+        result.sources = game.sources;
+        for (const auto& rep : game.replacements) {
+            if (!result.replacements.emplace(rep.addr, rep.function).second) {
+                throw config::ConfigError("two [[replace]] entries for the same address");
+            }
+        }
         discovery_options = config::apply_game_config(game, *result.image);
     }
     discovery_options.entries.insert(discovery_options.entries.begin(),
@@ -62,6 +69,9 @@ std::size_t generate(const Options& options, const Analysis& analysis) {
     info.rom_sha256 = analysis.rom_sha256;
     info.rom_size = analysis.rom_size;
     info.shards = options.shards;
+    info.save_type = analysis.save_type;
+    info.replacements = analysis.replacements;
+    info.sources = analysis.sources;
     codegen::write_project(options.output_dir, *analysis.image, analysis.discovery, info);
     return analysis.discovery.functions.size();
 }

@@ -211,7 +211,9 @@ TEST_CASE("VBlankIntrWait sleeps until the handler flags VBlank") {
 
 TEST_CASE("bus quirks: byte writes to video memory, SRAM bus width, ROM open bus") {
     std::vector<std::uint8_t> rom(0x1000, 0);
-    System sys(rom, nullptr, quiet());
+    anygba::Options sram = quiet();
+    sram.save_type = "sram";
+    System sys(rom, nullptr, sram);
     sys.write8(0x05000011, 0xAB);
     CHECK(sys.read16(0x05000010) == 0xABAB);  // palette: byte doubled
     sys.write8(0x07000010, 0xAB);

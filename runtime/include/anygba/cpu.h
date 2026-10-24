@@ -97,6 +97,12 @@ void anygba_undefined(anygba_cpu* c, uint32_t addr, uint32_t raw);
 
 /* ---- Inline helpers for generated code ---- */
 
+/* `bx lr`: for hand-written replacement functions (per-game config [[replace]]). */
+static inline void ag_return(anygba_cpu* c) {
+    c->t = c->r[14] & 1u;
+    c->r[15] = c->r[14] & ~1u;
+}
+
 static inline uint32_t ag_cpsr(const anygba_cpu* c) {
     return (c->n << 31) | (c->z << 30) | (c->c << 29) | (c->v << 28) | (c->t << 5) | c->ctrl;
 }
@@ -266,6 +272,7 @@ typedef struct anygba_game {
     uint32_t rom_size;
     const anygba_function_entry* functions; /* sorted by addr */
     uint32_t function_count;
+    const char* save_type; /* per-game config override, or "" to detect from the ROM */
 } anygba_game;
 
 #ifdef __cplusplus

@@ -25,6 +25,13 @@ add_library(anygba_runtime STATIC
   src/apu/psg.cpp
   src/apu/fifo.cpp
   src/apu/mixer.cpp
+  src/save/detect.cpp
+  src/save/sram.cpp
+  src/save/flash.cpp
+  src/save/eeprom.cpp
+  src/save/save_file.cpp
+  src/input_map.cpp
+  src/embedded_rom.cpp
   src/dispatch.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
@@ -42,4 +49,5 @@ anygba_configure_target(anygba_runtime)
 add_library(anygba_game_main STATIC src/main.cpp)
 add_library(anygba::game_main ALIAS anygba_game_main)
 target_link_libraries(anygba_game_main PUBLIC anygba_runtime PRIVATE anygba::common)
+target_include_directories(anygba_game_main PRIVATE src)
 anygba_configure_target(anygba_game_main)

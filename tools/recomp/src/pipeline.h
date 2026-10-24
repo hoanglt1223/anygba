@@ -5,7 +5,11 @@
 #include "cli.h"
 
 #include <iosfwd>
+#include <filesystem>
+#include <map>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace anygba::recomp {
 
@@ -13,6 +17,9 @@ struct Analysis {
     std::string title;
     std::string rom_sha256;
     std::uint32_t rom_size = 0;
+    std::string save_type;
+    std::map<std::uint32_t, std::string> replacements;
+    std::vector<std::filesystem::path> sources;
     std::unique_ptr<analysis::Image> image;
     analysis::Discovery discovery;
 };

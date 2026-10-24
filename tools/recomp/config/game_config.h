@@ -27,6 +27,14 @@ struct Patch {
     std::vector<std::uint8_t> bytes;  // in memory order
 };
 
+// The function at `addr` is replaced by a hand-written C function `function` (same
+// signature as generated ones) from one of the config's `sources`.
+struct Replacement {
+    std::uint32_t addr = 0;
+    analysis::Mode mode = analysis::Mode::Thumb;
+    std::string function;
+};
+
 // Per-game recompiler settings. Schema: docs/dev/GAME-CONFIG.md.
 struct GameConfig {
     std::string title;
@@ -34,6 +42,9 @@ struct GameConfig {
     std::vector<RamCode> ram_code;
     std::vector<analysis::AddressRange> skip;
     std::vector<Patch> patches;
+    std::string save_type;  // empty: detect at run time
+    std::vector<Replacement> replacements;
+    std::vector<std::filesystem::path> sources;  // C files compiled into the game, absolute
 };
 
 // Throws ConfigError naming the source, the key, and the line on any malformed or unknown entry.

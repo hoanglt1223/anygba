@@ -35,7 +35,8 @@ add_executable(anygba-tests
   runtime/system_tests.cpp
   runtime/bios_tests.cpp
   runtime/ppu_tests.cpp
-  runtime/apu_tests.cpp)
+  runtime/apu_tests.cpp
+  runtime/save_tests.cpp)
 target_link_libraries(anygba-tests PRIVATE
   anyport::platform
   anygba::runtime
@@ -80,7 +81,8 @@ function(anygba_rom_test name rom)
   endif()
   anygba_add_game(${name} ROM "${corpus}/${rom}" SHARDS 2)
   add_test(NAME ${name}
-    COMMAND ${name} "${corpus}/${rom}" --headless --exit-on-idle --frames 600 --no-miss-log)
+    COMMAND ${name} "${corpus}/${rom}" --headless --exit-on-idle --frames 600 --no-miss-log
+      --save-dir "${CMAKE_CURRENT_BINARY_DIR}/saves")
   set_tests_properties(${name} PROPERTIES PASS_REGULAR_EXPRESSION "r12=00000000")
 endfunction()
 
@@ -88,6 +90,21 @@ anygba_rom_test(gba-tests-arm gba-tests/arm/arm.gba)
 anygba_rom_test(gba-tests-thumb gba-tests/thumb/thumb.gba)
 anygba_rom_test(gba-tests-memory gba-tests/memory/memory.gba)
 anygba_rom_test(gba-tests-bios gba-tests/bios/bios.gba)
+
+# jsmolka save tests, each run twice against one save folder.
+foreach(save sram:32768 flash64:65536 flash128:131072 none:0)
+  string(REPLACE ":" ";" parts "${save}")
+  list(GET parts 0 kind)
+  list(GET parts 1 size)
+  set(rom "gba-tests/save/${kind}.gba")
+  if(EXISTS "${corpus}/${rom}")
+    anygba_add_game(gba-tests-save-${kind} ROM "${corpus}/${rom}" SHARDS 1)
+    add_test(NAME gba-tests-save-${kind}
+      COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:gba-tests-save-${kind}>" "-DROM=${corpus}/${rom}"
+        "-DDIR=${CMAKE_CURRENT_BINARY_DIR}/saves/${kind}" -DSIZE=${size}
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/save-restart.cmake")
+  endif()
+endforeach()
 
 # A large real game, compiled on demand to keep the generated C honest:
 #   cmake --build <out> --target varooom-3d

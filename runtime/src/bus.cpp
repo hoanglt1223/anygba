@@ -1,4 +1,5 @@
 #include "anygba/system.hpp"
+#include "save/save.h"
 
 #include <bit>
 #include <cstring>
@@ -41,7 +42,8 @@ void System::map_pages() {
     cpu_.read_mask[0x02] = cpu_.write_mask[0x02] = Memory::kEwramSize - 1;
     cpu_.read_page[0x03] = cpu_.write_page[0x03] = mem_.iwram.data();
     cpu_.read_mask[0x03] = cpu_.write_mask[0x03] = Memory::kIwramSize - 1;
-    for (int i = 0x08; i <= 0x0D; ++i) {
+    // With an EEPROM, 0x0D reads may hit the serial port, so they take the slow path.
+    for (int i = 0x08; i <= (eeprom_ ? 0x0C : 0x0D); ++i) {
         cpu_.read_page[i] = mem_.rom.data();
         cpu_.read_mask[i] = Memory::kRomMax - 1;
     }
@@ -50,6 +52,25 @@ void System::map_pages() {
 std::uint32_t System::open_bus() const {
     // The real value is the last prefetched opcode, which recompiled code does not track.
     return 0;
+}
+
+// The EEPROM answers in the whole 0x0D area on carts up to 16 MB, and only at the top
+// (0x0DFFFF00+) on 32 MB carts, where the ROM needs the rest of the area.
+bool System::eeprom_at(std::uint32_t addr) const {
+    return eeprom_ && (addr >> 24) == 0x0D && (mem_.rom_size <= 0x1000000 || addr >= 0x0DFFFF00);
+}
+
+std::uint16_t System::eeprom_read() { return backup_->eeprom_read(); }
+
+void System::eeprom_write(std::uint32_t value) {
+    std::string error;
+    try {
+        backup_->eeprom_write(static_cast<std::uint16_t>(value), eeprom_dma_count_);
+        return;
+    } catch (const std::exception& e) {
+        error = e.what();
+    }
+    fail(std::move(error));  // longjmp only after the exception object is gone
 }
 
 std::uint32_t System::read32(std::uint32_t addr) {
@@ -91,6 +112,9 @@ std::uint32_t System::read16(std::uint32_t addr) {
     case 0x06: return load(mem_.vram, vram_offset(addr), 2);
     case 0x07: return load(mem_.oam, addr & (Memory::kOamSize - 1), 2);
     case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
+        if (eeprom_at(addr)) {
+            return eeprom_read();
+        }
         return load(mem_.rom, addr & (Memory::kRomMax - 1), 2);
     case 0x0E: case 0x0F:
         return read8(unaligned) * 0x0101u;
@@ -114,7 +138,7 @@ std::uint32_t System::read8(std::uint32_t addr) {
     case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
         return mem_.rom[addr & (Memory::kRomMax - 1)];
     case 0x0E: case 0x0F:
-        return mem_.sram[addr & (Memory::kSramSize - 1)];
+        return backup_->read8(addr);
     default:
         return open_bus() & 0xFF;
     }
@@ -157,6 +181,11 @@ void System::write16(std::uint32_t addr, std::uint32_t value) {
     case 0x05: store(mem_.palette, addr & (Memory::kPaletteSize - 1), value, 2); break;
     case 0x06: store(mem_.vram, vram_offset(addr), value, 2); break;
     case 0x07: store(mem_.oam, addr & (Memory::kOamSize - 1), value, 2); break;
+    case 0x0D:
+        if (eeprom_at(addr)) {
+            eeprom_write(value);
+        }
+        break;
     case 0x0E: case 0x0F:
         write8(unaligned, (value >> ((unaligned & 1) * 8)) & 0xFF);
         break;
@@ -204,7 +233,7 @@ void System::write8(std::uint32_t addr, std::uint32_t value) {
         break;
     }
     case 0x07: break;  // OAM ignores byte writes
-    case 0x0E: case 0x0F: mem_.sram[addr & (Memory::kSramSize - 1)] = byte; break;
+    case 0x0E: case 0x0F: backup_->write8(addr, byte); break;
     default: break;
     }
 }

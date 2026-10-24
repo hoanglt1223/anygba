@@ -1,6 +1,7 @@
 #include "anygba/system.hpp"
 #include "apu/apu.h"
 #include "ppu/ppu.h"
+#include "save/save.h"
 
 #include <algorithm>
 #include <cstring>
@@ -22,6 +23,22 @@ System::System(std::vector<std::uint8_t> rom, const anygba_game* game, Options o
         mem_.rom[off] = static_cast<std::uint8_t>(off >> 1);
         mem_.rom[off + 1] = static_cast<std::uint8_t>(off >> 9);
     }
+
+    std::string save_name = options_.save_type;
+    if (save_name.empty() && game_ && game_->save_type) {
+        save_name = game_->save_type;
+    }
+    save::Type save_type = save::detect({mem_.rom.data(), mem_.rom_size});
+    if (!save_name.empty()) {
+        const auto parsed = save::parse(save_name);
+        if (!parsed) {
+            throw Error("unknown save type '" + save_name +
+                        "' (expected none, sram, flash64, flash128, eeprom, eeprom512 or eeprom8k)");
+        }
+        save_type = *parsed;
+    }
+    backup_ = save::make(save_type);
+    eeprom_ = backup_->is_eeprom();
 
     if (game_) {
         rom_direct_.assign(mem_.rom_size / 2 + 1, nullptr);

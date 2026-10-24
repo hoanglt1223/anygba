@@ -85,6 +85,7 @@ void System::run_dma(int ch) {
 
     std::uint32_t src = d.src;
     std::uint32_t dst = d.dst;
+    eeprom_dma_count_ = ch == 3 ? count : 0;
     for (std::uint32_t i = 0; i < count; ++i) {
         if (unit == 4) {
             write32(dst, read32(src));
@@ -94,6 +95,7 @@ void System::run_dma(int ch) {
         src += static_cast<std::uint32_t>(src_step);
         dst += static_cast<std::uint32_t>(dst_step);
     }
+    eeprom_dma_count_ = 0;
     d.src = src;
     d.dst = dst;
     cpu_.cycles -= static_cast<std::int32_t>(2 + count * 2);

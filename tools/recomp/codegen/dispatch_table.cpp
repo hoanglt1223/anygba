@@ -66,6 +66,14 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     for (const auto& [addr, fn] : functions) {
         header += "void " + function_name(addr) + "(anygba_cpu* c);\n";
     }
+    for (const auto& [addr, name] : info.replacements) {
+        if (!functions.contains(addr)) {
+            char buf[64];
+            std::snprintf(buf, sizeof buf, "replacement for 0x%08x: no function starts there", addr);
+            throw std::runtime_error(buf);
+        }
+        header += "void " + name + "(anygba_cpu* c); /* hand-written replacement */\n";
+    }
     header += "\n#endif\n";
     write_file(dir / "game.h", header, written);
 
@@ -76,7 +84,13 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     options.functions = &functions;
     std::size_t i = 0;
     for (const auto& [addr, fn] : functions) {
-        shard_text[i * shards / std::max<std::size_t>(functions.size(), 1)] += emit_function(fn, options) + "\n";
+        std::string& shard = shard_text[i * shards / std::max<std::size_t>(functions.size(), 1)];
+        if (const auto rep = info.replacements.find(addr); rep != info.replacements.end()) {
+            // Direct calls from other generated functions land here too.
+            shard += "void " + function_name(addr) + "(anygba_cpu* c) { " + rep->second + "(c); }\n\n";
+        } else {
+            shard += emit_function(fn, options) + "\n";
+        }
         ++i;
     }
     for (std::size_t s = 0; s < shards; ++s) {
@@ -99,11 +113,9 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     if (functions.empty()) {
         dispatch += "    {0, 0, 0},\n";
     }
-    char tail[256];
-    std::snprintf(tail, sizeof tail,
-                  "};\n\nconst anygba_game anygba_game_info = {\n    %s,\n    \"%s\",\n    %uu,\n    functions,\n    %zuu,\n};\n",
-                  c_string(info.title).c_str(), info.rom_sha256.c_str(), info.rom_size, functions.size());
-    dispatch += tail;
+    dispatch += "};\n\nconst anygba_game anygba_game_info = {\n    " + c_string(info.title) + ",\n    \"" +
+                info.rom_sha256 + "\",\n    " + std::to_string(info.rom_size) + "u,\n    functions,\n    " +
+                std::to_string(functions.size()) + "u,\n    " + c_string(info.save_type) + ",\n};\n";
     write_file(dir / "dispatch.c", dispatch, written);
 
     std::string cmake =
@@ -116,6 +128,14 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
         "add_executable(game ${game_sources})\n"
         "target_link_libraries(game PRIVATE anygba::game_main)\n";
     write_file(dir / "CMakeLists.txt", cmake, written);
+    for (const auto& source : info.sources) {
+        std::ifstream in(source, std::ios::binary);
+        if (!in) {
+            throw std::runtime_error("cannot read " + source.string());
+        }
+        write_file(dir / source.filename(), std::string{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()},
+                   written);
+    }
     return written;
 }
 

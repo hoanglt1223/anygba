@@ -17,6 +17,9 @@ namespace anygba {
 
 class Ppu;
 class Apu;
+namespace save {
+class Backup;
+}
 
 // Raised for conditions the runtime refuses to guess about: unknown SWIs, undefined
 // instructions, bad ROMs. The message names the address or ID.
@@ -34,7 +37,6 @@ struct Memory {
     static constexpr std::uint32_t kVramSize = 0x18000;
     static constexpr std::uint32_t kOamSize = 0x400;
     static constexpr std::uint32_t kRomMax = 0x2000000;
-    static constexpr std::uint32_t kSramSize = 0x10000;
 
     std::vector<std::uint8_t> bios = std::vector<std::uint8_t>(kBiosSize);
     std::vector<std::uint8_t> ewram = std::vector<std::uint8_t>(kEwramSize);
@@ -44,7 +46,6 @@ struct Memory {
     std::vector<std::uint8_t> vram = std::vector<std::uint8_t>(kVramSize);
     std::vector<std::uint8_t> oam = std::vector<std::uint8_t>(kOamSize);
     std::vector<std::uint8_t> rom;  // always kRomMax bytes; past the image it holds open-bus values
-    std::vector<std::uint8_t> sram = std::vector<std::uint8_t>(kSramSize, 0xFF);
     std::uint32_t rom_size = 0;
 };
 
@@ -74,6 +75,9 @@ inline constexpr double kFramesPerSecond = 16777216.0 / 280896.0;
 struct Options {
     std::filesystem::path miss_log = "anygba-miss.log";
     bool log_misses = true;
+    // Backup memory type ("sram", "flash64", ...; see save/save.h). Empty: the generated
+    // game's config value, else detection from the ROM's library ID strings.
+    std::string save_type;
 };
 
 class System {
@@ -87,6 +91,7 @@ public:
     anygba_cpu& cpu() { return cpu_; }
     Memory& memory() { return mem_; }
     const Options& options() const { return options_; }
+    save::Backup& backup() { return *backup_; }
 
     // The state the BIOS leaves before jumping to the cartridge: SYS mode, stacks set,
     // PC at 0x08000000 in ARM state.
@@ -179,6 +184,9 @@ private:
     void schedule_timer(int timer);
     void log_miss(std::uint32_t addr, bool thumb);
     std::uint32_t open_bus() const;
+    bool eeprom_at(std::uint32_t addr) const;
+    std::uint16_t eeprom_read();
+    void eeprom_write(std::uint32_t value);
 
     anygba_cpu cpu_{};
     Memory mem_;
@@ -202,6 +210,9 @@ private:
     std::unique_ptr<Ppu> ppu_;
     std::unique_ptr<Apu> apu_;
     std::array<Timer, 4> timers_{};
+    std::unique_ptr<save::Backup> backup_;
+    bool eeprom_ = false;
+    std::uint32_t eeprom_dma_count_ = 0;  // length of the DMA 3 transfer in progress, else 0
 
     bool stop_requested_ = false;
     std::string error_;

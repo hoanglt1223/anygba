@@ -3,7 +3,10 @@
 #define TOML_EXCEPTIONS 1
 #include <toml.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <set>
 #include <sstream>
@@ -114,7 +117,7 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
     }
 
     const Reader r(source_name);
-    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch"});
+    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace"});
 
     GameConfig config;
     if (const toml::node* game = root.get("game")) {
@@ -122,12 +125,34 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
         if (!table) {
             r.fail(*game, "[game] must be a table");
         }
-        r.only_keys(*table, "[game]", {"title"});
+        r.only_keys(*table, "[game]", {"title", "save", "sources"});
         if (const toml::node* title = table->get("title")) {
             if (!title->is_string()) {
                 r.fail(*title, "game.title must be a string");
             }
             config.title = title->as_string()->get();
+        }
+        if (const toml::node* save = table->get("save")) {
+            static constexpr std::string_view kTypes[] = {"none", "sram", "flash64", "flash128",
+                                                          "eeprom", "eeprom512", "eeprom8k"};
+            const auto* value = save->as_string();
+            if (!value || std::find(std::begin(kTypes), std::end(kTypes), value->get()) == std::end(kTypes)) {
+                r.fail(*save, "game.save must be one of none, sram, flash64, flash128, eeprom, eeprom512, eeprom8k");
+            }
+            config.save_type = value->get();
+        }
+        if (const toml::node* sources = table->get("sources")) {
+            const auto* array = sources->as_array();
+            if (!array) {
+                r.fail(*sources, "game.sources must be an array of file names");
+            }
+            for (const auto& item : *array) {
+                const auto* name = item.as_string();
+                if (!name || !name->get().ends_with(".c")) {
+                    r.fail(item, "game.sources entries must be .c file names");
+                }
+                config.sources.emplace_back(name->get());
+            }
         }
     }
     r.each_table(root, "entry", [&](const toml::table& t) {
@@ -153,6 +178,27 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
         r.only_keys(t, "[[patch]]", {"addr", "bytes"});
         config.patches.push_back({r.u32(t, "patch", "addr"), r.hex_bytes(t, "patch")});
     });
+    r.each_table(root, "replace", [&](const toml::table& t) {
+        r.only_keys(t, "[[replace]]", {"addr", "mode", "function"});
+        Replacement rep{r.u32(t, "replace", "addr"), r.mode(t, "replace"), {}};
+        const toml::node& fn = r.require(t, "replace", "function");
+        const auto* name = fn.as_string();
+        const auto is_ident = [](const std::string& s) {
+            if (s.empty() || std::isdigit(static_cast<unsigned char>(s[0]))) return false;
+            return std::all_of(s.begin(), s.end(), [](char ch) {
+                return std::isalnum(static_cast<unsigned char>(ch)) || ch == '_';
+            });
+        };
+        if (!name || !is_ident(name->get()) || name->get().starts_with("f_") || name->get().starts_with("ag_") ||
+            name->get().starts_with("anygba_")) {
+            r.fail(fn, "replace.function must be a C identifier not starting with f_, ag_ or anygba_");
+        }
+        rep.function = name->get();
+        config.replacements.push_back(rep);
+    });
+    if (!config.replacements.empty() && config.sources.empty()) {
+        throw ConfigError(std::string(source_name) + ": [[replace]] needs game.sources naming the C file(s) that define the functions");
+    }
     return config;
 }
 
@@ -163,7 +209,14 @@ GameConfig load_game_config(const std::filesystem::path& path) {
     }
     std::ostringstream text;
     text << file.rdbuf();
-    return parse_game_config(text.str(), path.string());
+    GameConfig config = parse_game_config(text.str(), path.string());
+    for (auto& source : config.sources) {
+        source = std::filesystem::absolute(path.parent_path() / source);
+        if (!std::filesystem::is_regular_file(source)) {
+            throw ConfigError(path.string() + ": game.sources: no such file " + source.string());
+        }
+    }
+    return config;
 }
 
 analysis::DiscoveryOptions apply_game_config(const GameConfig& config, analysis::Image& image) {
@@ -184,6 +237,9 @@ analysis::DiscoveryOptions apply_game_config(const GameConfig& config, analysis:
         }
     }
     options.entries.insert(options.entries.end(), config.entries.begin(), config.entries.end());
+    for (const auto& rep : config.replacements) {
+        options.entries.push_back({rep.addr, rep.mode, analysis::EntrySource::Config});
+    }
     options.skip = config.skip;
     return options;
 }
