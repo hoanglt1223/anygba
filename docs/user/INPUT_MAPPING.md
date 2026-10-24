@@ -24,9 +24,9 @@ Right = Right
 Left = Left
 Up = Up
 Down = Down
-R = W
-L = Q
-FastForward = Tab
+R = S
+L = A
+FastForward = Space
 
 [gamepad]
 A = South

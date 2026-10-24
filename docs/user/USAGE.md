@@ -72,7 +72,7 @@ and most emulators use.
 
 ## Controls
 
-Defaults: arrows = d-pad, X = A, Z = B, Return = Start, Backspace = Select, Q = L, W = R, Tab =
+Defaults: arrows = d-pad, X = A, Z = B, Return = Start, Backspace = Select, A = L, S = R, Space =
 fast-forward; on a gamepad, the face buttons by position (South = A, East = B), Back = Select, Start,
 shoulders, and the d-pad. To change them, see [INPUT_MAPPING.md](INPUT_MAPPING.md).
 

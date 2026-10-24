@@ -69,7 +69,7 @@ const char* pad_name(Button b) {
 
 Mapping default_mapping() {
     Mapping m;
-    m.keys = {{{"X"}, {"Z"}, {"Backspace"}, {"Return"}, {"Right"}, {"Left"}, {"Up"}, {"Down"}, {"W"}, {"Q"}}};
+    m.keys = {{{"X"}, {"Z"}, {"Backspace"}, {"Return"}, {"Right"}, {"Left"}, {"Up"}, {"Down"}, {"S"}, {"A"}}};
     m.pad = {{{Button::South},
               {Button::East},
               {Button::Back},
@@ -80,7 +80,7 @@ Mapping default_mapping() {
               {Button::DpadDown},
               {Button::RightShoulder},
               {Button::LeftShoulder}}};
-    m.fast_forward = {"Tab"};
+    m.fast_forward = {"Space"};
     return m;
 }
 
