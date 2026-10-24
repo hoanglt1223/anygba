@@ -14,8 +14,12 @@
 #include <vector>
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <chrono>
 #include <thread>
@@ -224,6 +228,24 @@ TEST_CASE("save file: a write retries while another program holds the file open"
     CHECK(read_all(path) == std::vector<std::uint8_t>{4, 5});
 }
 #endif
+
+TEST_CASE("import: .sav sizes from other emulators, footers trimmed") {
+    std::string error;
+    const auto sized = [](std::size_t n) { return std::vector<std::uint8_t>(n, 0x5A); };
+    CHECK(fit_import(Type::Sram, sized(0x8000), &error)->size() == 0x8000);
+    CHECK(fit_import(Type::Flash128, sized(0x20000 + 16), &error)->size() == 0x20000);  // RTC bytes
+    CHECK(fit_import(Type::Flash64, sized(0x10000 + kMaxFooter), &error)->size() == 0x10000);
+    CHECK(fit_import(Type::Eeprom, sized(512), &error)->size() == 512);
+    CHECK(fit_import(Type::Eeprom, sized(8192 + 4), &error)->size() == 8192);
+    CHECK(fit_import(Type::Eeprom8k, sized(8192), &error)->size() == 8192);
+
+    CHECK_FALSE(fit_import(Type::Flash128, sized(0x10000), &error));  // a 64 KB Flash save
+    CHECK(error == "65536 bytes does not fit the flash128 save (131072 bytes)");
+    CHECK_FALSE(fit_import(Type::Sram, sized(0x10000), &error));      // too much to be a footer
+    CHECK_FALSE(fit_import(Type::Eeprom512, sized(8192), &error));
+    CHECK_FALSE(fit_import(Type::None, sized(0x8000), &error));
+    CHECK(error == "this game has no save chip");
+}
 
 TEST_CASE("save file: debounced writes, backup of the previous file, reload") {
     TempDir dir("anygba-save-test");

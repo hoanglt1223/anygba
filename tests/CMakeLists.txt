@@ -136,6 +136,11 @@ if(EXISTS "${corpus}/tonc/bin/irq_demo.gba" AND EXISTS "${corpus}/tonc/bin/first
   endforeach()
   set_tests_properties(player-speed PROPERTIES RUN_SERIAL TRUE)  # timing
 endif()
+if(TARGET gba-tests-save-sram)
+  add_test(NAME player-saveio
+    COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:gba-tests-save-sram>" "-DROM=${corpus}/gba-tests/save/sram.gba"
+      "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/player-saveio" -P "${CMAKE_CURRENT_SOURCE_DIR}/player-saveio.cmake")
+endif()
 
 # The committed compat data must render (schema checks included).
 find_package(Python3 3.11 COMPONENTS Interpreter)

@@ -25,7 +25,7 @@ struct MenuInput {
 };
 
 enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged, SettingsChanged,
-                                       ChooseSaveFolder };
+                                       ChooseSaveFolder, ExportSave, ImportSave };
 
 // The Settings page's switches (docs/user/AI-CONTROL.md); the player applies them.
 struct MenuSettings {

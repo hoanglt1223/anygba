@@ -78,6 +78,13 @@ std::unique_ptr<Backup> make_flash(bool banks2);
 std::unique_ptr<Backup> make_eeprom(std::size_t size);  // 0 = decide later, else 512 or 8192
 std::unique_ptr<Backup> make(Type type);
 
+// A .sav from another emulator (VisualBoyAdvance, mGBA: raw chip contents) checked against the
+// chip `type`: exactly the chip's size, or that size plus a footer of at most kMaxFooter bytes
+// (VisualBoyAdvance-M's real-time clock bytes, other emulators' trailers), which is cut off. An
+// EEPROM of unknown size takes 512 or 8192 bytes. Returns the bytes to load, or an error.
+inline constexpr std::size_t kMaxFooter = 0x200;
+std::optional<std::vector<std::uint8_t>> fit_import(Type type, std::vector<std::uint8_t> bytes, std::string* error);
+
 // Writes `bytes` to `path` through `<path>.tmp` and a rename, so a crash never leaves half a
 // file; with `keep_backup` the current file is first copied to `<path>.bak`. Each step is
 // retried for about half a second while the file is locked by another program (OneDrive or a
@@ -102,6 +109,8 @@ public:
     std::optional<std::string> on_frame();
     // Writes pending changes now. Returns an error message on failure.
     std::optional<std::string> flush();
+    // Writes the contents now, changed or not (after Backup::load replaced them).
+    std::optional<std::string> write_now() { return write(); }
 
 private:
     std::optional<std::string> write();

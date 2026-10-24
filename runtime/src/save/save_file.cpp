@@ -80,6 +80,36 @@ void with_retry(Step step, std::error_code& ec) {
 
 }  // namespace
 
+std::optional<std::vector<std::uint8_t>> fit_import(Type type, std::vector<std::uint8_t> bytes, std::string* error) {
+    std::vector<std::size_t> sizes;
+    switch (type) {
+    case Type::None: break;
+    case Type::Sram: sizes = {0x8000}; break;
+    case Type::Flash64: sizes = {0x10000}; break;
+    case Type::Flash128: sizes = {0x20000}; break;
+    case Type::Eeprom: sizes = {512, 8192}; break;
+    case Type::Eeprom512: sizes = {512}; break;
+    case Type::Eeprom8k: sizes = {8192}; break;
+    }
+    if (sizes.empty()) {
+        if (error) *error = "this game has no save chip";
+        return std::nullopt;
+    }
+    // The largest size that fits: an 8 KB EEPROM file is not a 512-byte one with a footer.
+    for (auto it = sizes.rbegin(); it != sizes.rend(); ++it) {
+        if (bytes.size() >= *it && bytes.size() - *it <= kMaxFooter) {
+            bytes.resize(*it);
+            return bytes;
+        }
+    }
+    if (error) {
+        std::string expected;
+        for (const std::size_t s : sizes) expected += (expected.empty() ? "" : " or ") + std::to_string(s);
+        *error = std::to_string(bytes.size()) + " bytes does not fit the " + name(type) + " save (" + expected + " bytes)";
+    }
+    return std::nullopt;
+}
+
 std::optional<std::string> replace_file(const std::filesystem::path& path, std::span<const std::uint8_t> bytes,
                                         bool keep_backup) {
     namespace fs = std::filesystem;

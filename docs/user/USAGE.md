@@ -135,7 +135,8 @@ A to choose, B to go back, L/R to page). Escape or the same gamepad chord closes
   scale; Left/Right changes them at once and they are kept for this game ([VIDEO.md](VIDEO.md)).
 - **Settings**: AI control, Read-only agent and Journal switches ([AI-CONTROL.md](AI-CONTROL.md)). They
   take effect at once and last until the game ends.
-- **Options**: the save folder (see Saves).
+- **Options**: the save folder, and *Export save* / *Import save* for `.sav` files of other emulators
+  (see Saves).
 
 ## Gamepads
 
@@ -191,6 +192,18 @@ To keep saves elsewhere (a OneDrive folder such as
 section; a relative folder is taken from the input file's folder. It is used from the next start for the
 save file, save states, the cheat file and the video settings; move existing files there yourself.
 *Use the default folder* goes back to the per-user data folder.
+
+### Moving saves to and from other emulators
+
+The menu's Options page exports and imports `.sav` files as VisualBoyAdvance and mGBA write them (the raw
+chip contents). *Export save* writes `<ROM name>.sav` next to the ROM (for a program with the ROM embedded:
+`<title>.sav` in the save folder); with a window, a file picker opens there so you can choose another
+place. *Import save* reads a `.sav` (a picker in the same place), checks that its size fits the game's save
+chip, copies the current save file to `<save>.before-import-<date>-<time>`, loads the imported save and
+restarts the game. A file a little larger than the chip (VisualBoyAdvance-M's real-time clock bytes after a
+128 KB Flash save, or another emulator's footer, up to 512 bytes) is cut to the chip's size; any other size
+is refused with a message. From the command line: `--import-save FILE` loads one before the game starts,
+`--export-save FILE` writes the save on exit.
 
 `--save-dir DIR` uses another folder for one run (it overrides `SaveFolder`); `--no-save` disables saving. A save is written about half a second
 after the game stops changing it, and again on exit. Each write goes to a temporary file first, and the

@@ -38,6 +38,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -92,6 +93,8 @@ struct Args {
     std::vector<fs::path> cheat_dbs;
     std::vector<std::pair<std::string, fs::path>> dumps;
     std::optional<fs::path> wav;
+    std::optional<fs::path> import_save;
+    std::optional<fs::path> export_save;
     std::string video;  // --filter and --video, serialized
     anygba::Options runtime;
     // Agent control and the play journal (docs/user/AI-CONTROL.md).
@@ -139,6 +142,9 @@ const char* const kUsage =
     "  --dump REGION:FILE  write memory on exit; REGION is ewram, iwram, io, palette, vram, oam, or frame (the\n"
     "                      last picture, 240x160 RGB555 little-endian); repeatable\n"
     "  --wav FILE          record the sound as played (after speed changes) to a WAV file, also headless\n"
+    "  --import-save FILE  load a .sav from another emulator (VisualBoyAdvance, mGBA) before starting; the current\n"
+    "                      save is kept as <save>.before-import-<time>\n"
+    "  --export-save FILE  write the save chip contents as a .sav for other emulators on exit\n"
     "  --input FILE        input mapping (default: anygba-input.ini next to the program, else in the data folder)\n"
     "  --write-input FILE  write the current input mapping to FILE and exit\n"
     "  --script FILE       scripted input (keys, gamepad, menu use) by host frame; repeatable\n"
@@ -249,6 +255,10 @@ std::optional<Args> parse(int argc, char** argv) {
                 return std::nullopt;
             }
             a.dumps.emplace_back(region, fs::path(spec.substr(colon + 1)));
+        } else if (arg == "--export-save" && has_value) {
+            a.export_save = fs::path(argv[++i]);
+        } else if (arg == "--import-save" && has_value) {
+            a.import_save = fs::path(argv[++i]);
         } else if (arg == "--wav" && has_value) {
             a.wav = fs::path(argv[++i]);
         } else if (arg == "--cheat-db" && has_value) {
@@ -941,6 +951,144 @@ private:
         dialog_for_ = DialogFor::None;
         if (answer->empty()) return;  // cancelled
         if (what == DialogFor::SaveFolder) set_save_folder(*answer);
+        if (what == DialogFor::ExportSave) export_save(utf8_path(answer->c_str()));
+        if (what == DialogFor::ImportSave) import_save(utf8_path(answer->c_str()));  // shows its own errors
+    }
+
+    // "<ROM name>.sav" next to the ROM, as VisualBoyAdvance and mGBA name it; for an embedded
+    // ROM "<title>.sav" in the save folder.
+    std::optional<fs::path> default_sav() const {
+        if (!args_.rom.empty()) {
+            fs::path rom = fs::path(args_.rom);
+            return rom.replace_extension(".sav");
+        }
+        if (!state_dir_) return std::nullopt;
+        std::string name;
+        for (const char* p = anygba_game_info.title; *p; ++p) {
+            const char ch = *p;
+            name += std::string_view("<>:\"/\\|?*").find(ch) == std::string_view::npos && ch >= ' ' ? ch : '_';
+        }
+        return *state_dir_ / ((name.empty() ? std::string("game") : name) + ".sav");
+    }
+
+    void export_from_menu() {
+        const auto target = default_sav();
+        if (window_) {
+            if (dialog_.show(player::FileDialog::Kind::Save, target ? path_utf8(*target) : std::string(), "Game saves",
+                             "sav")) {
+                dialog_for_ = DialogFor::ExportSave;
+            }
+            return;
+        }
+        if (!target) {
+            osd_.show("No folder to export to; pass --save-dir");
+            return;
+        }
+        export_save(*target);
+    }
+
+    void import_from_menu() {
+        const auto source = default_sav();
+        if (window_) {
+            if (dialog_.show(player::FileDialog::Kind::Open, source ? path_utf8(*source) : std::string(), "Game saves",
+                             "sav")) {
+                dialog_for_ = DialogFor::ImportSave;
+            }
+            return;
+        }
+        if (!source) {
+            osd_.show("No .sav to import; pass --save-dir");
+            return;
+        }
+        import_save(*source);
+    }
+
+    void export_save(const fs::path& target) {
+        const auto& data = sys_.backup().data();
+        if (data.empty()) {
+            osd_.show(sys_.backup().type() == anygba::save::Type::None ? "This game has no save chip"
+                                                                       : "Nothing saved yet");
+            return;
+        }
+        if (const auto error = anygba::save::replace_file(target, data, false)) {
+            osd_.show("Export failed: " + *error);
+        } else {
+            osd_.show("Exported " + player::to_ascii(path_utf8(target.filename())));
+        }
+    }
+
+public:
+    // Loads a .sav from another emulator into the save chip. `restart`: then resets the game at
+    // the next safe point so it reads it (from the menu); else the game has not started yet.
+    // The current save file is copied to <save>.before-import-<time> first. Returns an error.
+    std::optional<std::string> import_save(const fs::path& source, bool restart = true) {
+        std::string error;
+        std::optional<std::vector<std::uint8_t>> bytes;
+        try {
+            bytes = anygba::save::fit_import(sys_.backup().type(), read_bytes(source), &error);
+        } catch (const std::exception& e) {
+            error = e.what();
+        }
+        if (!bytes) {
+            osd_.show("Import failed: " + error);
+            return path_utf8(source) + ": " + error;
+        }
+        if (save_) {
+            std::error_code ec;
+            if (fs::exists(save_->path(), ec)) {
+                fs::path keep = save_->path();
+                keep += ".before-import-" + timestamp();
+                if (const auto copy_error = anygba::save::replace_file(keep, read_bytes(save_->path()), false)) {
+                    osd_.show("Import cancelled: " + *copy_error);
+                    return copy_error;
+                }
+            }
+        }
+        const std::string name = player::to_ascii(path_utf8(source.filename()));
+        if (!restart) {
+            try {
+                sys_.backup().load(std::move(*bytes));
+            } catch (const std::exception& e) {
+                osd_.show(std::string("Import failed: ") + e.what());
+                return path_utf8(source) + ": " + e.what();
+            }
+            if (save_) {
+                if (const auto write_error = save_->write_now()) return write_error;
+            }
+            osd_.show("Imported " + name);
+            return std::nullopt;
+        }
+        auto shared = std::make_shared<std::vector<std::uint8_t>>(std::move(*bytes));
+        sys_.request_safe_point([this, shared, name](anygba::System& s) {
+            try {
+                s.backup().load(std::move(*shared));
+            } catch (const std::exception& e) {
+                osd_.show(std::string("Import failed: ") + e.what());
+                return;
+            }
+            if (save_) {
+                if (const auto write_error = save_->write_now()) osd_.show(*write_error);
+            }
+            s.reset();
+            reset_audio();
+            osd_.show("Imported " + name + "; game restarted");
+        });
+        menu_.close();
+        return std::nullopt;
+    }
+
+private:
+    static std::string timestamp() {
+        const std::time_t now = std::time(nullptr);
+        std::tm tm{};
+#if defined(_WIN32)
+        localtime_s(&tm, &now);
+#else
+        localtime_r(&now, &tm);
+#endif
+        char text[32];
+        std::strftime(text, sizeof text, "%Y%m%d-%H%M%S", &tm);
+        return text;
     }
 
     void set_save_folder(const std::string& folder) {
@@ -1006,6 +1154,8 @@ private:
                 case player::MenuAction::VideoChanged: apply_video(); break;
                 case player::MenuAction::SettingsChanged: apply_menu_settings(); break;
                 case player::MenuAction::ChooseSaveFolder: choose_save_folder(); break;
+                case player::MenuAction::ExportSave: export_from_menu(); break;
+                case player::MenuAction::ImportSave: import_from_menu(); break;
                 case player::MenuAction::Close: break;
                 }
             }
@@ -1170,7 +1320,7 @@ private:
     player::TimeStretch stretch_;
     bool stretching_ = false;
     player::Mp2kTempo mp2k_;
-    enum class DialogFor : std::uint8_t { None, SaveFolder };
+    enum class DialogFor : std::uint8_t { None, SaveFolder, ExportSave, ImportSave };
     player::FileDialog dialog_;
     DialogFor dialog_for_ = DialogFor::None;
     std::unique_ptr<WavWriter> wav_;
@@ -1388,6 +1538,9 @@ int main(int argc, char** argv) {
             }
             player.attach_agent_features(std::move(control), std::move(symbols), std::move(journal), args->control, args->journal);
         }
+        if (args->import_save) {
+            if (const auto error = player.import_save(*args->import_save, false)) throw std::runtime_error(*error);
+        }
         if (args->load_state) {
             player.load_state_file(*args->load_state);
         }
@@ -1406,6 +1559,15 @@ int main(int argc, char** argv) {
         if (const auto error = player.finish()) {
             std::fprintf(stderr, "error: %s\n", error->c_str());
             status = 1;
+        }
+        if (args->export_save) {
+            const auto& data = sys.backup().data();
+            const auto error = data.empty() ? std::optional<std::string>("no save data to export")
+                                            : anygba::save::replace_file(*args->export_save, data, false);
+            if (error) {
+                std::fprintf(stderr, "error: --export-save: %s\n", error->c_str());
+                status = 1;
+            }
         }
         if (save) {
             if (const auto error = save->flush()) {

@@ -26,7 +26,7 @@ constexpr int kEntryFormatCount = static_cast<int>(sizeof kEntryFormats / sizeof
 
 constexpr int kMainResume = 0, kMainSave = 1, kMainLoad = 2, kMainSpeed = 3, kMainCheats = 4, kMainControls = 5;
 constexpr int kMainVideo = 6, kMainSettings = 7, kMainOptions = 8;
-constexpr int kOptionsFolder = 0, kOptionsDefaultFolder = 1;
+constexpr int kOptionsFolder = 0, kOptionsDefaultFolder = 1, kOptionsExport = 2, kOptionsImport = 3;
 constexpr int kCustomGroup = -2;  // tree row: "My codes"
 constexpr int kAddCode = -3;      // tree row: "Add code..."
 constexpr int kReset = -4;        // controls row: reset to defaults
@@ -246,6 +246,8 @@ void Menu::update_options(std::uint16_t press, std::vector<MenuAction>& out) {
     if (!(press & kA)) return;
     switch (cursor_) {
     case kOptionsFolder: out.push_back(MenuAction::ChooseSaveFolder); break;
+    case kOptionsExport: out.push_back(MenuAction::ExportSave); break;
+    case kOptionsImport: out.push_back(MenuAction::ImportSave); break;
     case kOptionsDefaultFolder:
         if (!mapping_.save_folder.empty()) {
             mapping_.save_folder.clear();
@@ -590,6 +592,8 @@ std::vector<Menu::Row> Menu::rows() const {
         if (folder.size() > 22) folder = "..." + folder.substr(folder.size() - 19);
         out.push_back({"Save folder", folder, kOptionsFolder});
         out.push_back({"Use the default folder", "", kOptionsDefaultFolder});
+        out.push_back({"Export save (.sav)", "", kOptionsExport});
+        out.push_back({"Import save (.sav)", "", kOptionsImport});
         break;
     }
     case Page::Settings:
