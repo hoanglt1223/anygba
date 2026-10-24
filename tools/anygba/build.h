@@ -1,5 +1,7 @@
 #pragma once
 
+#include "android.h"
+
 #include <filesystem>
 #include <optional>
 #include <span>
@@ -8,6 +10,8 @@
 #include <vector>
 
 namespace anygba::driver {
+
+enum class Target { Native, Android, AndroidPackage };
 
 struct BuildOptions {
     std::filesystem::path rom;
@@ -21,6 +25,8 @@ struct BuildOptions {
     std::optional<std::string> generator;
     std::string build_type = "Release";
     bool embed_rom = true;
+    Target target = Target::Native;
+    android::Options android;
 };
 
 // Parses the arguments after `build`. Returns an error message on bad input.
@@ -36,7 +42,13 @@ std::string program_name(std::string_view title);
 // Returns the path written. Throws std::runtime_error with a user-facing message.
 std::filesystem::path build(const BuildOptions& options);
 
+// The install prefix this program belongs to (<prefix>/bin/anygba). Throws if unknown.
+std::filesystem::path default_prefix();
+
 // Runs a program with arguments (no shell) and returns its exit code. Throws if it cannot start.
 int run_process(const std::vector<std::string>& argv);
+// run_process() that prints the command first and throws std::runtime_error("<what> failed
+// ...") on a non-zero exit code.
+void run_checked(const std::vector<std::string>& argv, const std::string& what);
 
 }  // namespace anygba::driver

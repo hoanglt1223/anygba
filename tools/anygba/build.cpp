@@ -1,6 +1,7 @@
 #include "build.h"
 
 #include "anygba/crc32.h"
+#include "anygba/sha256.h"
 
 #include "anygba/embedded_rom.h"
 #include "cli.h"
@@ -79,25 +80,6 @@ std::string exe_suffix() {
 #endif
 }
 
-void run_checked(const std::vector<std::string>& argv, const char* what) {
-    std::string line;
-    for (const auto& a : argv) line += (line.empty() ? "" : " ") + a;
-    std::printf("anygba: %s\n", line.c_str());
-    std::fflush(stdout);
-    const int rc = run_process(argv);
-    if (rc != 0) {
-        throw std::runtime_error(std::string(what) + " failed (exit code " + std::to_string(rc) + ")");
-    }
-}
-
-fs::path default_prefix() {
-    const auto exe = executable_path();
-    if (!exe) {
-        throw std::runtime_error("cannot locate this program; pass --prefix <anygba install prefix>");
-    }
-    return exe->parent_path().parent_path();  // <prefix>/bin/anygba
-}
-
 // Cheat databases for this ROM shipped in <prefix>/share/anygba/cheats: <game code>.toml and
 // <crc32>.toml, copied to `dest` where the game looks for them (docs/user/CHEATS.md).
 std::vector<fs::path> cheat_databases(const fs::path& prefix, const std::vector<std::uint8_t>& rom) {
@@ -125,6 +107,25 @@ std::vector<std::uint8_t> read_file(const fs::path& p) {
 }
 
 }  // namespace
+
+fs::path default_prefix() {
+    const auto exe = executable_path();
+    if (!exe) {
+        throw std::runtime_error("cannot locate this program; pass --prefix <anygba install prefix>");
+    }
+    return exe->parent_path().parent_path();  // <prefix>/bin/anygba
+}
+
+void run_checked(const std::vector<std::string>& argv, const std::string& what) {
+    std::string line;
+    for (const auto& a : argv) line += (line.empty() ? "" : " ") + a;
+    std::printf("anygba: %s\n", line.c_str());
+    std::fflush(stdout);
+    const int rc = run_process(argv);
+    if (rc != 0) {
+        throw std::runtime_error(what + " failed (exit code " + std::to_string(rc) + ")");
+    }
+}
 
 int run_process(const std::vector<std::string>& argv) {
     if (argv.empty()) {
@@ -192,7 +193,10 @@ std::string build_usage() {
            "  --cmake PATH       cmake executable (default: cmake on PATH)\n"
            "  --generator NAME   CMake generator (default: CMake's choice)\n"
            "  --build-type TYPE  CMake configuration (default: Release)\n"
-           "  --no-embed         do not embed the ROM; the program then takes it as its first argument\n";
+           "  --no-embed         do not embed the ROM; the program then takes it as its first argument\n"
+           "  --target T         native (default), android (a signed .apk) or android-package (a .agp\n"
+           "                     game package for the AnyGBA launcher app)\n"
+           "\n" + android::usage();
 }
 
 std::optional<std::string> parse_build_args(std::span<const std::string_view> args, BuildOptions& out) {
@@ -200,8 +204,21 @@ std::optional<std::string> parse_build_args(std::span<const std::string_view> ar
         const std::string_view a = args[i];
         const bool has_value = i + 1 < args.size();
         const auto value = [&]() { return std::string(args[++i]); };
-        if (a == "--no-embed") {
+        if (const auto android_error = android::parse_option(args, i, out.android)) {
+            if (!android_error->empty()) return *android_error;
+        } else if (a == "--no-embed") {
             out.embed_rom = false;
+        } else if (a == "--target" && has_value) {
+            const std::string t = value();
+            if (t == "native") {
+                out.target = Target::Native;
+            } else if (t == "android") {
+                out.target = Target::Android;
+            } else if (t == "android-package") {
+                out.target = Target::AndroidPackage;
+            } else {
+                return "unknown target '" + t + "' (native, android, android-package)";
+            }
         } else if (a.starts_with("-") && !has_value) {
             return std::string(a) + " needs a value or is unknown";
         } else if (a == "--config") {
@@ -254,6 +271,15 @@ fs::path build(const BuildOptions& o) {
     if (!fs::exists(prefix / "lib" / "cmake" / "anygba")) {
         throw std::runtime_error("no anygba runtime package under " + path_string(prefix) +
                                  " (expected lib/cmake/anygba); pass --prefix");
+    }
+    if (o.target != Target::Native) {
+        if (!o.embed_rom) throw std::runtime_error("--no-embed applies to native programs only");
+        const std::vector<std::uint8_t> rom = read_file(o.rom);
+        const android::Game game{ro.output_dir, o.rom, analysis.title, o.name ? *o.name : program_name(analysis.title),
+                                 anygba::sha256_hex(rom), cheat_databases(prefix, rom)};
+        const android::Paths paths{prefix, work, o.output_dir, o.cmake, o.generator, o.build_type};
+        return o.target == Target::Android ? android::build_apk(game, paths, o.android)
+                                           : android::build_package(game, paths, o.android);
     }
     const fs::path bin = work / "out";
     std::vector<std::string> configure = {o.cmake, "-S", path_string(ro.output_dir), "-B", path_string(bin),

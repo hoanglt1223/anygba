@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The AnyGBA launcher: one app for many imported game packages (.agp). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="@PACKAGE@"
+    android:installLocation="auto">
+
+    <uses-feature android:glEsVersion="0x00020000" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.hardware.type.pc" android:required="false" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:label="AnyGBA"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:theme="@style/LauncherTheme"
+        android:hardwareAccelerated="true"
+        android:appCategory="game">
+
+        <meta-data android:name="SDL_ENV.SDL_ORIENTATIONS" android:value="LandscapeLeft LandscapeRight Portrait" />
+        <meta-data android:name="SDL_ENV.SDL_ANDROID_TRAP_BACK_BUTTON" android:value="0" />
+
+        <activity
+            android:name="io.anyport.anygba.launcher.LauncherActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+
+        <!-- Each game runs in its own process: SDL and the game library load once per process. -->
+        <activity
+            android:name="io.anyport.anygba.GameActivity"
+            android:process=":game"
+            android:theme="@style/GameTheme"
+            android:launchMode="singleTask"
+            android:taskAffinity=".game"
+            android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:preferMinimalPostProcessing="true"
+            android:exported="false" />
+
+        <provider
+            android:name="io.anyport.anygba.SaveProvider"
+            android:process=":game"
+            android:authorities="@PACKAGE@.saves"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

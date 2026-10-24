@@ -4,7 +4,16 @@
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
-install(TARGETS anygba-recomp anygba RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(ANDROID)
+  # SDLActivity and friends, compiled into each APK by `anygba build --target android`.
+  install(DIRECTORY "${sdl3_SOURCE_DIR}/android-project/app/src/main/java/"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/android/sdl-java)
+else()
+  install(TARGETS anygba-recomp anygba RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  # Gradle-free APK template: manifest, Java sources and resources for games and the launcher.
+  install(DIRECTORY "${PROJECT_SOURCE_DIR}/platform/android/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/android
+    PATTERN "*.cmake" EXCLUDE PATTERN "*.sh" EXCLUDE)
+endif()
 
 # Exported as anygba::runtime, anygba::game_main, ... to match the in-tree aliases.
 set_target_properties(anygba_runtime PROPERTIES EXPORT_NAME runtime)
