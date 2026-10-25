@@ -102,6 +102,8 @@ void anygba_undefined(anygba_cpu* c, uint32_t addr, uint32_t raw);
  * function must not run its compiled body (the interpreter runs the patched code). */
 int anygba_rom_patched(anygba_cpu* c, uint32_t entry);
 int anygba_ram_code_valid(anygba_cpu* c, uint32_t entry, int thumb);
+/* Runs override `index` of the game's override table (docs/dev/OVERRIDES.md). */
+void anygba_override_run(anygba_cpu* c, uint32_t index);
 
 /* ---- Inline helpers for generated code ---- */
 
@@ -306,6 +308,17 @@ typedef struct anygba_function_entry {
     uint32_t code_src;
 } anygba_function_entry;
 
+/* A guest function routed to a C++ override (per-game config [[override]]). */
+typedef struct anygba_override_entry {
+    uint32_t addr;
+    uint32_t thumb;
+    const char* impl;   /* name the override registered with ANYGBA_OVERRIDE */
+    const char* name;   /* the function's symbol, or its address in hex */
+    const char* engine; /* engine tag, "" when none */
+    uint32_t enabled;   /* on by default */
+    anygba_fn original; /* the translation of the guest function */
+} anygba_override_entry;
+
 typedef struct anygba_game {
     const char* title;
     const char* rom_sha256; /* hex of the ROM the code was generated from */
@@ -315,6 +328,11 @@ typedef struct anygba_game {
     const char* save_type; /* per-game config override, or "" to detect from the ROM */
     int32_t rtc;           /* real-time clock: 1 on, 0 off, -1 decided by the runtime */
     const char* video;     /* per-game [video] settings "key=value;...", "" or NULL for defaults */
+    /* Overrides, sorted by addr; absent (0) in games without any. override_on[i] nonzero routes
+     * calls of overrides[i].addr to the override; the runtime sets it at startup. */
+    const anygba_override_entry* overrides;
+    uint32_t override_count;
+    uint8_t* override_on;
 } anygba_game;
 
 #ifdef __cplusplus

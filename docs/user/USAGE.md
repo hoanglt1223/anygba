@@ -28,6 +28,7 @@ Options (`anygba help build`):
 |---|---|
 | `--config FILE` | per-game config: entry points, RAM code, save type, patches, video ([GAME-CONFIG.md](../dev/GAME-CONFIG.md)); default: the one shipped for the ROM's game code in `share/anygba/configs/`, if any |
 | `--miss-log FILE` | trace-feedback log from an earlier run (repeatable) |
+| `--overrides DIR` | override module: C++ that replaces chosen game functions ([OVERRIDES.md](../dev/OVERRIDES.md); repeatable) |
 | `-o, --output DIR` | output folder (default: current folder) |
 | `--work DIR` | generated C and build files (default: `<output>/<rom name>-build`) |
 | `--name NAME` | program name (default: the game title from the ROM header or config) |
@@ -61,6 +62,8 @@ Options (`anygba help build`):
 - `--dump REGION:FILE`: write memory (`ewram`, `iwram`, `io`, `palette`, `vram`, `oam`) or the last
   picture (`frame`, 240x160 RGB555) to a file on exit. Handy for finding cheat addresses.
 - `--wav FILE`: record the sound as it is played (after speed changes) to a WAV file, also headless.
+- `--overrides on|off|all`: function overrides built into the game; `off` runs the original code for
+  comparison ([OVERRIDES.md](../dev/OVERRIDES.md)).
 - `--control`, `--journal`, `--symbols FILE` and the other `--control-*` and `--journal-*` options: AI agent
   control and the play journal ([AI-CONTROL.md](AI-CONTROL.md)).
 

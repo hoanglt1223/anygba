@@ -25,6 +25,7 @@ add_executable(anygba-tests
   recomp/discovery_tests.cpp
   recomp/config_tests.cpp
   recomp/codegen_tests.cpp
+  recomp/override_config_tests.cpp
   support/elf_symbols.cpp
   support/corpus.cpp
   support/png.cpp
@@ -33,6 +34,7 @@ add_executable(anygba-tests
   runtime/runtime_tests.cpp
   runtime/interpreter_tests.cpp
   runtime/system_tests.cpp
+  runtime/override_tests.cpp
   runtime/bios_tests.cpp
   runtime/ppu_tests.cpp
   runtime/motion_tests.cpp
@@ -142,6 +144,15 @@ if(EXISTS "${corpus}/tonc/bin/irq_demo.gba" AND EXISTS "${corpus}/tonc/bin/first
         -P "${CMAKE_CURRENT_SOURCE_DIR}/player-${feature}.cmake")
   endforeach()
   set_tests_properties(player-speed PROPERTIES RUN_SERIAL TRUE)  # timing
+endif()
+# Function overrides end to end (docs/dev/OVERRIDES.md): a C++ test module on irq_demo.
+if(EXISTS "${corpus}/tonc/bin/irq_demo.gba")
+  anygba_add_game(override-irq-demo ROM "${corpus}/tonc/bin/irq_demo.gba" SHARDS 2
+    MISS_LOGS "${CMAKE_CURRENT_SOURCE_DIR}/overrides/irq-demo-isr.log"
+    OVERRIDES "${CMAKE_CURRENT_SOURCE_DIR}/overrides/call-paths")
+  add_test(NAME override-e2e
+    COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:override-irq-demo>" "-DROM=${corpus}/tonc/bin/irq_demo.gba"
+      "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/override-e2e" -P "${CMAKE_CURRENT_SOURCE_DIR}/override-e2e.cmake")
 endif()
 if(TARGET gba-tests-save-sram)
   add_test(NAME player-saveio

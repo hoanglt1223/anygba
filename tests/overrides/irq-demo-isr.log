@@ -1,0 +1,5 @@
+# libtonc isr_master, copied to IWRAM by irq_demo: recompiled so it calls the HBlank handler from
+# translated code (tests/overrides/call-paths).
+0x03000138 arm rom=0x08011f20
+0x030001ac arm rom=0x08011f94
+0x030001dc arm rom=0x08011fc4

@@ -1,0 +1,25 @@
+# Test module for tonc's irq_demo (tests/override-e2e.cmake): three functions, one per call path.
+# Each override counts its calls and runs the original translation, so the game must look the same
+# with and without it.
+
+# Called with bl from recompiled code only.
+[[override]]
+addr = 0x08004104
+mode = "thumb"
+impl = "call_paths_direct"
+engine = "test"
+
+# The HBlank handler: only a pointer in a literal pool; libtonc's isr_master (IWRAM, recompiled
+# through tests/overrides/irq-demo-isr.log) calls it with bx.
+[[override]]
+addr = 0x080002F0
+mode = "thumb"
+impl = "call_paths_indirect"
+engine = "test"
+
+# Called with bl from code the recompiler missed, which runs in the interpreter.
+[[override]]
+addr = 0x080037A0
+mode = "thumb"
+impl = "call_paths_interpreted"
+engine = "test"

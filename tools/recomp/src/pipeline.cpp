@@ -6,6 +6,7 @@
 #include "decode/disasm.h"
 #include "io/miss_log.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -28,6 +29,83 @@ std::vector<std::uint8_t> read_rom(const std::filesystem::path& path) {
     return bytes;
 }
 
+std::string hex(std::uint32_t v) {
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "0x%08x", v);
+    return buf;
+}
+
+// Overrides from the config and the modules, with symbols looked up in the [functions] tables of
+// the config and the symbols files. Adds the modules' sources to `analysis`.
+void resolve_overrides(const Options& options, const config::GameConfig* game, Analysis& analysis,
+                       analysis::DiscoveryOptions& discovery) {
+    std::vector<config::Override> wanted;
+    if (game) wanted = game->overrides;
+    for (const auto& dir : options.override_modules) {
+        config::OverrideModule module = config::load_override_module(dir);
+        wanted.insert(wanted.end(), module.overrides.begin(), module.overrides.end());
+        analysis.sources.insert(analysis.sources.end(), module.sources.begin(), module.sources.end());
+    }
+    if (wanted.empty()) return;
+    if (analysis.sources.empty()) {
+        throw config::ConfigError(wanted.front().where +
+                                  ": [[override]] needs sources: an override module (--overrides DIR) or game.sources");
+    }
+
+    config::FunctionTable functions;
+    std::string tables;  // where symbols were looked up, for the error message
+    const auto merge = [&](const config::FunctionTable& table, const std::string& from) {
+        tables += (tables.empty() ? "" : ", ") + from;
+        for (const auto& [name, fn] : table) {
+            const auto [it, added] = functions.emplace(name, fn);
+            if (!added && (it->second.addr != fn.addr || it->second.mode != fn.mode)) {
+                throw config::ConfigError(from + ": functions." + name + " differs from an earlier [functions] table");
+            }
+        }
+    };
+    if (std::any_of(wanted.begin(), wanted.end(), [](const config::Override& o) { return !o.addr; })) {
+        if (game && options.config) merge(game->functions, options.config->string());
+        for (const auto& file : options.symbol_files) merge(config::load_function_symbols(file), file.string());
+    }
+
+    std::map<std::uint32_t, std::string> seen;  // addr -> where
+    for (const auto& o : wanted) {
+        codegen::OverrideInfo info;
+        info.impl = o.impl;
+        info.engine = o.engine;
+        info.enabled = o.enabled;
+        if (o.addr) {
+            info.addr = *o.addr;
+            info.thumb = o.mode == analysis::Mode::Thumb;
+            info.name = hex(info.addr);
+        } else {
+            const auto it = functions.find(o.symbol);
+            if (it == functions.end()) {
+                throw config::ConfigError(o.where + ": override.symbol '" + o.symbol + "' is not in any [functions] table" +
+                                          (tables.empty() ? std::string(" (pass --symbols FILE)") : " (" + tables + ")"));
+            }
+            info.addr = it->second.addr;
+            info.thumb = it->second.mode == analysis::Mode::Thumb;
+            info.name = o.symbol;
+        }
+        if ((info.addr & (info.thumb ? 1u : 3u)) != 0) {
+            throw config::ConfigError(o.where + ": " + info.name + " is at the misaligned address " + hex(info.addr) +
+                                      " (give the address without the Thumb bit)");
+        }
+        if (const auto [it, added] = seen.emplace(info.addr, o.where); !added) {
+            throw config::ConfigError(o.where + ": a second override for " + hex(info.addr) + " (first at " + it->second + ")");
+        }
+        if (analysis.replacements.contains(info.addr)) {
+            throw config::ConfigError(o.where + ": " + hex(info.addr) + " already has a [[replace]] entry");
+        }
+        discovery.entries.push_back({info.addr, info.thumb ? analysis::Mode::Thumb : analysis::Mode::Arm,
+                                     analysis::EntrySource::Config});
+        analysis.overrides.push_back(std::move(info));
+    }
+    std::sort(analysis.overrides.begin(), analysis.overrides.end(),
+              [](const codegen::OverrideInfo& a, const codegen::OverrideInfo& b) { return a.addr < b.addr; });
+}
+
 }  // namespace
 
 Analysis analyze(const Options& options) {
@@ -40,8 +118,10 @@ Analysis analyze(const Options& options) {
     }
     result.image = std::make_unique<analysis::Image>(std::move(rom));
     analysis::DiscoveryOptions discovery_options;
+    std::optional<config::GameConfig> game_config;
     if (options.config) {
-        const config::GameConfig game = config::load_game_config(*options.config);
+        game_config = config::load_game_config(*options.config);
+        const config::GameConfig& game = *game_config;
         if (!game.title.empty()) {
             result.title = game.title;
         }
@@ -56,6 +136,7 @@ Analysis analyze(const Options& options) {
         }
         discovery_options = config::apply_game_config(game, *result.image);
     }
+    resolve_overrides(options, game_config ? &*game_config : nullptr, result, discovery_options);
     discovery_options.entries.insert(discovery_options.entries.begin(),
                                      {analysis::kRomBase, analysis::Mode::Arm, analysis::EntrySource::RomEntry});
     for (const auto& path : options.miss_logs) {
@@ -76,6 +157,7 @@ std::size_t generate(const Options& options, const Analysis& analysis) {
     info.video = analysis.video;
     info.replacements = analysis.replacements;
     info.sources = analysis.sources;
+    info.overrides = analysis.overrides;
     codegen::write_project(options.output_dir, *analysis.image, analysis.discovery, info);
     return analysis.discovery.functions.size();
 }

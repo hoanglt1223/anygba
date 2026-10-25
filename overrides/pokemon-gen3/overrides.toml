@@ -1,0 +1,10 @@
+# Overrides for the Gen 3 Pokemon engine (Ruby, Sapphire, Emerald, FireRed, LeafGreen).
+# Function names follow the pret decompilations; each game's addresses come from the [functions]
+# table of its symbols file (compat/symbols/<game code>.toml). Build with:
+#   anygba build game.gba --overrides overrides/pokemon-gen3
+
+# u8 *StringCopy(u8 *dest, const u8 *src)
+[[override]]
+symbol = "StringCopy"
+impl = "pokemon_gen3_StringCopy"
+engine = "pokemon-gen3"

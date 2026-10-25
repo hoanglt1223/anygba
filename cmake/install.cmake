@@ -61,6 +61,9 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/compat/symbols/" DESTINATION ${CMAKE_IN
 # --config is given.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/configs/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/configs
   FILES_MATCHING PATTERN "*.toml")
+# Override modules for `anygba build --overrides <prefix>/share/anygba/overrides/<module>`.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/overrides/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/overrides
+  FILES_MATCHING PATTERN "*.toml" PATTERN "*.cpp" PATTERN "*.c" PATTERN "*.h" PATTERN "*.hpp")
 # Per-game widescreen rules, copied next to the game the same way.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/widescreen/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/widescreen
   FILES_MATCHING PATTERN "*.toml")

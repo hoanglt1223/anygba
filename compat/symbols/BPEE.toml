@@ -250,3 +250,8 @@ description = "1 won, 2 lost, 3 draw, 4 ran, 7 caught (B_OUTCOME_*)"
 address = 0x020375F0
 type = "u16"
 description = "VAR_RESULT of the running script"
+
+# ---- functions (override targets, docs/dev/OVERRIDES.md; addresses from pokeemerald.sym) ----
+
+[functions]
+StringCopy = { addr = 0x08008BA0, mode = "thumb" }

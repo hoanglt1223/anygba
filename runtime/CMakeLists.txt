@@ -82,6 +82,7 @@ add_library(anygba_runtime STATIC
   src/video/hd/ai.cpp
   src/video/hd/session.cpp
   src/dispatch.cpp
+  src/overrides/overrides.cpp
   src/interp/arm_interp.cpp
   src/interp/thumb_interp.cpp)
 add_library(anygba::runtime ALIAS anygba_runtime)

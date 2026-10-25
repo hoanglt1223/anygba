@@ -1,10 +1,11 @@
-# anygba_add_game(<target> ROM <rom.gba> [CONFIG <game.toml>] [SHARDS <n>] [MISS_LOGS <log>...])
+# anygba_add_game(<target> ROM <rom.gba> [CONFIG <game.toml>] [SHARDS <n>] [MISS_LOGS <log>...]
+#                 [OVERRIDES <module dir>...] [SYMBOLS <symbols.toml>...])
 #
 # Recompiles ROM with the in-tree anygba-recomp as part of the build and links the result
 # into the executable <target>. Used by the corpus tests; installed projects use the
 # CMakeLists.txt that anygba-recomp writes instead.
 function(anygba_add_game target)
-  cmake_parse_arguments(PARSE_ARGV 1 ARG "" "ROM;CONFIG;SHARDS" "MISS_LOGS")
+  cmake_parse_arguments(PARSE_ARGV 1 ARG "" "ROM;CONFIG;SHARDS" "MISS_LOGS;OVERRIDES;SYMBOLS")
   if(NOT ARG_ROM)
     message(FATAL_ERROR "anygba_add_game(${target}): ROM is required")
   endif()
@@ -34,6 +35,18 @@ function(anygba_add_game target)
     list(APPEND args --miss-log "${log}")
     list(APPEND deps "${log}")
   endforeach()
+  # Override modules (docs/dev/OVERRIDES.md): their sources are compiled from where they are.
+  set(module_sources "")
+  foreach(dir IN LISTS ARG_OVERRIDES)
+    file(GLOB found CONFIGURE_DEPENDS "${dir}/*.c" "${dir}/*.cpp")
+    list(APPEND module_sources ${found})
+    list(APPEND args --overrides "${dir}")
+    list(APPEND deps "${dir}/overrides.toml")
+  endforeach()
+  foreach(file IN LISTS ARG_SYMBOLS)
+    list(APPEND args --symbols "${file}")
+    list(APPEND deps "${file}")
+  endforeach()
 
   add_custom_command(
     OUTPUT ${sources} "${out}/game.h"
@@ -41,6 +54,9 @@ function(anygba_add_game target)
     DEPENDS ${deps}
     COMMENT "Recompiling ${ARG_ROM}"
     VERBATIM)
-  add_executable(${target} ${sources})
+  add_executable(${target} ${sources} ${module_sources})
   target_link_libraries(${target} PRIVATE anygba::game_main)
+  if(module_sources)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+  endif()
 endfunction()

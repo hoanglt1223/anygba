@@ -7,6 +7,7 @@
 #include "control/controller.h"
 #include "control/net.h"
 #include "input_map.h"
+#include "overrides/overrides.h"
 #include "player/lifecycle.h"
 #include "journal/journal.h"
 #include "player/dialog.h"
@@ -123,6 +124,7 @@ struct Args {
     std::optional<fs::path> journal_dir;
     anygba::journal::Settings journal_settings;
     std::vector<fs::path> symbol_files;
+    anygba::overrides::Mode overrides = anygba::overrides::Mode::On;
 };
 
 const char* const kUsage =
@@ -174,6 +176,8 @@ const char* const kUsage =
     "  --keys SPEC         GBA buttons held over frame ranges, e.g. a:10-20,start:30-31\n"
     "  --miss-log FILE     where to append addresses the recompiled code missed (default anygba-miss.log)\n"
     "  --no-miss-log       do not write the miss log\n"
+    "  --overrides MODE    function overrides compiled into the game: on (the enabled ones, default), off\n"
+    "                      (the original code everywhere, for comparison) or all (also the disabled ones)\n"
     "\n"
     "AI agent control and the play journal (both can also be switched in the menu: Settings):\n"
     "  --control           start the control server (127.0.0.1 only, token in the per-user control folder)\n"
@@ -328,6 +332,10 @@ std::optional<Args> parse(int argc, char** argv) {
                 if (n == 0) return std::nullopt;
                 a.journal_settings.max_mb = static_cast<std::uint64_t>(n);
             }
+        } else if (arg == "--overrides" && has_value) {
+            const auto mode = anygba::overrides::parse_mode(argv[++i]);
+            if (!mode) return std::nullopt;
+            a.overrides = *mode;
         } else if (arg == "--symbols" && has_value) {
             a.symbol_files.emplace_back(argv[++i]);
         } else if ((arg == "--hd-pack" || arg == "--hd-dump") && has_value) {
@@ -543,6 +551,7 @@ public:
         if (!video_warning.empty()) std::fprintf(stderr, "warning: %s\n", video_warning.c_str());
         menu_.set_video(&video_options_);
         menu_.set_game_title(anygba_game_info.title);
+        anygba::overrides::set_osd_sink([this](const std::string& text) { osd_.show(text); });
         if (!args.headless) {
             context_ = std::make_unique<platform::Context>(platform::ContextOptions{false});
             platform::WindowConfig window;
@@ -592,7 +601,10 @@ public:
         }
     }
 
-    ~Player() { sys_.on_line_rendered = nullptr; }
+    ~Player() {
+        sys_.on_line_rendered = nullptr;
+        anygba::overrides::set_osd_sink(nullptr);
+    }
 
     // One line of HD timing on exit, when the HD path was in use.
     void print_hd_stats() const {
@@ -2238,6 +2250,9 @@ int main(int argc, char** argv) {
         load_cheat_databases(*args, rom, cheat_list);
         anygba::control::Symbols symbols = load_symbols(*args, rom);
 
+        for (const auto& active : anygba::overrides::activate(anygba_game_info, args->overrides)) {
+            std::printf("override: %s\n", anygba::overrides::describe(active).c_str());
+        }
         system = std::make_unique<anygba::System>(std::move(rom), &anygba_game_info, args->runtime);
         anygba::System& sys = *system;
         // --save-dir, else the settings file's SaveFolder (relative to that file), else the default.

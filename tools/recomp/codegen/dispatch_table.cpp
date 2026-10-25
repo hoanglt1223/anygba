@@ -74,6 +74,27 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
         }
         header += "void " + name + "(anygba_cpu* c); /* hand-written replacement */\n";
     }
+    for (const auto& o : info.overrides) {
+        char buf[64];
+        const auto fn = functions.find(o.addr);
+        if (fn == functions.end()) {
+            std::snprintf(buf, sizeof buf, "override for 0x%08x: no function starts there", o.addr);
+            throw std::runtime_error(buf);
+        }
+        if ((fn->second.mode == analysis::Mode::Thumb) != o.thumb) {
+            std::snprintf(buf, sizeof buf, "override for 0x%08x: the function there is %s code", o.addr,
+                          o.thumb ? "ARM" : "Thumb");
+            throw std::runtime_error(buf);
+        }
+        if (info.replacements.contains(o.addr)) {
+            std::snprintf(buf, sizeof buf, "0x%08x has both [[replace]] and [[override]]", o.addr);
+            throw std::runtime_error(buf);
+        }
+        header += "void " + function_name(o.addr) + "_orig(anygba_cpu* c); /* translation behind an override */\n";
+    }
+    if (!info.overrides.empty()) {
+        header += "extern uint8_t ag_override_on[];\n";
+    }
     header += "\n#endif\n";
     write_file(dir / "game.h", header, written);
 
@@ -82,10 +103,22 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     EmitOptions options;
     options.image = &image;
     options.functions = &functions;
+    std::map<std::uint32_t, std::size_t> override_index;
+    for (std::size_t k = 0; k < info.overrides.size(); ++k) override_index[info.overrides[k].addr] = k;
     std::size_t i = 0;
     for (const auto& [addr, fn] : functions) {
         std::string& shard = shard_text[i * shards / std::max<std::size_t>(functions.size(), 1)];
-        if (const auto rep = info.replacements.find(addr); rep != info.replacements.end()) {
+        if (const auto ov = override_index.find(addr); ov != override_index.end()) {
+            // Every call path (direct calls, the dispatcher, the interpreter) enters f_XXXXXXXX.
+            const std::string name = function_name(addr);
+            const std::string k = std::to_string(ov->second) + "u";
+            EmitOptions original = options;
+            original.name = name + "_orig";
+            shard += emit_function(fn, original) + "\n";
+            shard += "void " + name + "(anygba_cpu* c) {\n    if (ag_override_on[" + std::to_string(ov->second) +
+                     "]) {\n        anygba_override_run(c, " + k + ");\n        return;\n    }\n    " + name +
+                     "_orig(c);\n}\n\n";
+        } else if (const auto rep = info.replacements.find(addr); rep != info.replacements.end()) {
             // Direct calls from other generated functions land here too.
             shard += "void " + function_name(addr) + "(anygba_cpu* c) { " + rep->second + "(c); }\n\n";
         } else {
@@ -130,10 +163,26 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     if (functions.empty()) {
         dispatch += "    {0, 0, 0, 0, 0, 0},\n";
     }
-    dispatch += "};\n\nconst anygba_game anygba_game_info = {\n    " + c_string(info.title) + ",\n    \"" +
-                info.rom_sha256 + "\",\n    " + std::to_string(info.rom_size) + "u,\n    functions,\n    " +
+    dispatch += "};\n\n";
+    if (!info.overrides.empty()) {
+        dispatch += "uint8_t ag_override_on[" + std::to_string(info.overrides.size()) +
+                    "];\n\nstatic const anygba_override_entry overrides[] = {\n";
+        for (const auto& o : info.overrides) {
+            char buf[32];
+            std::snprintf(buf, sizeof buf, "0x%08xu, %d, ", o.addr, o.thumb ? 1 : 0);
+            dispatch += "    {" + std::string(buf) + c_string(o.impl) + ", " + c_string(o.name) + ", " +
+                        c_string(o.engine) + ", " + (o.enabled ? "1" : "0") + ", " + function_name(o.addr) + "_orig},\n";
+        }
+        dispatch += "};\n\n";
+    }
+    dispatch += "const anygba_game anygba_game_info = {\n    " + c_string(info.title) + ",\n    \"" + info.rom_sha256 +
+                "\",\n    " + std::to_string(info.rom_size) + "u,\n    functions,\n    " +
                 std::to_string(functions.size()) + "u,\n    " + c_string(info.save_type) + ",\n    " +
-                std::to_string(info.rtc) + ",\n    " + c_string(info.video) + ",\n};\n";
+                std::to_string(info.rtc) + ",\n    " + c_string(info.video) + ",\n";
+    if (!info.overrides.empty()) {
+        dispatch += "    overrides,\n    " + std::to_string(info.overrides.size()) + "u,\n    ag_override_on,\n";
+    }
+    dispatch += "};\n";
     write_file(dir / "dispatch.c", dispatch, written);
 
     std::string cmake =
@@ -145,8 +194,24 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
         "file(GLOB game_sources CONFIGURE_DEPENDS \"${CMAKE_CURRENT_SOURCE_DIR}/*.c\")\n"
         "add_executable(game ${game_sources})\n"
         "target_link_libraries(game PRIVATE anygba::game_main)\n";
+    const bool cpp = std::any_of(info.sources.begin(), info.sources.end(),
+                                 [](const std::filesystem::path& p) { return p.extension() == ".cpp"; });
+    if (cpp) {
+        // C++ override modules (docs/dev/OVERRIDES.md).
+        cmake += "file(GLOB game_cpp_sources CONFIGURE_DEPENDS \"${CMAKE_CURRENT_SOURCE_DIR}/*.cpp\")\n"
+                 "target_sources(game PRIVATE ${game_cpp_sources})\n"
+                 "target_compile_features(game PRIVATE cxx_std_20)\n";
+    }
     write_file(dir / "CMakeLists.txt", cmake, written);
     for (const auto& source : info.sources) {
+        if (const auto clash = std::find_if(info.sources.begin(), info.sources.end(),
+                                            [&](const std::filesystem::path& p) {
+                                                return &p != &source && p.filename() == source.filename();
+                                            });
+            clash != info.sources.end()) {
+            throw std::runtime_error("two sources share the file name " + source.filename().string() + ": " +
+                                     source.string() + " and " + clash->string());
+        }
         std::ifstream in(source, std::ios::binary);
         if (!in) {
             throw std::runtime_error("cannot read " + source.string());

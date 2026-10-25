@@ -131,21 +131,114 @@ std::string parse_video(const Reader& r, const toml::node& node) {
     return video::serialize(options);
 }
 
-}  // namespace
+bool is_identifier(const std::string& s) {
+    if (s.empty() || std::isdigit(static_cast<unsigned char>(s[0]))) return false;
+    return std::all_of(s.begin(), s.end(), [](char ch) { return std::isalnum(static_cast<unsigned char>(ch)) || ch == '_'; });
+}
 
-GameConfig parse_game_config(std::string_view text, std::string_view source_name) {
-    toml::table root;
+toml::table parse_toml(std::string_view text, std::string_view source_name) {
     try {
-        root = toml::parse(text, source_name);
+        return toml::parse(text, source_name);
     } catch (const toml::parse_error& e) {
         std::ostringstream msg;
         msg << source_name << ":" << e.source().begin.line << ": " << e.description();
         throw ConfigError(msg.str());
     }
+}
 
+std::string read_text(const std::filesystem::path& path, const char* what) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        throw ConfigError(std::string("cannot open ") + what + ": " + path.string());
+    }
+    std::ostringstream text;
+    text << file.rdbuf();
+    return text.str();
+}
+
+// [functions]: name = { addr = 0x08008BA0, mode = "thumb" }
+FunctionTable parse_functions(const Reader& r, const toml::table& root) {
+    FunctionTable functions;
+    const toml::node* node = root.get("functions");
+    if (!node) return functions;
+    const auto* table = node->as_table();
+    if (!table) r.fail(*node, "[functions] must be a table of name = { addr = ..., mode = ... }");
+    for (const auto& [key, value] : *table) {
+        const std::string name(key.str());
+        const auto* entry = value.as_table();
+        if (!entry || !is_identifier(name)) {
+            r.fail(value, "functions." + name + " must be an identifier = { addr = ..., mode = \"arm\" | \"thumb\" }");
+        }
+        const std::string context = "functions." + name;
+        r.only_keys(*entry, context, {"addr", "mode"});
+        functions[name] = {r.u32(*entry, context, "addr"), r.mode(*entry, context)};
+    }
+    return functions;
+}
+
+void parse_overrides(const Reader& r, const toml::table& root, std::string_view source_name, std::vector<Override>& out) {
+    r.each_table(root, "override", [&](const toml::table& t) {
+        r.only_keys(t, "[[override]]", {"addr", "mode", "symbol", "impl", "enabled", "engine"});
+        Override o;
+        o.where = std::string(source_name) + ":" + std::to_string(t.source().begin.line);
+        const bool has_addr = t.contains("addr");
+        if (has_addr == t.contains("symbol")) {
+            r.fail(t, "[[override]] needs exactly one of 'addr' (with 'mode') and 'symbol'");
+        }
+        if (has_addr) {
+            o.addr = r.u32(t, "override", "addr");
+            o.mode = r.mode(t, "override");
+        } else {
+            if (const toml::node* mode = t.get("mode")) {
+                r.fail(*mode, "override.mode goes with addr; a symbol's mode comes from [functions]");
+            }
+            const toml::node& sym = *t.get("symbol");
+            if (!sym.is_string() || !is_identifier(sym.as_string()->get())) {
+                r.fail(sym, "override.symbol must be a function name from a [functions] table");
+            }
+            o.symbol = sym.as_string()->get();
+        }
+        const toml::node& impl = r.require(t, "override", "impl");
+        if (!impl.is_string() || !is_identifier(impl.as_string()->get())) {
+            r.fail(impl, "override.impl must be the C++ identifier given to ANYGBA_OVERRIDE");
+        }
+        o.impl = impl.as_string()->get();
+        if (const toml::node* enabled = t.get("enabled")) {
+            if (!enabled->is_boolean()) r.fail(*enabled, "override.enabled must be true or false");
+            o.enabled = enabled->as_boolean()->get();
+        }
+        if (const toml::node* engine = t.get("engine")) {
+            if (!engine->is_string() || engine->as_string()->get().empty()) {
+                r.fail(*engine, "override.engine must be a non-empty string");
+            }
+            o.engine = engine->as_string()->get();
+        }
+        out.push_back(std::move(o));
+    });
+}
+
+std::vector<std::filesystem::path> module_sources(const std::filesystem::path& dir) {
+    std::vector<std::filesystem::path> sources;
+    std::error_code ec;
+    for (const auto& item : std::filesystem::directory_iterator(dir, ec)) {
+        const auto ext = item.path().extension();
+        if (item.is_regular_file() && (ext == ".c" || ext == ".cpp")) {
+            sources.push_back(std::filesystem::absolute(item.path()));
+        }
+    }
+    if (ec) throw ConfigError("cannot list override module " + dir.string() + ": " + ec.message());
+    std::sort(sources.begin(), sources.end());
+    return sources;
+}
+
+}  // namespace
+
+GameConfig parse_game_config(std::string_view text, std::string_view source_name) {
+    const toml::table root = parse_toml(text, source_name);
     const Reader r(source_name);
     // [symbols] is for the runtime's agent control (docs/dev/GAME-CONFIG.md); the game checks it.
-    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace", "video", "symbols"});
+    r.only_keys(root, "the top level", {"game", "entry", "ram_region", "skip", "patch", "replace", "video", "symbols",
+                                         "functions", "override"});
 
     GameConfig config;
     if (const toml::node* game = root.get("game")) {
@@ -182,8 +275,8 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
             }
             for (const auto& item : *array) {
                 const auto* name = item.as_string();
-                if (!name || !name->get().ends_with(".c")) {
-                    r.fail(item, "game.sources entries must be .c file names");
+                if (!name || !(name->get().ends_with(".c") || name->get().ends_with(".cpp"))) {
+                    r.fail(item, "game.sources entries must be .c or .cpp file names");
                 }
                 config.sources.emplace_back(name->get());
             }
@@ -220,13 +313,7 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
         Replacement rep{r.u32(t, "replace", "addr"), r.mode(t, "replace"), {}};
         const toml::node& fn = r.require(t, "replace", "function");
         const auto* name = fn.as_string();
-        const auto is_ident = [](const std::string& s) {
-            if (s.empty() || std::isdigit(static_cast<unsigned char>(s[0]))) return false;
-            return std::all_of(s.begin(), s.end(), [](char ch) {
-                return std::isalnum(static_cast<unsigned char>(ch)) || ch == '_';
-            });
-        };
-        if (!name || !is_ident(name->get()) || name->get().starts_with("f_") || name->get().starts_with("ag_") ||
+        if (!name || !is_identifier(name->get()) || name->get().starts_with("f_") || name->get().starts_with("ag_") ||
             name->get().starts_with("anygba_")) {
             r.fail(fn, "replace.function must be a C identifier not starting with f_, ag_ or anygba_");
         }
@@ -236,17 +323,13 @@ GameConfig parse_game_config(std::string_view text, std::string_view source_name
     if (!config.replacements.empty() && config.sources.empty()) {
         throw ConfigError(std::string(source_name) + ": [[replace]] needs game.sources naming the C file(s) that define the functions");
     }
+    config.functions = parse_functions(r, root);
+    parse_overrides(r, root, source_name, config.overrides);
     return config;
 }
 
 GameConfig load_game_config(const std::filesystem::path& path) {
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-        throw ConfigError("cannot open config: " + path.string());
-    }
-    std::ostringstream text;
-    text << file.rdbuf();
-    GameConfig config = parse_game_config(text.str(), path.string());
+    GameConfig config = parse_game_config(read_text(path, "config"), path.string());
     for (auto& source : config.sources) {
         source = std::filesystem::absolute(path.parent_path() / source);
         if (!std::filesystem::is_regular_file(source)) {
@@ -279,6 +362,41 @@ analysis::DiscoveryOptions apply_game_config(const GameConfig& config, analysis:
     }
     options.skip = config.skip;
     return options;
+}
+
+OverrideModule parse_override_module(std::string_view text, std::string_view source_name) {
+    const toml::table root = parse_toml(text, source_name);
+    const Reader r(source_name);
+    r.only_keys(root, "the top level of an override module", {"override"});
+    OverrideModule module;
+    parse_overrides(r, root, source_name, module.overrides);
+    if (module.overrides.empty()) {
+        throw ConfigError(std::string(source_name) + ": an override module needs at least one [[override]]");
+    }
+    return module;
+}
+
+OverrideModule load_override_module(const std::filesystem::path& dir) {
+    const std::filesystem::path file = dir / "overrides.toml";
+    if (!std::filesystem::is_regular_file(file)) {
+        throw ConfigError("override module " + dir.string() + " has no overrides.toml");
+    }
+    OverrideModule module = parse_override_module(read_text(file, "override module"), file.string());
+    module.dir = std::filesystem::absolute(dir);
+    module.sources = module_sources(dir);
+    if (module.sources.empty()) {
+        throw ConfigError("override module " + dir.string() + " has no .cpp or .c sources");
+    }
+    return module;
+}
+
+FunctionTable parse_function_symbols(std::string_view text, std::string_view source_name) {
+    const toml::table root = parse_toml(text, source_name);
+    return parse_functions(Reader(source_name), root);
+}
+
+FunctionTable load_function_symbols(const std::filesystem::path& path) {
+    return parse_function_symbols(read_text(path, "symbols file"), path.string());
 }
 
 }  // namespace anygba::config

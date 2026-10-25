@@ -8,7 +8,7 @@ are errors, so a typo cannot silently disable a setting. Addresses are integers;
 title = "tonc irq_demo"
 save = "flash128"       # none, sram, flash64, flash128, eeprom, eeprom512, eeprom8k (default: detect)
 rtc = true              # cartridge real-time clock (default: on for the games that shipped with one)
-sources = ["hacks.c"]   # C files compiled into the game, relative to this file
+sources = ["hacks.c"]   # C or C++ files compiled into the game, relative to this file
 
 # Extra function entry points the static analysis cannot see.
 [[entry]]
@@ -42,6 +42,18 @@ addr = 0x08000400
 mode = "thumb"
 function = "skip_intro"
 
+# The function at addr (or the [functions] entry `symbol`) runs the C++ override registered as
+# `impl` while the game runs with --overrides on (docs/dev/OVERRIDES.md).
+[[override]]
+symbol = "StringCopy"
+impl = "pokemon_gen3_StringCopy"
+enabled = true          # optional; false: compiled in, used only with --overrides all
+engine = "pokemon-gen3" # optional tag
+
+# Named guest functions, for [[override]] symbol = "...". Symbols files may hold the same table.
+[functions]
+StringCopy = { addr = 0x08008BA0, mode = "thumb" }
+
 # Default video settings of the generated game (keys and values: docs/user/VIDEO.md).
 # The player's menu choices and command-line options override them.
 [video]
@@ -74,6 +86,12 @@ void skip_intro(anygba_cpu* c) {
 Every call reaches the replacement, including direct calls from other generated functions: the original
 `f_XXXXXXXX` becomes a one-line call to it. Function names may not start with `f_`, `ag_` or `anygba_`.
 `[[replace]]` without `sources` is an error.
+
+## Overrides
+
+`[[override]]` is the richer form for C++ rewrites: named targets through `[functions]` tables, a guest
+API instead of the raw CPU, modules shared between games (`anygba build --overrides DIR`), startup checks
+and `--overrides off` for comparison. Schema, guest API and rules: [OVERRIDES.md](OVERRIDES.md).
 
 ## Symbols: named memory for agents
 

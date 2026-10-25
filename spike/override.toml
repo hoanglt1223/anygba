@@ -1,9 +1,0 @@
-# Spike: Emerald with StringCopy (0x08008BA0, address from pret's pokeemerald.sym) replaced by C.
-[game]
-title = "emerald-ov"
-sources = ["overrides.c"]
-
-[[replace]]
-addr = 0x08008BA0
-mode = "thumb"
-function = "ov_StringCopy"

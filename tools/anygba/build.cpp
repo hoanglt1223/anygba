@@ -212,6 +212,9 @@ std::string build_usage() {
            "\n"
            "  --config FILE      per-game config (docs/dev/GAME-CONFIG.md)\n"
            "  --miss-log FILE    trace-feedback log from an earlier run (repeatable)\n"
+           "  --overrides DIR    override module: overrides.toml plus C++ sources compiled into the game;\n"
+           "                     symbols resolve through the game's [functions] tables (repeatable,\n"
+           "                     docs/dev/OVERRIDES.md)\n"
            "  -o, --output DIR   where the program goes (default: current folder)\n"
            "  --work DIR         generated C and build files (default: <output>/<rom name>-build)\n"
            "  --name NAME        program name (default: the game title)\n"
@@ -251,6 +254,8 @@ std::optional<std::string> parse_build_args(std::span<const std::string_view> ar
             out.config = fs::path(value());
         } else if (a == "--miss-log") {
             out.miss_logs.emplace_back(value());
+        } else if (a == "--overrides") {
+            out.override_modules.emplace_back(value());
         } else if (a == "-o" || a == "--output") {
             out.output_dir = value();
         } else if (a == "--work") {
@@ -302,12 +307,17 @@ fs::path build(const BuildOptions& o) {
     ro.rom = o.rom;
     ro.config = o.config;
     ro.miss_logs = o.miss_logs;
+    ro.override_modules = o.override_modules;
     const fs::path work = o.work_dir ? *o.work_dir : o.output_dir / (o.rom.stem().string() + "-build");
     ro.output_dir = work / "gen";
     if (const auto error = recomp::validate_inputs(ro)) {
         throw std::runtime_error(*error);
     }
     const fs::path prefix = fs::absolute(o.prefix ? *o.prefix : default_prefix());
+    if (!o.override_modules.empty()) {
+        // Override symbols resolve through the shipped symbols files' [functions] tables too.
+        ro.symbol_files = shipped_files(prefix, read_file(o.rom), "symbols");
+    }
     if (!fs::exists(prefix / "lib" / "cmake" / "anygba")) {
         throw std::runtime_error("no anygba runtime package under " + path_string(prefix) +
                                  " (expected lib/cmake/anygba); pass --prefix");

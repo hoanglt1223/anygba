@@ -46,7 +46,8 @@ ParseResult parse_args(std::span<const std::string_view> args) {
             result.options.shards = n;
             continue;
         }
-        if (arg == "--config" || arg == "-o" || arg == "--output" || arg == "--miss-log") {
+        if (arg == "--config" || arg == "-o" || arg == "--output" || arg == "--miss-log" || arg == "--overrides" ||
+            arg == "--symbols") {
             if (i + 1 >= args.size() || args[i + 1].empty()) {
                 return fail(std::string(arg) + " needs a value");
             }
@@ -55,6 +56,10 @@ ParseResult parse_args(std::span<const std::string_view> args) {
                 result.options.config = value;
             } else if (arg == "--miss-log") {
                 result.options.miss_logs.push_back(value);
+            } else if (arg == "--overrides") {
+                result.options.override_modules.push_back(value);
+            } else if (arg == "--symbols") {
+                result.options.symbol_files.push_back(value);
             } else {
                 result.options.output_dir = value;
             }
@@ -78,10 +83,13 @@ ParseResult parse_args(std::span<const std::string_view> args) {
 }
 
 std::string usage() {
-    return "usage: anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]\n"
+    return "usage: anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--overrides DIR]...\n"
+           "                    [--symbols FILE]... [--output dir] [--list]\n"
            "\n"
            "  --config FILE   per-game TOML configuration\n"
            "  --miss-log FILE runtime miss log; its addresses become entry points (repeatable)\n"
+           "  --overrides DIR override module: overrides.toml plus C++/C sources (repeatable)\n"
+           "  --symbols FILE  symbols file whose [functions] table names override targets (repeatable)\n"
            "  -o, --output    directory for the generated C project (default: recomp-out)\n"
            "  --list          print discovered functions with disassembly instead of generating C\n"
            "  --shards N      split the functions over exactly N funcs_NNN.c files\n"
@@ -104,6 +112,16 @@ std::optional<std::string> validate_inputs(const Options& options) {
     for (const auto& log : options.miss_logs) {
         if (!std::filesystem::is_regular_file(log, ec)) {
             return "miss log not found: " + log.string();
+        }
+    }
+    for (const auto& dir : options.override_modules) {
+        if (!std::filesystem::is_directory(dir, ec)) {
+            return "override module folder not found: " + dir.string();
+        }
+    }
+    for (const auto& file : options.symbol_files) {
+        if (!std::filesystem::is_regular_file(file, ec)) {
+            return "symbols file not found: " + file.string();
         }
     }
     return std::nullopt;

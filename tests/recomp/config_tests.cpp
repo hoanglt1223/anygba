@@ -111,7 +111,7 @@ TEST_CASE("game config: save type, replacement functions, and their sources") {
     CHECK(options.entries[0].addr == 0x08000000);
 
     CHECK(error_of("[game]\nsave = \"flash\"\n").starts_with("game.toml:2: game.save must be one of"));
-    CHECK(error_of("[game]\nsources = [\"a.cpp\"]\n").starts_with("game.toml:2: game.sources entries must be .c"));
+    CHECK(error_of("[game]\nsources = [\"a.h\"]\n").starts_with("game.toml:2: game.sources entries must be .c or .cpp"));
     CHECK(error_of("[game]\nsources = [\"a.c\"]\n[[replace]]\naddr = 0\nmode = \"arm\"\nfunction = \"f_0800\"\n")
               .starts_with("game.toml:6: replace.function must be a C identifier"));
     CHECK(error_of("[[replace]]\naddr = 0\nmode = \"arm\"\nfunction = \"fix\"\n")

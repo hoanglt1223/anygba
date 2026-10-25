@@ -17,6 +17,7 @@ struct BuildOptions {
     std::filesystem::path rom;
     std::optional<std::filesystem::path> config;
     std::vector<std::filesystem::path> miss_logs;
+    std::vector<std::filesystem::path> override_modules;  // docs/dev/OVERRIDES.md
     std::filesystem::path output_dir = ".";
     std::optional<std::filesystem::path> work_dir;  // default: <output>/<rom stem>-build
     std::optional<std::string> name;                // default: the game title

@@ -135,9 +135,10 @@ GitHub Release, together with the Android runtime archive and the launcher APK.
 
 ## Programs
 
-- `anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--output dir] [--list]`: recompiler
-  CLI. Writes a C project to the output directory; `--list` prints the discovered functions with
-  disassembly instead. Config schema and the miss-log format: [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md).
+- `anygba-recomp <rom.gba> [--config game.toml] [--miss-log FILE]... [--overrides DIR]... [--symbols FILE]...
+  [--output dir] [--list]`: recompiler CLI. Writes a C project to the output directory; `--list` prints the
+  discovered functions with disassembly instead. Config schema and the miss-log format:
+  [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md); function overrides: [docs/dev/OVERRIDES.md](docs/dev/OVERRIDES.md).
 - `anygba build <rom.gba> [options]`: recompile, compile and package in one step (`anygba help build`).
 - `anygba-mcp [--control-dir DIR] [--journal-dir DIR]`: MCP server on stdin/stdout for AI agents
   ([docs/user/AI-CONTROL.md](docs/user/AI-CONTROL.md); protocol: [docs/dev/control-protocol.md](docs/dev/control-protocol.md)).
@@ -145,6 +146,7 @@ GitHub Release, together with the Android runtime archive and the launcher APK.
   [--exit-on-idle] [--dump-frame-hash] [--save-dir DIR | --no-save] [--save-type T] [--load-state FILE]
   [--cheat CODE] [--cheats FILE] [--cheat-db FILE] [--input FILE] [--script FILE] [--keys SPEC]
   [--dump REGION:FILE] [--miss-log FILE | --no-miss-log] [--scale N] [--control] [--journal] [--symbols FILE]
+  [--overrides on|off|all]
   ...` (`--help` explains each). It only
   accepts the ROM it was generated from (SHA-256); without a ROM argument it uses the one `anygba build`
   embedded. With a window it paces to the audio device and Space fast-forwards; headless runs are unpaced

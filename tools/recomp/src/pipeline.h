@@ -3,6 +3,7 @@
 #include "analysis/functions.h"
 #include "analysis/image.h"
 #include "cli.h"
+#include "codegen/c_emitter.h"
 
 #include <iosfwd>
 #include <filesystem>
@@ -22,6 +23,7 @@ struct Analysis {
     std::string video;
     std::map<std::uint32_t, std::string> replacements;
     std::vector<std::filesystem::path> sources;
+    std::vector<codegen::OverrideInfo> overrides;  // resolved, sorted by addr
     std::unique_ptr<analysis::Image> image;
     analysis::Discovery discovery;
 };

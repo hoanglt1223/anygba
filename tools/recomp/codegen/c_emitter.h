@@ -32,6 +32,17 @@ std::string emit_function(const analysis::Function& fn, const EmitOptions& optio
 // address range in the function's own address space (ROM or RAM).
 analysis::AddressRange code_footprint(const analysis::Function& fn, const analysis::Image* image);
 
+// A function routed to a C++ override (docs/dev/OVERRIDES.md). Its translation stays in the
+// program as f_XXXXXXXX_orig; f_XXXXXXXX runs the override while the runtime has it switched on.
+struct OverrideInfo {
+    std::uint32_t addr = 0;
+    bool thumb = true;
+    std::string impl;    // name registered with ANYGBA_OVERRIDE
+    std::string name;    // symbol, or the address in hex
+    std::string engine;  // "" when untagged
+    bool enabled = true;
+};
+
 struct ProjectInfo {
     std::string title;
     std::string rom_sha256;
@@ -42,6 +53,7 @@ struct ProjectInfo {
     std::string video;       // serialized video settings, "" = defaults
     std::map<std::uint32_t, std::string> replacements;  // function entry -> hand-written C function
     std::vector<std::filesystem::path> sources;        // copied next to the generated files
+    std::vector<OverrideInfo> overrides;               // sorted by addr
 };
 
 // Writes the generated program: game.h, funcs_NNN.c, dispatch.c and CMakeLists.txt.
