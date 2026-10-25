@@ -255,6 +255,42 @@ recorded in the Bag menu, at the ABI level and in full state, with 4 of 4 blocks
 of the states return normally (the rest are the small ROM, IO and stack-overlap shapes, and copies whose
 destination overruns their own source).
 
+### Emerald's text printer
+
+The printer path (RunTextPrinters, RenderFont, FontFunc_Normal, RenderText, DecompressGlyph_Normal,
+DecompressGlyphTile, CopyGlyphToWindow, ClearTextSpan, TextPrinterDrawDownArrow,
+TextPrinterWaitWithDownArrow) has passing overrides, but they replay Emerald's own code block by block, so
+they are not in the repository: regenerate them from your own ROM. The repository holds what is needed for
+that, names and difftest shapes only: `overrides/pokemon-gen3/decomp/BPEE-printer.funcs` and
+`BPEE-printer.toml`.
+
+1. A save state in dialogue and recorded entry states (scratch folder, outside the repository): start a new
+   game headless with scripted A presses, save a state with `--script` (`2010 key tap Shift+F1` while
+   Prof. Birch speaks: `--keys start:700-705,a:900-905,a:1000-1005,...,a:2000-2005 --save-dir states`),
+   then for each function
+   `<game> --headless --no-save --rtc-start 1700000000 --load-state states/<game>.ss1 --frames 8000
+   --keys a:20-24,a:60-64,... --record-entry RenderText --count 3000 --record-out rec/RenderText.states`
+   (A every 40 frames; RenderText 3,000, the others 2,000 states).
+2. The batch, with the specs used as they are:
+
+```
+anygba decomp emerald.gba --funcs overrides/pokemon-gen3/decomp/BPEE-printer.funcs \
+    --symbols compat/symbols/BPEE.toml --spec overrides/pokemon-gen3/decomp/BPEE-printer.toml \
+    --load-state states/<game>.ss1 --recorded rec/RunTextPrinters.states --recorded rec/RenderText.states ... \
+    --engine claude-cli --attempts 6
+```
+
+3. Build with both modules: `anygba build emerald.gba --overrides overrides/pokemon-gen3 --overrides
+   <work>/module` (the decomp module names functions by address; the entries are BPEE-only by nature).
+
+Results on the development box (claude-cli/opus, 2026-10-25, 5.6 USD reported): all ten pass 10,000 random
+states plus 64-3,000 recorded intro-dialogue states, all returning normally, block coverage 87-100%
+(RunTextPrinters misses the printer callback, RenderText 4 of 106 blocks, CopyGlyphToWindow 1 of 79). The
+random states plant a printer and its text, the glyph and the text flags through `memory`. Over a
+9,000-frame scripted run from reset the frames, EWRAM and VRAM match with the overrides on and off.
+FireRed compiles most of these functions differently (`compat/symbols/BPRE.toml`), so it needs its own run
+with `games = ["BPRE"]` entries.
+
 ## AI-assisted decompilation
 
 `anygba decomp` drafts overrides: Ghidra exports the function, an LLM writes the C++ against the guest
