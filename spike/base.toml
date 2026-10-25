@@ -1,0 +1,3 @@
+# Spike baseline: Emerald without overrides (same settings as the override build).
+[game]
+title = "emerald-base"
