@@ -26,7 +26,7 @@ Options (`anygba help build`):
 
 | Option | Meaning |
 |---|---|
-| `--config FILE` | per-game config: entry points, RAM code, save type, patches ([GAME-CONFIG.md](../dev/GAME-CONFIG.md)) |
+| `--config FILE` | per-game config: entry points, RAM code, save type, patches, video ([GAME-CONFIG.md](../dev/GAME-CONFIG.md)); default: the one shipped for the ROM's game code in `share/anygba/configs/`, if any |
 | `--miss-log FILE` | trace-feedback log from an earlier run (repeatable) |
 | `-o, --output DIR` | output folder (default: current folder) |
 | `--work DIR` | generated C and build files (default: `<output>/<rom name>-build`) |

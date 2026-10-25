@@ -9,7 +9,8 @@ colour -> ghosting -> scaler -> final scaling to the output -> screen effect
 Settings come from four places, each overriding the one before:
 
 1. the defaults (nearest, raw colour, window size);
-2. the game's `[video]` table in its TOML config ([GAME-CONFIG.md](../dev/GAME-CONFIG.md));
+2. the game's `[video]` table in its TOML config ([GAME-CONFIG.md](../dev/GAME-CONFIG.md)); without `--config`,
+   `anygba build` uses the config shipped for the ROM in `configs/` (Pokemon Emerald defaults to `xbrz4x`);
 3. what you last chose in the menu for this game, saved as `<game>.video` next to its save file;
 4. `--filter` and `--video` on the command line.
 

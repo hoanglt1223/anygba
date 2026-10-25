@@ -1,0 +1,7 @@
+# Pokemon Emerald (USA, Europe): the per-game config `anygba build` uses when no --config is given
+# (docs/dev/GAME-CONFIG.md). A config passed with --config replaces this file.
+
+# xBRZ 4x keeps the font sharp with its drop shadow and smooths sprite outlines without blurring the
+# grass texture; it won a comparison of every filter across six scenes (title to the first battle).
+[video]
+filter = "xbrz4x"

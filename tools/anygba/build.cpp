@@ -83,7 +83,7 @@ std::string exe_suffix() {
 #endif
 }
 
-// Per-game files for this ROM shipped in <prefix>/share/anygba/<kind> (cheats, symbols): <game
+// Per-game files for this ROM shipped in <prefix>/share/anygba/<kind> (cheats, symbols, configs): <game
 // code>.toml and <crc32>.toml; build() copies them where the game looks for them
 // (docs/user/CHEATS.md, docs/user/AI-CONTROL.md).
 std::vector<fs::path> shipped_files(const fs::path& prefix, const std::vector<std::uint8_t>& rom, const char* kind) {
@@ -307,15 +307,22 @@ fs::path build(const BuildOptions& o) {
     if (const auto error = recomp::validate_inputs(ro)) {
         throw std::runtime_error(*error);
     }
-    const recomp::Analysis analysis = recomp::analyze(ro);
-    const std::size_t count = recomp::generate(ro, analysis);
-    std::printf("anygba: %zu functions written to %s\n", count, path_string(ro.output_dir).c_str());
-
     const fs::path prefix = fs::absolute(o.prefix ? *o.prefix : default_prefix());
     if (!fs::exists(prefix / "lib" / "cmake" / "anygba")) {
         throw std::runtime_error("no anygba runtime package under " + path_string(prefix) +
                                  " (expected lib/cmake/anygba); pass --prefix");
     }
+    if (!ro.config) {
+        // A shipped per-game config (e.g. its default video filter) applies when none is given.
+        if (const auto shipped = shipped_files(prefix, read_file(o.rom), "configs"); !shipped.empty()) {
+            ro.config = shipped.front();
+            std::printf("anygba: config %s\n", path_string(*ro.config).c_str());
+        }
+    }
+    const recomp::Analysis analysis = recomp::analyze(ro);
+    const std::size_t count = recomp::generate(ro, analysis);
+    std::printf("anygba: %zu functions written to %s\n", count, path_string(ro.output_dir).c_str());
+
     if (o.target != Target::Native) {
         if (!o.embed_rom) throw std::runtime_error("--no-embed applies to native programs only");
         const std::vector<std::uint8_t> rom = read_file(o.rom);
