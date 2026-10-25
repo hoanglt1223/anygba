@@ -28,7 +28,10 @@ Value forms for r0-r12, sp, lr and cycles: an integer; `"any"` (default for r0-r
 regions ("ewram", "iwram", "ram" = both, "io", "palette", "vram", "oam", "rom": a random pointer); or a
 table with one of `value`, `range = [lo, hi]`, `pointer = region`, `string = region (length = [min, max],
 terminator, bytes = [lo, hi])`, `buffer = region (size = [min, max], bytes = [lo, hi])`,
-`near = "reg" (offset = [lo, hi])`, plus `align` (power of two) and `thumb = true`. Defaults: sp in
+`near = "reg" (offset = [lo, hi])`, plus `align` (power of two) and `thumb = true`. A shape may also vary
+globals the function reads: `memory = [{ addr = 0x03002f90, size = 2, bytes = [0, 16] }]` plants random
+bytes at fixed writable addresses (use it when branches depend on a global, so every block is reached).
+Defaults: sp in
 0x03007A00-0x03007F00, lr a Thumb address in the ROM. Strings and buffers go in writable memory only.
 Values and ranges are unsigned 32-bit: write small negative numbers as `[0xFFFFFFF0, 0xFFFFFFFF]` in a
 shape of their own. Only `near` offsets may be negative.

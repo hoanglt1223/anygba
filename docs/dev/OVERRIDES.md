@@ -190,12 +190,16 @@ name = "overlap"
 r1 = { string = "ram", length = [0, 300] }
 r0 = { near = "r1", offset = [-8, 0] }        # relative to another register (not itself near one)
 cycles = { range = [0, 400] }    # the cycle budget at entry (default 1000000: no tick)
+memory = [{ addr = 0x03002f90, size = 2, bytes = [0, 16] }]   # random bytes at a fixed address
 ```
 
 Value forms for `r0`-`r12`, `sp`, `lr` and `cycles`: an integer; `"any"` (the default for r0-r12); a
 region or list of regions (a pointer); or a table with one of `value`, `range = [lo, hi]`, `pointer = ...`,
 `string = ... (length, terminator, bytes = [lo, hi])`, `buffer = ... (size = [min, max], bytes)`,
-`near = "reg" (offset)`, plus `align` (a power of two) and `thumb = true` (set bit 0). Defaults: sp in
+`near = "reg" (offset)`, plus `align` (a power of two) and `thumb = true` (set bit 0). `memory` plants
+random bytes (`size`, default 1; `bytes = [lo, hi]`, default any) at fixed writable addresses before the
+registers' strings and buffers, for globals the function reads (a glyph's width in a font buffer, say);
+without it those come from the base state only. Defaults: sp in
 0x03007A00-0x03007F00 (word aligned), lr a Thumb address in the ROM, random flags. Strings and buffers are
 planted in writable memory only, at an address chosen for their longest length.
 

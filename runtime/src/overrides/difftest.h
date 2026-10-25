@@ -45,10 +45,19 @@ struct Value {
 inline constexpr int kCyclesSlot = 16;
 inline constexpr int kSlots = 17;
 
+// Random bytes planted at a fixed address (a global the function reads), per state.
+struct MemoryValue {
+    std::uint32_t addr = 0;
+    std::uint32_t size = 1;
+    std::uint8_t byte_lo = 0;
+    std::uint8_t byte_hi = 0xFF;
+};
+
 struct Shape {
     std::string name;
     std::uint32_t weight = 1;
     std::array<Value, kSlots> values;
+    std::vector<MemoryValue> memory;  // planted before the registers' strings and buffers
 };
 
 // Per-function argument spec: [<function>] in a module's difftest.toml.

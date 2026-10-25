@@ -236,6 +236,43 @@ r2 = { near = "r3", offset = [-2, -2] }
     CHECK(c.state.r[1] == a.state.r[1]);  // same place, shorter string
 }
 
+TEST_CASE("difftest: shapes plant random bytes at fixed addresses for globals the function reads") {
+    const auto spec = dt::parse_spec(R"(
+[F]
+[[F.shape]]
+memory = [{ addr = 0x03002f90, size = 2, bytes = [3, 5] }, { addr = 0x02000010 }]
+r0 = { buffer = "ewram", size = [4, 4] }
+)",
+                                     "spec.toml", "F", 0);
+    REQUIRE(spec);
+    REQUIRE(spec->shapes[0].memory.size() == 2);
+    CHECK(spec->shapes[0].memory[1].size == 1);
+    const dt::Generated a = dt::generate(*spec, 0, 7, 3, {}, 0x400);
+    REQUIRE(a.state.pokes.size() == 3);
+    CHECK(a.state.pokes[0].addr == 0x03002F90);
+    REQUIRE(a.state.pokes[0].bytes.size() == 2);
+    for (const std::uint8_t b : a.state.pokes[0].bytes) {
+        CHECK(b >= 3);
+        CHECK(b <= 5);
+    }
+    CHECK(a.state.pokes[1].addr == 0x02000010);
+    CHECK(a.state.pokes[2].addr == a.state.r[0]);  // register buffers go last, so they win an overlap
+    CHECK(dt::generate(*spec, 0, 7, 3, {}, 0x400).state.pokes[0].bytes == a.state.pokes[0].bytes);
+    bool varies = false;
+    for (std::uint64_t i = 0; i < 16 && !varies; ++i) {
+        varies = dt::generate(*spec, 0, 7, i, {}, 0x400).state.pokes[0].bytes != a.state.pokes[0].bytes;
+    }
+    CHECK(varies);
+
+    CHECK_THROWS_WITH_AS(dt::parse_spec("[F]\n[[F.shape]]\nmemory = [{ addr = 0x08000000 }]\n", "s.toml", "F", 0),
+                         doctest::Contains("s.toml:3: memory: 0x08000000 + 1 bytes is not inside one writable region"),
+                         anygba::Error);
+    CHECK_THROWS_WITH_AS(dt::parse_spec("[F]\n[[F.shape]]\nmemory = [{ addr = 0x03007ffe, size = 4 }]\n", "s.toml", "F", 0),
+                         doctest::Contains("not inside one writable region"), anygba::Error);
+    CHECK_THROWS_WITH_AS(dt::parse_spec("[F]\n[[F.shape]]\nmemory = [{ adr = 0x03000000 }]\n", "s.toml", "F", 0),
+                         doctest::Contains("memory: unknown key 'adr'"), anygba::Error);
+}
+
 TEST_CASE("difftest: recorded states survive a round trip; damaged files are refused") {
     dt::Recording rec;
     rec.entry = 0x08008BA0;

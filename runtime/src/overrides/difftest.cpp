@@ -322,6 +322,46 @@ public:
         return v;
     }
 
+    // memory = [{ addr = 0x03002f90, size = 2, bytes = [0, 16] }, ...]: writable memory only.
+    std::vector<MemoryValue> memory(const toml::node& node) const {
+        const auto* list = node.as_array();
+        if (!list) fail(node, "memory must be a list of { addr, size, bytes } tables");
+        std::vector<MemoryValue> out;
+        for (const toml::node& item : *list) {
+            const auto* t = item.as_table();
+            if (!t) fail(item, "memory: each entry must be a table { addr, size, bytes }");
+            for (const auto& [key, v] : *t) {
+                const std::string_view k = key.str();
+                if (k != "addr" && k != "size" && k != "bytes") {
+                    fail(v, "memory: unknown key '" + std::string(k) + "' (addr, size, bytes)");
+                }
+            }
+            MemoryValue m;
+            const toml::node* addr = t->get("addr");
+            if (!addr) fail(item, "memory: an entry needs addr");
+            m.addr = static_cast<std::uint32_t>(integer(*addr, "memory.addr", 0, 0xFFFFFFFFll));
+            if (const toml::node* size = t->get("size")) {
+                m.size = static_cast<std::uint32_t>(integer(*size, "memory.size", 1, 0x10000));
+            }
+            if (const toml::node* bytes = t->get("bytes")) {
+                const auto [lo, hi] = pair(*bytes, "memory.bytes", 0, 255);
+                m.byte_lo = static_cast<std::uint8_t>(lo);
+                m.byte_hi = static_cast<std::uint8_t>(hi);
+            }
+            const std::uint32_t region = m.addr >> 24;
+            bool inside = false;
+            for (const Region r : {Region::Ewram, Region::Iwram, Region::Io, Region::Palette, Region::Vram, Region::Oam}) {
+                const RegionInfo info = region_info(r, 0);
+                inside = inside || (region == (info.base >> 24) && m.addr >= info.base &&
+                                    std::uint64_t{m.addr} + m.size <= std::uint64_t{info.base} + info.size);
+            }
+            if (!inside) fail(item, "memory: " + hex32(m.addr) + " + " + std::to_string(m.size) +
+                                        " bytes is not inside one writable region (ewram, iwram, io, palette, vram, oam)");
+            out.push_back(m);
+        }
+        return out;
+    }
+
     Shape shape(const toml::table& t, std::size_t number) const {
         Shape s;
         s.name = "shape" + std::to_string(number + 1);
@@ -343,10 +383,12 @@ public:
                 s.name = n->get();
             } else if (k == "weight") {
                 s.weight = static_cast<std::uint32_t>(integer(node, "weight", 1, 1000000));
+            } else if (k == "memory") {
+                s.memory = memory(node);
             } else if (const auto slot = slot_named(k)) {
                 s.values[static_cast<std::size_t>(*slot)] = value(node, *slot);
             } else {
-                fail(node, "unknown key '" + std::string(k) + "' in a shape (name, weight, r0-r12, sp, lr, cycles)");
+                fail(node, "unknown key '" + std::string(k) + "' in a shape (name, weight, r0-r12, sp, lr, cycles, memory)");
             }
         }
         for (const auto& [key, node] : t) {
@@ -1004,6 +1046,17 @@ Generated generate(const Spec& spec, std::size_t shape, std::uint64_t seed, std:
         if (v.thumb) out |= 1u;
         val[s] = out;
     }
+    std::vector<Poke> fixed;
+    for (std::size_t k = 0; k < sh.memory.size(); ++k) {
+        const MemoryValue& m = sh.memory[k];
+        Rng rng{stream(seed, index, 3000 + k)};
+        Poke p;
+        p.addr = m.addr;
+        const std::uint32_t span = static_cast<std::uint32_t>(m.byte_hi) - m.byte_lo + 1;
+        for (std::uint32_t i = 0; i < m.size; ++i) p.bytes.push_back(static_cast<std::uint8_t>(m.byte_lo + rng.below(span)));
+        fixed.push_back(std::move(p));
+    }
+    g.state.pokes.insert(g.state.pokes.begin(), std::make_move_iterator(fixed.begin()), std::make_move_iterator(fixed.end()));
     for (std::size_t r = 0; r < 15; ++r) g.state.r[r] = static_cast<std::uint32_t>(val[r]);
     g.state.cycles = static_cast<std::int32_t>(val[kCyclesSlot] & 0x7FFFFFFFu);
     Rng flags{stream(seed, index, 2000)};
