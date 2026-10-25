@@ -130,6 +130,33 @@ Open the menu (Escape by default) and choose **Video**. Left/right changes a set
 once; B goes back. Choices are saved for this game and used on its next start (command-line options
 still win).
 
+A live preview of the paused game sits beside the rows, with a before/after divider, a 4x loupe and a
+description of the focused setting ([USAGE.md](USAGE.md#video-preview)).
+
+### Graphics presets
+
+The first row, **Graphics preset**, sets the quality settings below it at once: Left/Right step through
+Very low, Low, Medium, High, Very high and Ultra (wrapping around). The row shows the preset whose values
+are all in effect, or **Custom** once one of them is changed by hand; changing it back shows the preset
+again. Nothing extra is saved: the preset is worked out from the settings themselves. Every value applies
+at once.
+
+| Preset | `filter` | `deband` | `internal-scale` | `layer-filter` | `smooth-affine` | `smoothing` |
+|---|---|---|---|---|---|---|
+| Very low (the defaults) | nearest | off | 1 | nearest | on | off |
+| Low | sharp-bilinear | off | 1 | nearest | on | off |
+| Medium | hq2x | off | 1 | nearest | on | off |
+| High | xbrz4x | on | 1 | nearest | on | on |
+| Very high | xbrz4x | on | 2 | xbrz2x | on | on |
+| Ultra | xbrz4x | on | 4 | xbrz4x | on | on |
+
+- With `internal-scale` above 1 the HD renderer draws the picture and the `filter` scaler does not run
+  (the layer filter does the rounding instead), and motion smoothing is off while the HD picture is used;
+  Very high and Ultra keep them on so stepping down to High needs no change.
+- Not part of a preset: screen effect, ghosting, colour, gamma, resolution, fullscreen, integer scale, HD
+  pack, HD dump, AI upscaling and its model (AI needs a download, so no preset turns it on), widescreen,
+  and the refresh and pacing settings.
+
 ## How it runs
 
 The colour conversion, ghosting and pixel-art scalers run on the CPU at no more than 6x the GBA

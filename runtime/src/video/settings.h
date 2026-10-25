@@ -19,6 +19,15 @@ Options resolve_settings(const char* game_config, const std::optional<std::files
 // Writes the settings for the next run. Returns an error message.
 std::optional<std::string> save_settings(const std::filesystem::path& file, const Options& options);
 
+// Graphics presets of the Video page (docs/user/VIDEO.md "Graphics presets"), cheapest first:
+// each sets the filter, debanding, internal scale, layer filter, smooth rotation and motion
+// smoothing. Colour, effects, HD packs, AI, widescreen, display and pacing settings stay.
+inline constexpr int kPresetCount = 6;
+inline constexpr int kCustomPreset = -1;
+// The preset all of whose values are in effect, else kCustomPreset.
+int preset_of(const Options& options);
+void apply_preset(Options& options, int preset);
+
 // The Video page of the in-game menu: one row per setting, changed with left/right.
 struct MenuItem {
     std::string label;

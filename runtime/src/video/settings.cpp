@@ -70,6 +70,50 @@ std::optional<std::string> save_settings(const fs::path& file, const Options& op
     return std::nullopt;
 }
 
+namespace {
+
+struct Quality {
+    Scaler scaler;
+    bool deband;
+    int internal_scale;
+    Scaler layer_filter;
+    bool smooth_affine;
+    bool smoothing;
+};
+
+constexpr Quality kPresets[kPresetCount] = {
+    {Scaler::Nearest, false, 1, Scaler::Nearest, true, false},
+    {Scaler::SharpBilinear, false, 1, Scaler::Nearest, true, false},
+    {Scaler::Hq2x, false, 1, Scaler::Nearest, true, false},
+    {Scaler::Xbrz4x, true, 1, Scaler::Nearest, true, true},
+    {Scaler::Xbrz4x, true, 2, Scaler::Xbrz2x, true, true},
+    {Scaler::Xbrz4x, true, 4, Scaler::Xbrz4x, true, true},
+};
+
+}  // namespace
+
+int preset_of(const Options& o) {
+    for (int i = 0; i < kPresetCount; ++i) {
+        const Quality& q = kPresets[i];
+        if (o.scaler == q.scaler && o.deband == q.deband && o.internal_scale == q.internal_scale &&
+            o.layer_filter == q.layer_filter && o.smooth_affine == q.smooth_affine && o.smoothing == q.smoothing) {
+            return i;
+        }
+    }
+    return kCustomPreset;
+}
+
+void apply_preset(Options& o, int preset) {
+    if (preset < 0 || preset >= kPresetCount) return;
+    const Quality& q = kPresets[preset];
+    o.scaler = q.scaler;
+    o.deband = q.deband;
+    o.internal_scale = q.internal_scale;
+    o.layer_filter = q.layer_filter;
+    o.smooth_affine = q.smooth_affine;
+    o.smoothing = q.smoothing;
+}
+
 std::vector<MenuItem> menu_items(const Options& o) {
     char gamma[16];
     std::snprintf(gamma, sizeof gamma, "%.1f", o.gamma);

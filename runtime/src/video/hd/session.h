@@ -49,6 +49,9 @@ public:
 
     // System::on_line_rendered. Renders the HD picture after the last line.
     void on_line(System& sys, unsigned line);
+    // Draws the last frame again with the current settings (the menu's preview while the game
+    // waits). False when that frame was not recorded, because HD was off while it was drawn.
+    bool render_again(System& sys);
     // The latest HD picture (RGBA), or null when inactive or not drawn yet.
     const Image* picture();
     // GBA pixels across the picture: 240, or wider in widescreen.
@@ -71,6 +74,7 @@ public:
 
 private:
     void message(std::string text);
+    void render_recorded(System& sys);
     void open_pack();
     void ai_worker();
     void stop_ai();
@@ -84,6 +88,7 @@ private:
     std::unique_ptr<Rules> rules_;
     Image picture_;
     bool have_picture_ = false;
+    bool recorded_ = false;  // the recorder holds the whole latest frame
     std::string scene_;
     bool trace_scenes_ = false;  // ANYGBA_WIDESCREEN_TRACE: print scene changes (for rule authors)
     double render_ms_ = 0;

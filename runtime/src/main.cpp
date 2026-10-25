@@ -1216,6 +1216,7 @@ private:
         if (window_) {
             menu_view_.open();
             menu_backdrop_stale_ = true;
+            preview_stale_ = true;
         }
     }
 
@@ -1247,8 +1248,49 @@ private:
                 menu_view_.set_background(nullptr, w, h, look);
             }
         }
-        menu_view_.render(menu_canvas_, menu_.view(), look, dt);
+        anyui::Frame frame = menu_.view();
+        if (frame.page.preview.shown) {
+            update_preview(w, h);
+            anyui::Preview& pv = frame.page.preview;
+            pv.before = {preview_before_.pixels.data(), preview_before_.width, preview_before_.height};
+            pv.after = {preview_after_.pixels.data(), preview_after_.width, preview_after_.height};
+            pv.version = preview_version_;
+            if (!preview_shows_hd_) pv.note = player::menu_strings().tr("preview.resume");
+        }
+        menu_view_.render(menu_canvas_, frame, look, dt);
         window_->present_ui(menu_canvas_.pixels(), menu_canvas_.width(), menu_canvas_.height());
+    }
+
+    // The Video preview's pictures, at the size the game takes in a w x h window so the loupe
+    // shows real pixels: before is the plain 1x frame (nearest), after the whole chain with the
+    // current settings. Redone after a Video change; an HD change draws the paused frame again.
+    void update_preview(int w, int h) {
+        if (!preview_stale_ && preview_size_ == std::pair{w, h}) return;
+        const bool hd_changed = preview_stale_;
+        preview_stale_ = false;
+        preview_size_ = {w, h};
+        ++preview_version_;
+        const bool hd_on = hd_->active();
+        bool hd_drawn = !hd_on;
+        if (hd_on && hd_changed) hd_drawn = hd_->render_again(sys_);
+        else if (hd_on) hd_drawn = preview_hd_drawn_;
+        preview_hd_drawn_ = hd_drawn;
+        // AI pictures come from a worker some time later.
+        preview_shows_hd_ = hd_drawn && video_options_.ai == anygba::video::Ai::Off;
+        const anygba::video::Image* hd = hd_drawn ? hd_->picture() : nullptr;
+        const int lw = hd ? hd_->logical_width() : anygba::kScreenWidth;
+        try {
+            const anygba::video::Rect plain = anygba::video::fit(w, h, anygba::kScreenWidth, anygba::kScreenHeight, false);
+            preview_before_ = preview_plain_.render(sys_.framebuffer(), anygba::kScreenWidth, anygba::kScreenHeight, plain.w, plain.h);
+            const anygba::video::Rect area = anygba::video::fit(w, h, lw, anygba::kScreenHeight, false);
+            preview_pipeline_.set_options(video_options_);
+            preview_after_ = hd ? preview_pipeline_.render(*hd, lw, anygba::kScreenHeight, area.w, area.h)
+                                : preview_pipeline_.render(sys_.framebuffer(), lw, anygba::kScreenHeight, area.w, area.h);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "warning: video preview: %s\n", e.what());
+            preview_before_ = {};
+            preview_after_ = {};
+        }
     }
 
     // Mouse and touch in the menu: hover, click or tap, wheel or drag to scroll.
@@ -1259,6 +1301,11 @@ private:
         for (const platform::PointerEvent& e : input_->take_pointer_events()) {
             const float x = e.x * static_cast<float>(w), y = e.y * static_cast<float>(h);
             using Kind = platform::PointerEvent::Kind;
+            using Phase = anyui::MenuView::PointerPhase;
+            if (e.kind != Kind::Wheel && (!e.touch || !drag_finger_ || *drag_finger_ != e.finger)) {
+                const Phase phase = e.kind == Kind::Down ? Phase::Down : e.kind == Kind::Up ? Phase::Up : Phase::Move;
+                if (menu_view_.preview_pointer(menu_.preview_state(), phase, x, y, e.touch)) continue;
+            }
             if (e.kind == Kind::Wheel) {
                 menu_view_.wheel(e.wheel);
             } else if (e.kind == Kind::Move) {
@@ -1537,6 +1584,13 @@ private:
             in.ctrl = src.key_held("Left Ctrl") || src.key_held("Right Ctrl");
             in.alt = src.key_held("Left Alt") || src.key_held("Right Alt");
             in.shift = src.key_held("Left Shift") || src.key_held("Right Shift");
+            const auto stick = [&](platform::Axis a) {
+                constexpr float kDeadZone = 8000;
+                const float v = static_cast<float>(pad.axis(a));
+                return std::abs(v) < kDeadZone ? 0.f : (v - std::copysign(kDeadZone, v)) / (32767.f - kDeadZone);
+            };
+            in.stick_x = stick(platform::Axis::RightX);
+            in.stick_y = stick(platform::Axis::RightY);
             // Only a gamepad chord closes the menu through the hotkey; Escape arrives as a key.
             in.menu_hotkey = anygba::input::has(pressed_hotkeys, Hotkey::Menu) &&
                              std::find(in.keys.begin(), in.keys.end(), "Escape") == in.keys.end();
@@ -1577,7 +1631,7 @@ private:
                     break;
                 case player::MenuAction::Close: break;
                 }
-                if (action == player::MenuAction::VideoChanged) menu_backdrop_stale_ = true;
+                if (action == player::MenuAction::VideoChanged) menu_backdrop_stale_ = preview_stale_ = true;
             }
             handle_touch(false);
             poll_dialog();
@@ -1992,6 +2046,11 @@ private:
     std::unique_ptr<anygba::video::hd::Session> hd_;
     anygba::video::Image hd_copy_;
     anygba::video::Pipeline shot_pipeline_;
+    anygba::video::Pipeline preview_pipeline_, preview_plain_;
+    anygba::video::Image preview_before_, preview_after_;
+    std::pair<int, int> preview_size_;
+    std::uint64_t preview_version_ = 0;
+    bool preview_stale_ = true, preview_hd_drawn_ = false, preview_shows_hd_ = true;
     std::unique_ptr<platform::AudioStream> audio_;
     std::unique_ptr<platform::Input> input_;
     std::unique_ptr<anygba::input::DeviceSource> device_;

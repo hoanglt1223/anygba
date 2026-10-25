@@ -84,6 +84,42 @@ hint.search	Type to search   Enter done   Esc clear	Gõ để tìm   Enter xong 
 hint.picker	A apply   L/R ±10   Select off   B back	A áp dụng   L/R ±10   Select tắt   B quay lại
 hint.entry	Type hex, Enter: next line, Enter again: add   Left/Right format   Esc cancel	Gõ số hex, Enter: dòng mới, Enter lần nữa: thêm   Trái/Phải định dạng   Esc hủy
 hint.capture	Press a key or button   Esc cancel	Nhấn phím hoặc nút   Esc hủy
+video.preset	Graphics preset	Mức đồ họa
+preset.0	Very low	Rất thấp
+preset.1	Low	Thấp
+preset.2	Medium	Trung bình
+preset.3	High	Cao
+preset.4	Very high	Rất cao
+preset.5	Ultra	Tối đa
+preset.custom	Custom	Tùy chỉnh
+desc.preset	Sets the filter, debanding, internal scale, layer filter, smooth rotation and smoothing at once, from Very low (fastest) to Ultra. Changing one of them shows Custom; all apply at once.	Đặt cùng lúc bộ lọc, khử dải màu, tỉ lệ nội bộ, bộ lọc lớp, xoay mượt và làm mượt chuyển động, từ Rất thấp (nhanh nhất) đến Tối đa. Đổi một mục sẽ hiện Tùy chỉnh; tất cả áp dụng ngay.
+hint.video	A choose   Left/Right change   Select loupe   [ ] or LT/RT divider   L/R tabs   B close	A chọn   Trái/Phải đổi   Select kính lúp   [ ] hoặc LT/RT vạch chia   L/R chuyển mục   B đóng
+preview.before	Before	Trước
+preview.after	After	Sau
+preview.resume	The preview shows this once the game runs again.	Bản xem trước hiển thị điều này khi trò chơi chạy lại.
+desc.Filter	The pixel-art scaler for the game picture. Nearest keeps square pixels; hq, xBR and xBRZ round off the edges.	Bộ phóng to ảnh pixel cho hình trò chơi. Nearest giữ điểm ảnh vuông; hq, xBR và xBRZ làm tròn các cạnh.
+desc.Screen effect	Draws an LCD grid, scanlines or a CRT mask over the picture, like a real screen.	Vẽ lưới LCD, đường quét hoặc mặt nạ CRT lên hình, giống một màn hình thật.
+desc.Ghosting	Blends each frame with the one before, like the GBA's slow LCD; some games flicker sprites to look see-through. A still picture does not show it.	Trộn mỗi khung hình với khung trước, giống màn hình LCD chậm của GBA; vài trò chơi nhấp nháy sprite để trông trong suốt. Hình tĩnh không thể hiện điều này.
+desc.Colour	Raw shows the colours as the game stores them. GBA LCD mimics the darker, paler screen the games were made for.	Raw hiển thị màu như trò chơi lưu. GBA LCD mô phỏng màn hình tối và nhạt hơn mà trò chơi được làm cho.
+desc.Gamma	Brightens the mid-tones above 1.0 and darkens them below 1.0.	Làm sáng vùng tông trung bình khi trên 1.0 và làm tối khi dưới 1.0.
+desc.Debanding	Smooths the visible steps between close colours in gradients.	Làm mượt các bậc thấy rõ giữa những màu gần nhau trong dải chuyển màu.
+desc.Resolution	The size the picture is drawn at before it is shown. Window follows the window's size.	Kích thước vẽ hình trước khi hiển thị. Window theo kích thước cửa sổ.
+desc.Fullscreen	Fills the whole monitor with the game.	Hiển thị trò chơi trên toàn bộ màn hình.
+desc.Integer scale	Enlarges only by whole numbers, so every GBA pixel has the same size. Leaves black borders.	Chỉ phóng to theo số nguyên để mọi điểm ảnh GBA có cùng kích thước. Để lại viền đen.
+desc.Internal scale	Draws the game's layers at a higher resolution, so rotated and scaled graphics stay sharp.	Vẽ các lớp hình của trò chơi ở độ phân giải cao hơn để hình xoay và phóng to vẫn sắc nét.
+desc.Layer filter	The pixel-art scaler for each background and sprite layer before they are combined (Internal scale above 1x).	Bộ phóng to ảnh pixel cho từng lớp nền và sprite trước khi ghép lại (khi Tỉ lệ nội bộ trên 1x).
+desc.Smooth rotation	Samples rotated and scaled layers at the internal resolution instead of the GBA's.	Lấy mẫu các lớp xoay và phóng to ở độ phân giải nội bộ thay vì độ phân giải của GBA.
+desc.HD pack	Replaces the game's art with high-resolution images from its HD pack folder, when there is one.	Thay hình của trò chơi bằng ảnh độ phân giải cao từ thư mục gói HD, nếu có.
+desc.HD dump	Saves every new tile, sprite and bitmap as a PNG for making HD packs. The picture does not change.	Lưu mọi tile, sprite và bitmap mới thành PNG để làm gói HD. Hình không thay đổi.
+desc.AI upscaling	Enlarges the finished picture, or each layer, with a neural network. Downloads it on first use.	Phóng to hình hoàn chỉnh, hoặc từng lớp, bằng mạng nơ-ron. Tải mạng về ở lần dùng đầu.
+desc.AI model	The network AI upscaling uses: general-x4v3 is faster, x4plus is slower and sharper.	Mạng mà tính năng phóng to bằng AI dùng: general-x4v3 nhanh hơn, x4plus chậm hơn và sắc nét hơn.
+desc.Widescreen	Shows more of the game world at the sides for 16:10 or 16:9 screens, in games with widescreen rules.	Hiển thị thêm thế giới trò chơi ở hai bên cho màn hình 16:10 hoặc 16:9, với trò chơi có quy tắc màn hình rộng.
+desc.Smoothing	Adds in-between pictures from scroll and sprite motion on high-refresh monitors. A still picture does not show it.	Thêm hình trung gian từ chuyển động cuộn và sprite trên màn hình tần số quét cao. Hình tĩnh không thể hiện điều này.
+desc.Refresh	The monitor refresh rate the frame pacing assumes. Auto detects it.	Tần số quét màn hình dùng để điều nhịp khung hình. Tự động sẽ tự dò.
+desc.Variable refresh	For G-Sync and FreeSync monitors: each frame is shown as soon as it is ready.	Cho màn hình G-Sync và FreeSync: mỗi khung hình được hiển thị ngay khi sẵn sàng.
+desc.Sync game to monitor	Runs the game up to 1% faster or slower to match the monitor exactly, for even scrolling.	Chạy trò chơi nhanh hoặc chậm hơn tối đa 1% để khớp chính xác với màn hình, giúp cuộn đều hơn.
+desc.Menu FPS	Pictures per second while this menu is open.	Số hình mỗi giây khi menu này đang mở.
+desc.FPS cap	The most pictures shown per second. Off shows as many as the monitor allows.	Số hình tối đa hiển thị mỗi giây. Tắt sẽ hiển thị nhiều nhất màn hình cho phép.
 quick.Save	Save	Lưu
 quick.Load	Load	Tải
 quick.Fast	Fast	Tua

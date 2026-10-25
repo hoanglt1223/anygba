@@ -4,11 +4,13 @@
 #include "support/png.h"
 #include "support/temp_dir.h"
 #include "ui/menu_assets.h"
+#include "video/pipeline.h"
 
 #include <doctest.h>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -65,6 +67,45 @@ anyui::Canvas scene(int w, int h) {
     }
     return c;
 }
+
+// A GBA-sized picture with hard pixel edges (sky, sun, hills, bricks, a diagonal), so the
+// pixel-art scalers have something to round off.
+anygba::video::Image pixel_scene() {
+    anygba::video::Image img;
+    img.resize(240, 160);
+    for (int y = 0; y < 160; ++y) {
+        for (int x = 0; x < 240; ++x) {
+            std::uint32_t c = y < 100 ? anygba::video::pack(110, 170, 235) : anygba::video::pack(70, 150, 80);
+            const int dx = x - 186, dy = y - 34;
+            if (dx * dx + dy * dy < 18 * 18) c = anygba::video::pack(255, 214, 74);
+            if (y >= 100 - static_cast<int>(12 * std::sin(x / 19.0)) - 10 && y < 100) c = anygba::video::pack(50, 125, 64);
+            if (y >= 76 && y < 92 && x >= 24 && x < 120 && ((x / 8 + y / 4) % 2 == 0 || y % 4 == 0)) c = anygba::video::pack(192, 112, 58);
+            if (std::abs((x - 130) - (y - 110)) < 2 && x >= 130 && x < 180) c = anygba::video::pack(250, 250, 250);
+            img.row(y)[x] = c;
+        }
+    }
+    return img;
+}
+
+// What the player gives the Video preview (main.cpp update_preview): the plain picture and
+// the filter chain with the current settings, at the size the game takes in a w x h window.
+struct PreviewPictures {
+    anygba::video::Pipeline plain, chain;
+    anygba::video::Image frame = pixel_scene(), before, after;
+    std::uint64_t version = 0;
+
+    void attach(anyui::Frame& f, const anygba::video::Options& options, int w, int h) {
+        anyui::Preview& pv = f.page.preview;
+        if (!pv.shown) return;
+        const anygba::video::Rect r = anygba::video::fit(w, h, 240, 160, false);
+        before = plain.render(frame, 240, 160, r.w, r.h);
+        chain.set_options(options);
+        after = chain.render(frame, 240, 160, r.w, r.h);
+        pv.before = {before.pixels.data(), before.width, before.height};
+        pv.after = {after.pixels.data(), after.width, after.height};
+        pv.version = ++version;
+    }
+};
 
 std::vector<std::uint8_t> to_rgb(const anyui::Canvas& c) {
     std::vector<std::uint8_t> rgb;
@@ -175,6 +216,8 @@ TEST_CASE("menu font: Vietnamese letters, metrics and fitting") {
 
 TEST_CASE("menu view: golden pictures of every tab at 1x and 2x, dark and light") {
     Fixture fx;
+    fx.video.scaler = anygba::video::Scaler::Xbrz4x;
+    PreviewPictures pictures;
     const std::array<const char*, 8> names = {"game", "states", "video", "audio", "controls", "cheats", "ai", "settings"};
     for (const int scale : {1, 2}) {
         const int w = 960 * scale, h = 540 * scale;
@@ -190,8 +233,10 @@ TEST_CASE("menu view: golden pictures of every tab at 1x and 2x, dark and light"
             anyui::Canvas out;
             for (std::size_t tab = 0; tab < names.size(); ++tab) {
                 fx.menu.click({anyui::HitKind::Tab, static_cast<int>(tab)});
-                const anyui::Frame frame = fx.menu.view();
+                anyui::Frame frame = fx.menu.view();
                 REQUIRE(frame.tab == static_cast<int>(tab));
+                CHECK(frame.page.preview.shown == (tab == 2));
+                pictures.attach(frame, fx.video, w, h);
                 view.render(out, frame, look, 1.f / 60);
                 CHECK(out.width() == w);
                 check_golden(std::string(names[tab]) + "-" + std::to_string(scale) + "x-" + (dark ? "dark" : "light"), out);
@@ -217,10 +262,12 @@ TEST_CASE("menu view: golden pictures of every tab at 1x and 2x, dark and light"
                     CAPTURE(want);
                     CHECK(std::find(labels.begin(), labels.end(), want) != labels.end());
                 }
-                view.render(out, fx.menu.view(), look, 1.f / 60);
+                anyui::Frame video = fx.menu.view();
+                pictures.attach(video, fx.video, w, h);
+                view.render(out, video, look, 1.f / 60);
                 view.wheel(100);
-                view.render(out, fx.menu.view(), look, 1.f / 60);
-                view.render(out, fx.menu.view(), look, 1.f / 60);
+                view.render(out, video, look, 1.f / 60);
+                view.render(out, video, look, 1.f / 60);
                 check_golden("video-end-1x-dark", out);
             }
         }
@@ -300,3 +347,154 @@ TEST_CASE("menu view: opening and closing animate unless motion is reduced") {
     view.render(out, fx.menu.view(), look, 1.f / 60);
     CHECK(view.closed());
 }
+
+namespace {
+
+// One host frame with nothing held, then one holding `held` (edge detection needs both).
+void press(anygba::player::Menu& menu, std::uint16_t held, bool shift = false) {
+    menu.update({});
+    anygba::player::MenuInput in;
+    in.gba_held = held;
+    in.shift = shift;
+    menu.update(in);
+}
+
+constexpr std::uint16_t kSelect = 1u << 2, kRight = 1u << 4, kDown = 1u << 7;
+
+}  // namespace
+
+TEST_CASE("menu view: the Video preview's divider, loupe and descriptions") {
+    Fixture fx;
+    fx.video.scaler = anygba::video::Scaler::Xbrz4x;
+    fx.video.effect = anygba::video::Effect::LcdGrid;
+    PreviewPictures pictures;
+    anyui::ViewOptions look;
+    look.reduce_motion = true;
+    anyui::MenuView view(anygba::ui::regular_font(), anygba::ui::bold_font());
+    const anyui::Canvas backdrop = scene(960, 540);
+    view.set_background(backdrop.data(), 960, 540, look);
+    fx.menu.open();
+    view.open();
+    fx.menu.click({anyui::HitKind::Tab, 2});
+    anyui::Canvas out;
+    const auto draw = [&] {
+        anyui::Frame f = fx.menu.view();
+        pictures.attach(f, fx.video, 960, 540);
+        view.render(out, f, look, 1.f / 60);
+        return f;
+    };
+    anyui::Frame f = draw();
+    REQUIRE(f.page.preview.shown);
+    CHECK(f.hint == "A choose   Left/Right change   Select loupe   [ ] or LT/RT divider   L/R tabs   B close");
+    CHECK(f.page.preview.title == "Graphics preset: Custom");  // xBRZ 4x at 1x without smoothing: no preset
+    press(fx.menu, kDown);
+    f = draw();
+    CHECK(f.page.preview.title == "Filter: xbrz4x");
+    CHECK(f.page.preview.before_label == "Before");
+    const anyui::Rect pic = view.rect_of({anyui::HitKind::Preview, -1});
+    REQUIRE(pic.w > 100);
+    CHECK(pic.w / pic.h == doctest::Approx(1.5).epsilon(0.02));
+    CHECK(view.hit(pic.x + 5, pic.y + 5) == anyui::Hit{anyui::HitKind::Preview, -1});
+
+    // A mouse: dragging moves the divider, hovering moves the loupe; neither is a click.
+    using Phase = anyui::MenuView::PointerPhase;
+    anyui::PreviewState& st = fx.menu.preview_state();
+    CHECK(view.preview_pointer(st, Phase::Down, pic.x + pic.w * 0.25f, pic.y + pic.h / 2, false));
+    CHECK(st.split == doctest::Approx(0.25).epsilon(0.01));
+    CHECK(view.preview_pointer(st, Phase::Move, pic.x + pic.w * 0.3f, pic.y + pic.h / 2, false));
+    CHECK(st.split == doctest::Approx(0.3).epsilon(0.01));
+    CHECK(view.preview_pointer(st, Phase::Up, pic.x + pic.w * 0.3f, pic.y + pic.h / 2, false));
+    CHECK(!view.preview_pointer(st, Phase::Move, pic.x + pic.w * 0.6f, pic.y + pic.h * 0.4f, false));
+    CHECK(st.pointer);
+    CHECK(st.loupe_x == doctest::Approx(0.6).epsilon(0.01));
+    CHECK(st.loupe_y == doctest::Approx(0.4).epsilon(0.01));
+    CHECK(!view.preview_pointer(st, Phase::Down, pic.x - 40, pic.y, false));  // a row: the menu's click
+    view.preview_pointer(st, Phase::Move, pic.x + pic.w * 0.32f, pic.y + pic.h * 0.45f, false);
+    f = draw();
+    check_golden("video-loupe-1x-dark", out);
+    CHECK(f.page.preview.state.loupe_shown());
+    view.preview_pointer(st, Phase::Move, pic.x - 40, pic.y, false);
+    CHECK(!st.pointer);
+
+    // A finger: near the divider it drags it; elsewhere it holds the loupe until lifted.
+    const float divider = pic.x + st.split * pic.w;
+    CHECK(view.preview_pointer(st, Phase::Down, divider + 4, pic.y + 10, true));
+    CHECK(view.preview_pointer(st, Phase::Move, pic.x + pic.w * 0.8f, pic.y + 10, true));
+    CHECK(st.split == doctest::Approx(0.8).epsilon(0.01));
+    CHECK(!st.pointer);
+    CHECK(view.preview_pointer(st, Phase::Up, pic.x + pic.w * 0.8f, pic.y + 10, true));
+    CHECK(view.preview_pointer(st, Phase::Down, pic.x + 10, pic.y + pic.h - 10, true));
+    CHECK(st.pointer);
+    CHECK(st.split == doctest::Approx(0.8).epsilon(0.01));
+    CHECK(view.preview_pointer(st, Phase::Up, pic.x + 10, pic.y + pic.h - 10, true));
+    CHECK(!st.pointer);
+
+    // Keys and the stick: [ ] and the triggers move the divider, Select toggles the loupe,
+    // Shift+d-pad and the right stick move it; the d-pad alone still moves the cursor.
+    anygba::player::MenuInput in;
+    in.keys = {"["};
+    fx.menu.update(in);
+    CHECK(st.split == doctest::Approx(0.7).epsilon(0.01));
+    in = {};
+    in.pads = {anygba::input::Button::RightTrigger};
+    fx.menu.update(in);
+    CHECK(st.split == doctest::Approx(0.8).epsilon(0.01));
+    CHECK(!st.loupe);
+    press(fx.menu, kSelect);
+    CHECK(st.loupe);
+    const float lx = st.loupe_x;
+    press(fx.menu, kRight, true);
+    CHECK(st.loupe_x == doctest::Approx(lx + 0.05f));
+    CHECK(fx.video.scaler == anygba::video::Scaler::Xbrz4x);  // Shift+Right moved the loupe, not the value
+    in = {};
+    in.stick_y = 1;
+    const float ly = st.loupe_y;
+    fx.menu.update(in);
+    CHECK(st.loupe_y > ly);
+    press(fx.menu, kRight);
+    CHECK(fx.video.scaler != anygba::video::Scaler::Xbrz4x);
+    press(fx.menu, kSelect);
+    CHECK(!st.loupe);
+
+    // Every Video row has a description, in English and Vietnamese.
+    for (const char* language : {"en", "vi"}) {
+        fx.mapping.language = language;
+        fx.menu.click({anyui::HitKind::Tab, 2});
+        const std::size_t count = fx.menu.view().page.rows.size();
+        std::vector<std::string> seen;
+        for (std::size_t i = 0; i < count; ++i) {
+            const anyui::Preview pv = fx.menu.view().page.preview;
+            CAPTURE(language);
+            CAPTURE(pv.title);
+            CHECK(!pv.description.empty());
+            CHECK(!pv.description.starts_with("desc."));
+            CHECK(std::find(seen.begin(), seen.end(), pv.description) == seen.end());
+            seen.push_back(pv.description);
+            press(fx.menu, kDown);
+        }
+        CHECK(seen.size() == count);
+    }
+    CHECK(fx.menu.view().page.preview.before_label == "Tr\xC6\xB0\xE1\xBB\x9B" "c");
+}
+
+TEST_CASE("anyui resample: area shrinking averages, nearest and linear enlarging") {
+    // Black and white columns, one pixel each.
+    std::vector<std::uint32_t> stripes(8 * 2);
+    for (int i = 0; i < 16; ++i) stripes[static_cast<std::size_t>(i)] = i % 2 ? 0xFFFFFFFFu : 0xFF000000u;
+    std::vector<std::uint32_t> out(4);
+    anyui::resample(stripes.data(), 8, 2, out.data(), 4, 1, anyui::Resample::Area);
+    for (const std::uint32_t p : out) CHECK((p & 0xFF) == 128);
+    anyui::resample(stripes.data(), 8, 2, out.data(), 4, 1, anyui::Resample::Nearest);
+    for (const std::uint32_t p : out) CHECK((p & 0xFF) == 255);  // every second column: aliasing
+
+    const std::uint32_t two[2] = {0xFF000000u, 0xFFC8C8C8u};
+    std::vector<std::uint32_t> big(8);
+    anyui::resample(two, 2, 1, big.data(), 8, 1, anyui::Resample::Area);  // enlarging: nearest
+    CHECK(big == std::vector<std::uint32_t>{two[0], two[0], two[0], two[0], two[1], two[1], two[1], two[1]});
+    anyui::resample(two, 2, 1, big.data(), 4, 1, anyui::Resample::Linear);
+    CHECK((big[0] & 0xFF) == 0);
+    CHECK((big[1] & 0xFF) == 50);
+    CHECK((big[2] & 0xFF) == 150);
+    CHECK((big[3] & 0xFF) == 200);
+}
+

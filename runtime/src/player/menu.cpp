@@ -116,6 +116,7 @@ void Menu::open() {
     popup_ = false;
     confirm_.clear();
     message_.clear();
+    preview_.loupe = preview_.pointer = false;
     last_held_ = 0xFFFF;  // ignore buttons still held from opening the menu
 }
 
@@ -148,6 +149,7 @@ void Menu::go_tab(int index) {
     searching_ = false;
     popup_ = false;
     confirm_.clear();
+    preview_.pointer = false;
     // The first selectable row.
     const auto r = rows();
     while (cursor_ < static_cast<int>(r.size()) && !selectable(r[static_cast<std::size_t>(cursor_)])) ++cursor_;
@@ -248,6 +250,7 @@ std::vector<MenuAction> Menu::update(const MenuInput& in) {
         update_picker(press, in, out);
         return out;
     }
+    if (page_ == Page::Video && video_ && update_preview(press, in)) return out;
     const std::vector<Row> all = rows();
     const int count = static_cast<int>(all.size());
     if (count > 0) {
@@ -296,6 +299,22 @@ std::vector<MenuAction> Menu::update(const MenuInput& in) {
         if (cursor_ >= scroll_ + kVisibleRows) scroll_ = cursor_ - kVisibleRows + 1;
     }
     return out;
+}
+
+// The Video preview's keys. Returns true when they used this frame's d-pad press.
+bool Menu::update_preview(std::uint16_t press, const MenuInput& in) {
+    constexpr float kSplitStep = 0.1f, kLoupeStep = 0.05f, kStickSpeed = 0.025f;
+    const auto has_key = [&](std::string_view k) { return std::find(in.keys.begin(), in.keys.end(), k) != in.keys.end(); };
+    const auto has_pad = [&](input::Button b) { return std::find(in.pads.begin(), in.pads.end(), b) != in.pads.end(); };
+    if (has_key("[") || has_pad(input::Button::LeftTrigger)) preview_.move_split(-kSplitStep);
+    if (has_key("]") || has_pad(input::Button::RightTrigger)) preview_.move_split(kSplitStep);
+    if (press & kSelect) preview_.loupe = !preview_.loupe;
+    if (in.stick_x != 0 || in.stick_y != 0) preview_.move_loupe(in.stick_x * kStickSpeed, in.stick_y * kStickSpeed);
+    const std::uint16_t dirs = press & (kUp | kDown | kLeft | kRight);
+    if (!in.shift || !dirs || !preview_.loupe_shown()) return false;
+    preview_.move_loupe((dirs & kRight ? kLoupeStep : 0) - (dirs & kLeft ? kLoupeStep : 0),
+                        (dirs & kDown ? kLoupeStep : 0) - (dirs & kUp ? kLoupeStep : 0));
+    return true;
 }
 
 bool Menu::update_search(const MenuInput& in) {
@@ -455,6 +474,11 @@ void Menu::step(const Row& row, int dir, std::vector<MenuAction>& out) {
     } else if (id == "audio.music") {
         mapping_.normal_speed_music = !mapping_.normal_speed_music;
         out.push_back(MenuAction::MappingChanged);
+    } else if (id == "video.preset" && video_) {
+        const int current = video::preset_of(*video_);
+        const int n = video::kPresetCount;
+        video::apply_preset(*video_, current == video::kCustomPreset ? (dir > 0 ? 0 : n - 1) : ((current + dir) % n + n) % n);
+        out.push_back(MenuAction::VideoChanged);
     } else if (starts_with(id, "video.") && video_) {
         video::menu_step(*video_, id_number(id), dir);
         out.push_back(MenuAction::VideoChanged);
@@ -858,6 +882,7 @@ std::string Menu::hint() const {
     case Page::Picker: return tr("hint.picker");
     case Page::CodeEntry: return tr("hint.entry");
     case Page::Capture: return tr("hint.capture");
+    case Page::Video: return tr("hint.video");
     default: return tr("hint.page");
     }
 }
@@ -897,6 +922,8 @@ std::vector<Row> Menu::rows() const {
     case Page::States: break;  // a grid: see view() and lines()
     case Page::Video:
         if (video_) {
+            const int preset = video::preset_of(*video_);
+            choice("video.preset", tr(preset == video::kCustomPreset ? "preset.custom" : "preset." + std::to_string(preset)), Icon::Settings);
             int i = 0;
             for (const auto& item : video::menu_items(*video_)) {
                 const bool flag = item.toggle;
@@ -1031,6 +1058,23 @@ anyui::Frame Menu::view() const {
     if (page_ == Page::Capture) {
         p.modal = fmt("controls.capture", {input::target_name(capture_target_)});
         p.modal_detail = tr("controls.capture.detail");
+    }
+    if (page_ == Page::Video && video_) {
+        // The player supplies the pictures; see docs/user/USAGE.md "Video preview".
+        anyui::Preview& pv = p.preview;
+        pv.shown = true;
+        pv.state = preview_;
+        pv.before_label = tr("preview.before");
+        pv.after_label = tr("preview.after");
+        const auto items = video::menu_items(*video_);
+        if (cursor_ >= 0 && cursor_ < static_cast<int>(p.rows.size())) {
+            const Row& r = p.rows[static_cast<std::size_t>(cursor_)];
+            pv.title = r.label + ": " + r.value;
+            const int item = id_number(r.id);
+            pv.description = r.id == "video.preset" ? tr("desc.preset")
+                             : item >= 0 && item < static_cast<int>(items.size()) ? tr("desc." + items[static_cast<std::size_t>(item)].label)
+                                                                                  : std::string();
+        }
     }
     return f;
 }

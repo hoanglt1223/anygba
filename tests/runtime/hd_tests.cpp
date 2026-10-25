@@ -4,6 +4,7 @@
 #include "video/hd/frame.h"
 #include "video/hd/keys.h"
 #include "video/hd/renderer.h"
+#include "video/hd/session.h"
 
 #include <doctest.h>
 
@@ -149,3 +150,47 @@ TEST_CASE("hd renderer: widescreen keeps the middle 240x160 identical") {
         }
     }
 }
+
+TEST_CASE("hd session: the paused frame draws again with new settings (the menu's preview)") {
+    auto rom = anygba::test::read_corpus_file("tonc/bin/sbb_aff.gba");
+    if (!rom) {
+        MESSAGE("corpus not fetched; skipping");
+        return;
+    }
+    const auto run = [&](hd::Session& session, int frames) {
+        anygba::Options options;
+        options.log_misses = false;
+        auto sys = std::make_unique<System>(std::vector<std::uint8_t>(*rom), nullptr, options);
+        sys->on_line_rendered = [&](System& s, unsigned line) { session.on_line(s, line); };
+        sys->on_vblank = [&](System& s) {
+            if (static_cast<int>(s.frames()) >= frames) s.stop();
+        };
+        sys->run();
+        return sys;
+    };
+    {
+        hd::Session session({});
+        anygba::video::Options o;
+        o.internal_scale = 2;
+        session.set_options(o);
+        auto sys = run(session, 30);
+        REQUIRE(session.picture() != nullptr);
+        CHECK(session.picture()->height == 2 * anygba::kScreenHeight);
+        o.internal_scale = 3;
+        session.set_options(o);
+        CHECK(session.render_again(*sys));
+        REQUIRE(session.picture() != nullptr);
+        CHECK(session.picture()->height == 3 * anygba::kScreenHeight);
+        CHECK(mismatches(*sys, *session.picture(), 3, 0) == 0);
+    }
+    {
+        // HD was off while the paused frame was drawn: nothing to draw again.
+        hd::Session session({});
+        auto sys = run(session, 30);
+        anygba::video::Options o;
+        o.internal_scale = 2;
+        session.set_options(o);
+        CHECK(!session.render_again(*sys));
+    }
+}
+

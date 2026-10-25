@@ -16,7 +16,9 @@
 // Audio, Controls, Cheats, AI, Settings) and the current tab's page. The game is paused
 // while it is open. It is driven by the GBA buttons (d-pad, A, B, L, R, Select) from any
 // keyboard or gamepad mapping, typed keys (codes, search, rebinding, Tab, Page Up/Down)
-// and pointer clicks on what MenuView drew. Rows are identified by string ids; actions tell
+// and pointer clicks on what MenuView drew. The Video tab shows a live preview of the paused
+// game beside its rows: Select toggles the loupe, the right stick or Shift+d-pad moves it, and
+// [ ] or the triggers move the before/after divider. Rows are identified by string ids; actions tell
 // the player what to do. view() describes the page for MenuView, lines() as text for
 // headless runs.
 namespace anygba::player {
@@ -28,6 +30,7 @@ struct MenuInput {
     std::uint32_t pad_held = 0;          // gamepad buttons held, one bit per Button
     bool ctrl = false, alt = false, shift = false;
     bool menu_hotkey = false;            // the Menu hotkey was pressed this frame
+    float stick_x = 0, stick_y = 0;      // the right stick, -1-1 past its dead zone (moves the preview's loupe)
 };
 
 enum class MenuAction : std::uint8_t { Close, SaveState, LoadState, SpeedChanged, CheatsChanged, MappingChanged, VideoChanged, SettingsChanged,
@@ -80,6 +83,8 @@ public:
     std::vector<MenuAction> click(anyui::Hit hit);
 
     anyui::Frame view() const;
+    // The Video preview's divider and loupe; MenuView::preview_pointer moves them too.
+    anyui::PreviewState& preview_state() { return preview_; }
     // The visible text, title first (headless runs print it).
     std::vector<std::string> lines() const;
 
@@ -113,6 +118,7 @@ private:
     void update_picker(std::uint16_t press, const MenuInput& in, std::vector<MenuAction>& out);
     void update_entry(std::uint16_t press, const MenuInput& in, std::vector<MenuAction>& out);
     void update_capture(const MenuInput& in, std::vector<MenuAction>& out);
+    bool update_preview(std::uint16_t press, const MenuInput& in);
     bool update_search(const MenuInput& in);
     void open_picker(int cheat);
     void apply_picker(std::vector<MenuAction>& out);
@@ -160,6 +166,7 @@ private:
     std::string pending_modifier_;
     std::string message_;
     bool message_error_ = false;
+    anyui::PreviewState preview_;
     std::uint16_t last_held_ = 0;
     int repeat_frames_ = 0;
 };

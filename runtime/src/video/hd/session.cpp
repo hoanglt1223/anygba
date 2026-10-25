@@ -151,8 +151,20 @@ std::map<std::uint32_t, std::uint16_t> Session::rom_patches() const {
 }
 
 void Session::on_line(System& sys, unsigned line) {
+    if (line == 0) recorded_ = false;
     if (!active()) return;
     if (!recorder_->on_line(sys, line)) return;
+    recorded_ = true;
+    render_recorded(sys);
+}
+
+bool Session::render_again(System& sys) {
+    if (!active() || !recorded_) return false;
+    render_recorded(sys);
+    return true;
+}
+
+void Session::render_recorded(System& sys) {
     Frame& frame = recorder_->frame();
     const int extra = widescreen_extra(options_.widescreen);
     if (extra > 0 && rules_) {

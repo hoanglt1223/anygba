@@ -146,8 +146,10 @@ The tabs:
 - **Save states**: the nine slots as a grid with a picture of the moment and when it was saved. A (or a
   click) on a slot offers *Load*, *Save here* and *Delete*; Select deletes. The picture is kept next to the
   state as `<state>.png`.
-- **Video**: filter, screen effect, ghosting, colour, gamma, debanding, resolution, fullscreen, integer
+- **Video**: a *Graphics preset* row (Very low to Ultra, or Custom; [VIDEO.md](VIDEO.md#graphics-presets)), then filter, screen effect, ghosting, colour, gamma, debanding, resolution, fullscreen, integer
   scale and the HD and widescreen settings; they apply at once and are kept for this game ([VIDEO.md](VIDEO.md)).
+  Beside the rows a live preview shows the paused game (see Video preview below) and, under it, what the
+  focused setting does.
 - **Audio**: *Volume* (0-100%) and *Mute*. Volume and Mute change what the sound
   card plays, not `--wav` recordings.
 - **Controls**: a picture of the GBA with the selected button lit, then every GBA button and hotkey with
@@ -163,6 +165,24 @@ The tabs:
   motion* (no open, close or focus animations), *FPS and stats overlay* (see Stats overlay), the save
   folder, and *Export save* / *Import save* for `.sav` files of other emulators (see Saves). They are
   saved in the input file's `[player]` section ([INPUT_MAPPING.md](INPUT_MAPPING.md)).
+
+### Video preview
+
+The Video tab's preview is the paused game picture split by a vertical divider: on the left (*Before*) the
+plain picture, nearest-neighbour with no filter, effect or colour correction; on the right (*After*) the
+picture with the current settings, drawn again each time a value changes. Both are drawn at the size the
+game takes in the window and shrunk into the panel, so the loupe can show single pixels.
+
+- **Divider**: drag it with the mouse (pressing anywhere on the picture moves it there) or with a finger
+  started on it; `[` and `]` or the gamepad's left and right triggers move it a tenth at a time.
+- **Loupe**: a 4x circle that follows the mouse over the picture, or a finger held on the picture (it sits
+  above the finger). Select (Backspace; gamepad Back) turns it on and off for the keyboard and gamepad;
+  then the right stick or Shift with the d-pad moves it.
+- HD settings (internal scale, layer filter, smooth rotation, HD pack, widescreen) draw the paused frame
+  again through the HD renderer. When HD was off while that frame was drawn, or with AI upscaling (its
+  pictures come later from a worker), the panel says the picture shows the change once the game runs again.
+  Settings that only change timing (smoothing, refresh, VRR, sync, FPS caps) and ghosting do not change a
+  still picture; their descriptions say what they do.
 
 ## Gamepads
 

@@ -228,7 +228,9 @@ TEST_CASE("menu: the Video page steps every setting and reports the change") {
     press(R);  // Save states
     press(R);  // Video
     REQUIRE(menu.lines()[0] == "== Video ==");
-    CHECK(menu.lines()[1] == "> Filter  < nearest >");
+    CHECK(menu.lines()[1] == "> Graphics preset  < Very low >");
+    press(Down);
+    CHECK(menu.lines()[2] == "> Filter  < nearest >");
     press(Right);
     CHECK(options.scaler == video::Scaler::Bilinear);
     press(Left);
@@ -262,6 +264,7 @@ TEST_CASE("menu: the Video page steps every setting and reports the change") {
     press(Right);
     CHECK(options.integer_scale);
     CHECK(std::count(actions.begin(), actions.end(), MenuAction::VideoChanged) == 13);
+    CHECK(menu.lines()[1] == "  Graphics preset  < Custom >");
     press(B);
     CHECK(!menu.is_open());
 }
@@ -509,3 +512,70 @@ TEST_CASE("the GPU path renders 4K in a hidden window within the frame budget") 
         CHECK(best < 1000.0 / 60.0);
     }
 }
+
+TEST_CASE("graphics presets: each sets its values, a change shows Custom, matching values the preset") {
+    video::Options o;
+    CHECK(video::preset_of(o) == 0);  // the defaults are Very low
+    o.refresh = 144;
+    o.vrr = true;
+    o.effect = video::Effect::Crt;
+    o.ai = video::Ai::Frame;
+    for (int i = 0; i < video::kPresetCount; ++i) {
+        CAPTURE(i);
+        video::apply_preset(o, i);
+        CHECK(video::preset_of(o) == i);
+        CHECK(o.refresh == 144);  // display, pacing and style settings are not part of a preset
+        CHECK(o.vrr);
+        CHECK(o.effect == video::Effect::Crt);
+        CHECK(o.ai == video::Ai::Frame);
+    }
+    CHECK(o.internal_scale == 4);
+    CHECK(o.layer_filter == video::Scaler::Xbrz4x);
+    video::apply_preset(o, 2);
+    CHECK(o.scaler == video::Scaler::Hq2x);
+    CHECK(o.internal_scale == 1);
+    CHECK(!o.smoothing);
+    video::apply_preset(o, 3);
+    CHECK(o.scaler == video::Scaler::Xbrz4x);
+    CHECK(o.deband);
+    CHECK(o.smoothing);
+    o.deband = false;
+    CHECK(video::preset_of(o) == video::kCustomPreset);
+    o.deband = true;
+    CHECK(video::preset_of(o) == 3);
+    o.gamma = 1.5;  // not covered
+    CHECK(video::preset_of(o) == 3);
+
+    // Through the menu: Right/Left walk the ladder (wrapping), from Custom Right starts at Very low.
+    anygba::cheats::CheatList cheats;
+    auto mapping = anygba::input::default_mapping();
+    int speed = 100, slot = 1;
+    anygba::player::Menu menu(cheats, mapping, speed, slot);
+    video::Options options;
+    menu.set_video(&options);
+    constexpr std::uint16_t Right = 16, Left = 32, Down = 128, R = 256;
+    const auto press = [&](std::uint16_t buttons) {
+        menu.update({});
+        anygba::player::MenuInput in;
+        in.gba_held = buttons;
+        menu.update(in);
+    };
+    menu.open();
+    menu.update({});
+    press(R);
+    press(R);  // Video
+    press(Left);
+    CHECK(menu.lines()[1] == "> Graphics preset  < Ultra >");
+    CHECK(options.internal_scale == 4);
+    press(Right);
+    CHECK(menu.lines()[1] == "> Graphics preset  < Very low >");
+    press(Right);
+    CHECK(menu.lines()[1] == "> Graphics preset  < Low >");
+    CHECK(options.scaler == video::Scaler::SharpBilinear);
+    press(Down);
+    press(Right);  // Filter: sharp-bilinear -> scale2x
+    CHECK(menu.lines()[1] == "  Graphics preset  < Custom >");
+    press(Left);
+    CHECK(menu.lines()[1] == "  Graphics preset  < Low >");
+}
+
