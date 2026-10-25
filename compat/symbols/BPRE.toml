@@ -1,0 +1,28 @@
+# Pokemon FireRed (USA) version 1.0 (game code BPRE, revision 0): guest functions for overrides
+# (docs/dev/OVERRIDES.md). Addresses from pokefirered.sym on the pret/pokefirered `symbols` branch
+# (commit 3b401ea); names and addresses only.
+#
+# Revision 1 (v1.1) shares the game code BPRE but its code sits at other addresses (the text printer
+# 0x14 bytes higher), so do not build a v1.1 ROM with overrides against this table.
+#
+# Overrides replay the translated code block by block (instruction counts per block), so an Emerald
+# override applies here only where the machine code is the same. RunTextPrinters, RenderText,
+# CopyGlyphToWindow, DecompressGlyphTile, DecompressGlyph_Normal, ClearTextSpan, DrawDownArrow and
+# TextPrinterDrawDownArrow have other sizes than in Emerald; StringCopy, RenderFont, FontFunc_Normal and
+# TextPrinterWaitWithDownArrow have the same size and source, which a difftest on a FireRed ROM must
+# confirm before their overrides are trusted here.
+
+[functions]
+StringCopy = { addr = 0x08008D84, mode = "thumb" }
+RunTextPrinters = { addr = 0x08002DE8, mode = "thumb" }
+RenderFont = { addr = 0x08002E7C, mode = "thumb" }
+DecompressGlyphTile = { addr = 0x08002F8C, mode = "thumb" }
+CopyGlyphToWindow = { addr = 0x08003014, mode = "thumb" }
+ClearTextSpan = { addr = 0x08003B1C, mode = "thumb" }
+FontFunc_Normal = { addr = 0x080053E8, mode = "thumb" }
+TextPrinterDrawDownArrow = { addr = 0x080054F8, mode = "thumb" }
+TextPrinterWaitWithDownArrow = { addr = 0x08005634, mode = "thumb" }
+DrawDownArrow = { addr = 0x080056C4, mode = "thumb" }
+RenderText = { addr = 0x08005790, mode = "thumb" }
+DecompressGlyph_Normal = { addr = 0x080065B8, mode = "thumb" }
+GetGlyphWidth_Normal = { addr = 0x080066F8, mode = "thumb" }
