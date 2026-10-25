@@ -1,0 +1,30 @@
+# Argument spec for `--difftest 0x08000186` (tests/override-difftest.cmake): r0 is where words are
+# cleared, r1 the byte count. The function does not use the stack.
+
+["0x08000186"]
+dead_stack = 0
+
+[["0x08000186".shape]]
+name = "words"
+weight = 6
+r0 = { pointer = "ram", align = 4 }
+r1 = { range = [0, 0x200] }
+
+[["0x08000186".shape]]
+name = "unaligned"
+weight = 2
+r0 = "ram"
+r1 = { range = [0, 0x40] }
+
+[["0x08000186".shape]]
+name = "vram"
+weight = 1
+r0 = { pointer = "vram", align = 4 }
+r1 = { range = [0, 0x100] }
+
+[["0x08000186".shape]]
+name = "low-budget"
+weight = 1
+r0 = { pointer = "ram", align = 4 }
+r1 = { range = [0, 0x100] }
+cycles = { range = [0, 200] }

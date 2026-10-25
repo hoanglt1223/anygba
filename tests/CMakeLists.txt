@@ -35,6 +35,7 @@ add_executable(anygba-tests
   runtime/interpreter_tests.cpp
   runtime/system_tests.cpp
   runtime/override_tests.cpp
+  runtime/difftest_tests.cpp
   runtime/bios_tests.cpp
   runtime/ppu_tests.cpp
   runtime/motion_tests.cpp
@@ -149,10 +150,14 @@ endif()
 if(EXISTS "${corpus}/tonc/bin/irq_demo.gba")
   anygba_add_game(override-irq-demo ROM "${corpus}/tonc/bin/irq_demo.gba" SHARDS 2
     MISS_LOGS "${CMAKE_CURRENT_SOURCE_DIR}/overrides/irq-demo-isr.log"
-    OVERRIDES "${CMAKE_CURRENT_SOURCE_DIR}/overrides/call-paths")
+    OVERRIDES "${CMAKE_CURRENT_SOURCE_DIR}/overrides/call-paths" "${CMAKE_CURRENT_SOURCE_DIR}/overrides/difftest")
   add_test(NAME override-e2e
     COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:override-irq-demo>" "-DROM=${corpus}/tonc/bin/irq_demo.gba"
       "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/override-e2e" -P "${CMAKE_CURRENT_SOURCE_DIR}/override-e2e.cmake")
+  add_test(NAME override-difftest
+    COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:override-irq-demo>" "-DROM=${corpus}/tonc/bin/irq_demo.gba"
+      "-DSPEC=${CMAKE_CURRENT_SOURCE_DIR}/overrides/difftest/difftest.toml" "-DANYGBA=$<TARGET_FILE:anygba>"
+      "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/override-difftest" -P "${CMAKE_CURRENT_SOURCE_DIR}/override-difftest.cmake")
 endif()
 if(TARGET gba-tests-save-sram)
   add_test(NAME player-saveio

@@ -1,0 +1,10 @@
+# Difftest fixture for tonc's irq_demo (tests/override-difftest.cmake): crt0's word-clearing loop at
+# 0x08000186 (r0 = destination, r1 = byte count, rounded up to whole words). zero_fill.cpp also
+# registers a deliberately wrong implementation, selected with --impl.
+
+[[override]]
+addr = 0x08000186
+mode = "thumb"
+impl = "difftest_zero_fill"
+engine = "test"
+verified = true  # override-difftest: 10,000 random and the recorded boot states pass

@@ -160,6 +160,41 @@ void System::run() {
     }
 }
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4611)
+#endif
+int System::call_guarded(anygba_fn fn) {
+    std::jmp_buf jb;
+    top_jmp_ = &jb;
+    const int why = setjmp(jb);
+    if (why != 0) {
+        return why;
+    }
+    cpu_.ret_depth = 0;
+    resume_depth_ = 0;
+    swi_pc_ = kNoSwi;
+    fn(&cpu_);
+    return 0;
+}
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+std::string System::call_isolated(anygba_fn fn) {
+    void* const previous = top_jmp_;
+    stop_requested_ = false;
+    const int why = call_guarded(fn);
+    top_jmp_ = previous;
+    cpu_.ret_depth = 0;
+    switch (why) {
+    case 0: return "";
+    case kJumpFail: return error_.empty() ? std::string("failed") : error_;
+    case kJumpUnwind: return "unwound: calls nested deeper than the return stack";
+    default: return "stopped";
+    }
+}
+
 void System::unwind() {
     if (!top_jmp_) {
         throw Error("anygba_unwind called outside System::run");

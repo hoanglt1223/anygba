@@ -140,13 +140,16 @@ GitHub Release, together with the Android runtime archive and the launcher APK.
   discovered functions with disassembly instead. Config schema and the miss-log format:
   [docs/dev/GAME-CONFIG.md](docs/dev/GAME-CONFIG.md); function overrides: [docs/dev/OVERRIDES.md](docs/dev/OVERRIDES.md).
 - `anygba build <rom.gba> [options]`: recompile, compile and package in one step (`anygba help build`).
+- `anygba difftest <game> --func NAME [--overrides DIR] [--load-state FILE] [--recorded FILE]... [--json FILE]
+  [--mark-verified]`: compare a function override with the recompiled original on random and recorded start
+  states (`anygba help difftest`, [docs/dev/OVERRIDES.md](docs/dev/OVERRIDES.md)).
 - `anygba-mcp [--control-dir DIR] [--journal-dir DIR]`: MCP server on stdin/stdout for AI agents
   ([docs/user/AI-CONTROL.md](docs/user/AI-CONTROL.md); protocol: [docs/dev/control-protocol.md](docs/dev/control-protocol.md)).
 - A generated game: `game [rom.gba] [--headless] [--pace | --fast] [--speed N] [--frames N] [--seconds S]
   [--exit-on-idle] [--dump-frame-hash] [--save-dir DIR | --no-save] [--save-type T] [--load-state FILE]
   [--cheat CODE] [--cheats FILE] [--cheat-db FILE] [--input FILE] [--script FILE] [--keys SPEC]
   [--dump REGION:FILE] [--miss-log FILE | --no-miss-log] [--scale N] [--control] [--journal] [--symbols FILE]
-  [--overrides on|off|all]
+  [--overrides on|off|all] [--difftest FUNC ...] [--record-entry FUNC --count N --record-out FILE]
   ...` (`--help` explains each). It only
   accepts the ROM it was generated from (SHA-256); without a ROM argument it uses the one `anygba build`
   embedded. With a window it paces to the audio device and Space fast-forwards; headless runs are unpaced

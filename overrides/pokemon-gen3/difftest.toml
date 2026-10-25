@@ -1,0 +1,45 @@
+# Argument specs for `anygba difftest` (docs/dev/OVERRIDES.md): what random start states look like for
+# the functions of this module. Only GBA memory regions and value ranges, no game data. Run with:
+#   anygba difftest <Emerald program> --func StringCopy --overrides overrides/pokemon-gen3 --load-state FILE
+
+# u8 *StringCopy(u8 *dest, const u8 *src): copies a 0xFF-terminated string, terminator included.
+[StringCopy]
+dead_stack = 64  # push {lr} leaves the return address below the caller's sp
+tick_limit = 200  # ~250,000 cycles, a copy of about 20 KB: sources with no 0xFF in reach stop there
+
+[[StringCopy.shape]]
+name = "rom-src"  # whatever the cartridge holds, up to the next 0xFF
+r0 = "ram"
+r1 = "rom"
+
+[[StringCopy.shape]]
+name = "ram-src"
+weight = 2
+r0 = "ram"
+r1 = { string = "ram", length = [0, 300] }
+
+[[StringCopy.shape]]
+name = "overlap"  # dest just below src: the copy overwrites bytes it reads later
+r1 = { string = "ram", length = [0, 300] }
+r0 = { near = "r1", offset = [-8, 0] }
+
+[[StringCopy.shape]]
+name = "bus-src"  # source read through the bus
+r0 = "ram"
+r1 = ["io", "vram"]
+
+[[StringCopy.shape]]
+name = "vram-dest"
+r0 = "vram"
+r1 = { string = "ram", length = [0, 40] }
+
+[[StringCopy.shape]]
+name = "stack-overlap"  # the copy runs over the pushed return address
+r1 = { string = "ewram", length = [8, 32] }
+r0 = { near = "sp", offset = [-20, -4] }
+
+[[StringCopy.shape]]
+name = "low-budget"  # scheduler ticks inside the copy
+r0 = "ram"
+r1 = { string = "ram", length = [0, 300] }
+cycles = { range = [0, 400] }

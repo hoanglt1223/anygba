@@ -203,6 +203,19 @@ public:
     }
     const anygba_game* game() const { return game_; }
 
+    // ---- differential tests of overrides (runtime/src/overrides/difftest.cpp) ----
+    // The machine state without save_state()'s header and checks, for restoring it many times.
+    std::vector<std::uint8_t> snapshot();
+    void restore(std::span<const std::uint8_t> snapshot);
+    // While on, tick() runs no events and delivers no interrupts: it counts ticks and adds one
+    // scanline (1232 cycles) of budget, and fails with a timeout past `limit` ticks. Halting for
+    // an interrupt fails. Code then runs the same however long it takes.
+    void isolate_ticks(bool on, std::uint64_t limit = 0);
+    std::uint64_t isolated_ticks() const { return isolated_ticks_; }
+    // Runs `fn` (generated code or an override entry) from cpu() with run()'s error handling,
+    // outside run(). Returns "" when it returned, else why it stopped.
+    std::string call_isolated(anygba_fn fn);
+
     // ---- used by the C ABI glue (anygba_* functions) ----
     std::uint32_t read32(std::uint32_t addr) { return watched(addr, bus_read32(addr), 4, false); }
     std::uint32_t read16(std::uint32_t addr) { return watched(addr, bus_read16(addr), 2, false); }
@@ -340,6 +353,10 @@ private:
     std::map<std::uint32_t, std::uint16_t> rom_originals_;
     std::set<std::uint32_t> bypassed_;  // generated function entries covered by a ROM patch
     std::uint16_t watched_regions_ = 0;
+    bool isolated_ = false;
+    std::uint64_t isolated_ticks_ = 0;
+    std::uint64_t isolated_limit_ = 0;
+    int call_guarded(anygba_fn fn);
     std::set<std::uint32_t> breakpoints_;
     anygba_fn lookup_compiled(std::uint32_t addr, bool thumb) const;  // ignores ROM patches and RAM contents
     const anygba_function_entry* ram_function(std::uint32_t addr, bool thumb) const;

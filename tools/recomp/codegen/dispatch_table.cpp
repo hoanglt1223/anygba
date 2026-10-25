@@ -91,6 +91,8 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
             throw std::runtime_error(buf);
         }
         header += "void " + function_name(o.addr) + "_orig(anygba_cpu* c); /* translation behind an override */\n";
+        header += "extern uint32_t " + function_name(o.addr) + "_hits[]; /* its blocks run, for difftests */\n";
+        header += "extern const uint32_t " + function_name(o.addr) + "_blocks[];\n";
     }
     if (!info.overrides.empty()) {
         header += "extern uint8_t ag_override_on[];\n";
@@ -104,6 +106,7 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
     options.image = &image;
     options.functions = &functions;
     std::map<std::uint32_t, std::size_t> override_index;
+    std::map<std::uint32_t, std::size_t> override_blocks;  // addr -> number of blocks
     for (std::size_t k = 0; k < info.overrides.size(); ++k) override_index[info.overrides[k].addr] = k;
     std::size_t i = 0;
     for (const auto& [addr, fn] : functions) {
@@ -114,7 +117,20 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
             const std::string k = std::to_string(ov->second) + "u";
             EmitOptions original = options;
             original.name = name + "_orig";
-            shard += emit_function(fn, original) + "\n";
+            std::vector<std::uint32_t> blocks;
+            original.coverage = name + "_hits";
+            original.blocks = &blocks;
+            const std::string body = emit_function(fn, original);
+            const std::string size = std::to_string(std::max<std::size_t>(blocks.size(), 1));  // ISO C: no empty arrays
+            shard += "uint32_t " + name + "_hits[" + size + "];\nconst uint32_t " + name + "_blocks[" + size + "] = {";
+            if (blocks.empty()) shard += "0";
+            for (std::size_t b = 0; b < blocks.size(); ++b) {
+                char buf[16];
+                std::snprintf(buf, sizeof buf, "%s0x%08xu", b ? ", " : "", blocks[b]);
+                shard += buf;
+            }
+            shard += "};\n\n" + body + "\n";
+            override_blocks[addr] = blocks.size();
             shard += "void " + name + "(anygba_cpu* c) {\n    if (ag_override_on[" + std::to_string(ov->second) +
                      "]) {\n        anygba_override_run(c, " + k + ");\n        return;\n    }\n    " + name +
                      "_orig(c);\n}\n\n";
@@ -171,7 +187,9 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
             char buf[32];
             std::snprintf(buf, sizeof buf, "0x%08xu, %d, ", o.addr, o.thumb ? 1 : 0);
             dispatch += "    {" + std::string(buf) + c_string(o.impl) + ", " + c_string(o.name) + ", " +
-                        c_string(o.engine) + ", " + (o.enabled ? "1" : "0") + ", " + function_name(o.addr) + "_orig},\n";
+                        c_string(o.engine) + ", " + (o.enabled ? "1" : "0") + ", " + function_name(o.addr) + "_orig, " +
+                        (o.verified ? "1" : "0") + ", " + function_name(o.addr) + "_hits, " + function_name(o.addr) +
+                        "_blocks, " + std::to_string(override_blocks[o.addr]) + "u},\n";
         }
         dispatch += "};\n\n";
     }

@@ -178,7 +178,7 @@ FunctionTable parse_functions(const Reader& r, const toml::table& root) {
 
 void parse_overrides(const Reader& r, const toml::table& root, std::string_view source_name, std::vector<Override>& out) {
     r.each_table(root, "override", [&](const toml::table& t) {
-        r.only_keys(t, "[[override]]", {"addr", "mode", "symbol", "impl", "enabled", "engine"});
+        r.only_keys(t, "[[override]]", {"addr", "mode", "symbol", "impl", "enabled", "engine", "verified"});
         Override o;
         o.where = std::string(source_name) + ":" + std::to_string(t.source().begin.line);
         const bool has_addr = t.contains("addr");
@@ -206,6 +206,10 @@ void parse_overrides(const Reader& r, const toml::table& root, std::string_view 
         if (const toml::node* enabled = t.get("enabled")) {
             if (!enabled->is_boolean()) r.fail(*enabled, "override.enabled must be true or false");
             o.enabled = enabled->as_boolean()->get();
+        }
+        if (const toml::node* verified = t.get("verified")) {
+            if (!verified->is_boolean()) r.fail(*verified, "override.verified must be true or false");
+            o.verified = verified->as_boolean()->get();
         }
         if (const toml::node* engine = t.get("engine")) {
             if (!engine->is_string() || engine->as_string()->get().empty()) {

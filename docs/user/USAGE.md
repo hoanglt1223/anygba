@@ -64,6 +64,9 @@ Options (`anygba help build`):
 - `--wav FILE`: record the sound as it is played (after speed changes) to a WAV file, also headless.
 - `--overrides on|off|all`: function overrides built into the game; `off` runs the original code for
   comparison ([OVERRIDES.md](../dev/OVERRIDES.md)).
+- `--difftest FUNC [--spec FILE] [--states N] [--recorded FILE]...` and `--record-entry FUNC --count N
+  --record-out FILE`: differential tests of an override against the original code, and recording real
+  start states for them (`anygba difftest` wraps both; [OVERRIDES.md](../dev/OVERRIDES.md)).
 - `--control`, `--journal`, `--symbols FILE` and the other `--control-*` and `--journal-*` options: AI agent
   control and the play journal ([AI-CONTROL.md](AI-CONTROL.md)).
 

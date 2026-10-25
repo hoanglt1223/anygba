@@ -153,6 +153,22 @@ void System::load_state(std::span<const std::uint8_t> image) {
     show_gpio();
 }
 
+std::vector<std::uint8_t> System::snapshot() {
+    state::Archive ar = state::Archive::writer();
+    serialize(ar);
+    return ar.take();
+}
+
+void System::restore(std::span<const std::uint8_t> snapshot) {
+    state::Archive ar = state::Archive::reader(snapshot);
+    serialize(ar);
+    cpu_.ret_depth = 0;
+    resume_depth_ = 0;
+    map_pages();
+    update_wait_states();
+    show_gpio();
+}
+
 void System::request_safe_point(std::function<void(System&)> action) { safe_point_ = std::move(action); }
 
 void Ppu::serialize(state::Archive& ar) {

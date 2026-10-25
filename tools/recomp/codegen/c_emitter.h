@@ -22,6 +22,10 @@ struct EmitOptions {
     // else becomes an indirect call through the dispatcher.
     const std::map<std::uint32_t, analysis::Function>* functions = nullptr;
     std::string name;  // overrides function_name(entry)
+    // When set, every basic block starts with `<coverage>[i]++;` and its address is appended to
+    // *blocks: block coverage of an overridden function's translation for difftests.
+    std::string coverage;
+    std::vector<std::uint32_t>* blocks = nullptr;
 };
 
 // Emits one C11 function `void f_XXXXXXXX(anygba_cpu* c)` for `fn`.
@@ -41,6 +45,7 @@ struct OverrideInfo {
     std::string name;    // symbol, or the address in hex
     std::string engine;  // "" when untagged
     bool enabled = true;
+    bool verified = false;  // the config records a passing difftest
 };
 
 struct ProjectInfo {

@@ -98,6 +98,16 @@ std::string describe(const Active& a) {
     return text;
 }
 
+guest::Impl find_impl(std::string_view name) {
+    const auto it = registry().find(name);
+    return it == registry().end() ? nullptr : it->second;
+}
+
+void set_impl(std::uint32_t index, guest::Impl impl) {
+    if (index >= g_impls.size()) throw Error("override " + std::to_string(index) + " is not active");
+    g_impls[index] = impl;
+}
+
 void set_osd_sink(std::function<void(const std::string&)> sink) { g_osd = std::move(sink); }
 
 }  // namespace anygba::overrides

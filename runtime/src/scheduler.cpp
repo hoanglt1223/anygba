@@ -99,6 +99,13 @@ void System::on_line_end() {
 }
 
 void System::tick() {
+    if (isolated_) [[unlikely]] {
+        if (++isolated_ticks_ > isolated_limit_) {
+            fail("timeout: still running after " + std::to_string(isolated_limit_) + " scanlines of cycles");
+        }
+        cpu_.cycles += 1232;
+        return;
+    }
     run_events();
     deliver_irq();
     if (stop_requested_ && top_jmp_) {
@@ -138,7 +145,16 @@ void System::idle_loop() {
     tick();
 }
 
+void System::isolate_ticks(bool on, std::uint64_t limit) {
+    isolated_ = on;
+    isolated_ticks_ = 0;
+    isolated_limit_ = limit;
+}
+
 void System::halt_until_irq(std::uint16_t wake_mask) {
+    if (isolated_) {
+        fail("the code waits for an interrupt (BIOS Halt, Stop or IntrWait), which a difftest does not deliver");
+    }
     // Skip whole budgets until an enabled interrupt is requested (IME is not required).
     while ((io_read16(0x200) & io_read16(0x202) & wake_mask) == 0) {
         cpu_.cycles = 0;

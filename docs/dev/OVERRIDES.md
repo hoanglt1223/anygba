@@ -44,6 +44,7 @@ symbol = "StringCopy"              # a name from a [functions] table, or:
 impl = "pokemon_gen3_StringCopy"   # the name given to ANYGBA_OVERRIDE
 enabled = true                     # optional (default true); false: compiled in, off unless --overrides all
 engine = "pokemon-gen3"            # optional tag, shown in the list of overrides
+verified = true                    # optional (default false): a difftest passed (see below)
 ```
 
 Symbols resolve through `[functions]` tables, so an engine module names functions and each game supplies
@@ -127,7 +128,112 @@ override: StringCopy at 0x08008ba0 thumb -> pokemon_gen3_StringCopy [pokemon-gen
 ```
 
 `--overrides off` runs the original code everywhere, for A/B comparison; `--overrides all` also switches
-on the entries with `enabled = false`. The menu does not list overrides yet.
+on the entries with `enabled = false`. The menu does not list overrides yet. An active override without
+`verified = true` also prints `warning: override ... is not verified`.
+
+## Differential tests
+
+An override is trusted when it behaves like the translation it replaces. `anygba difftest` runs both from
+identical start states inside the generated game and compares what they leave behind:
+
+```
+anygba difftest <game program or its folder> --func StringCopy --overrides overrides/pokemon-gen3 \
+    [--load-state FILE] [--recorded FILE]... [--states 10000] [--seed 1] [--json report.json] [--mark-verified]
+```
+
+It is a front end for the game's own `--difftest FUNC` mode (`<game> --help`), which holds both the
+translation (`f_XXXXXXXX_orig`) and the override. Exit code 0: every state passed the gate; 1: one did not.
+
+**What is compared.** The gate is the ABI-level comparison: r0, r4-r11, sp, where the function returns
+to (address and instruction set), every memory write (address, size and value; in order per address, and
+in global order for IO registers), the memory contents afterwards, and the guest functions it called with
+r0-r3. Everything else is reported separately and does not fail the test: r1-r3, r12, lr, the flags, the
+mode bits, cycles used, scheduler ticks, the order of writes across addresses, the lr of each call, and
+the dead stack (`dead_stack` bytes below the entry sp, where `push {lr}` leaves the return address).
+
+**How a state runs.** The machine state (the `--load-state` save state, else the reset state) is
+restored, the state's memory is planted and its registers loaded, and the function is called from host
+code. Ticks are isolated: when the cycle budget runs out the runtime adds one scanline (1,232 cycles) and
+counts a tick instead of running video, timers, DMA or interrupts, so both sides see the same machine
+however long they take. A run past `tick_limit` ticks stops with a timeout; when both sides stop the same
+way the state counts as passed and the report lists how many did, per shape. Code that waits for an
+interrupt (BIOS Halt, Stop, IntrWait) stops with an error: such functions need a recorded state that does
+not reach the wait. Calls are seen at the entries of generated functions (all of them are breakpoints
+during a difftest) and of the interpreter; writes through the bus (every region is watched). BIOS calls
+and DMA that write memory directly show up in the memory comparison, not as writes.
+
+**Random states** come from the argument spec, `difftest.toml` next to the module's `overrides.toml`
+(or `--spec FILE`): one table per function, named like the override (`[StringCopy]`, or `["0x08000186"]`
+for one given by address), with weighted shapes:
+
+```toml
+[StringCopy]
+dead_stack = 64                  # default 256
+tick_limit = 200                 # default 10000
+ignore_memory = [[0x03007ff0, 0x03008000]]   # optional [begin, end) ranges compared nowhere; listed in the report
+
+[[StringCopy.shape]]
+name = "ram-src"
+weight = 2                       # default 1
+r0 = "ram"                       # a pointer into ewram/iwram ("ewram", "iwram", "io", "palette", "vram", "oam", "rom", or a list)
+r1 = { string = "ram", length = [0, 300] }    # planted random bytes ending in terminator (default 0xFF)
+
+[[StringCopy.shape]]
+name = "overlap"
+r1 = { string = "ram", length = [0, 300] }
+r0 = { near = "r1", offset = [-8, 0] }        # relative to another register (not itself near one)
+cycles = { range = [0, 400] }    # the cycle budget at entry (default 1000000: no tick)
+```
+
+Value forms for `r0`-`r12`, `sp`, `lr` and `cycles`: an integer; `"any"` (the default for r0-r12); a
+region or list of regions (a pointer); or a table with one of `value`, `range = [lo, hi]`, `pointer = ...`,
+`string = ... (length, terminator, bytes = [lo, hi])`, `buffer = ... (size = [min, max], bytes)`,
+`near = "reg" (offset)`, plus `align` (a power of two) and `thumb = true` (set bit 0). Defaults: sp in
+0x03007A00-0x03007F00 (word aligned), lr a Thumb address in the ROM, random flags. Strings and buffers are
+planted in writable memory only, at an address chosen for their longest length.
+
+**Recorded states** are real calls. During a scripted headless run:
+
+```
+<game> --headless --no-save --load-state FILE --keys ... --frames N \
+    --record-entry StringCopy --count 200 --record-out stringcopy.states
+```
+
+stores the machine state at the first call and, for every call, the registers and the memory that differs
+from it; the run stops after `--count` states. Keep these files outside the repository: they hold game
+memory. `--recorded FILE` adds them to a difftest; their first-call state is the base for them.
+
+**Coverage.** The recompiler gives the translation of every overridden function block counters
+(`f_XXXXXXXX_hits`, `_blocks`): blocks are the entry, branch targets and return points, and the
+fall-through of a conditional branch. The report gives the share of blocks the original ran over the test
+set and lists the ones it never reached, so gaps in the spec are visible. Games without overrides get no
+counters.
+
+**Failures.** The report names the first failing state, then shrinks it while it still fails: each
+length and range parameter of a random state is binary-searched towards its lower bound and every `"any"`
+register is tried at zero (one slot at a time, the rest of the state unchanged); for a recorded state each
+planted memory chunk is dropped if the failure stays. It prints the shrunk input and its differences:
+
+```
+first failing state: #1 (random, shape vram, index 0)
+  minimised input: r0=0x06001af0 r1=0x00000000 r2=0x00000000 ... sp=0x03007da4 lr=0x08005f8b flags=NzcV cycles=1000000
+  differences (ABI):
+    r0: original 0x06001af0, override 0x06001af4
+    memory writes (by address): original 0 writes, override 1; first difference at #0: original (none), override str32 [0x06001af0] = 0x00000000
+```
+
+`--json FILE` writes the same as JSON for tools: `pass`, `states` (total, random, recorded, passed, failed,
+`full_identical`, `same_stop`), per-shape counts, `abi_differences` and `full_differences` (counts per
+kind), `coverage` (blocks, covered, percent, uncovered addresses, runs per block), `masks`, and
+`first_failure` (input, differences, `minimised_input`, `minimised_differences`).
+
+`--impl NAME` tests another implementation compiled into the program (a module may register candidates
+besides the configured one). `--mark-verified` (with `--overrides DIR`) writes, after a pass,
+`verified = true  # anygba difftest passed <date>: <states> states, block coverage <percent>` into the
+override's entry in `DIR/overrides.toml`. Set `verified` only this way, and rebuild the game to pick it up.
+
+Results so far: Emerald's StringCopy passes 10,000 random states (seeds 12345 and 777) and 72 states
+recorded in the Bag menu, at the ABI level and in full state, with 4 of 4 blocks covered.
 
 ## Tests
 
@@ -137,3 +243,9 @@ on the entries with `enabled = false`. The menu does not list overrides yet.
 - `override-e2e` (ctest): tonc's irq_demo with `tests/overrides/call-paths`, one override per call path
   (bl from recompiled code, bx from recompiled code, bl from interpreted code); counts and the frame hash
   with `--overrides on` and `off`.
+- `tests/runtime/difftest_tests.cpp`: spec parsing, random state generation, recorded-state files, and a
+  difftest of a correct and an off-by-one override on a small test program.
+- `override-difftest` (ctest): irq_demo with `tests/overrides/difftest` (crt0's word fill): the override
+  passes 10,000 random states with all blocks covered, an off-by-one variant (`--impl`) fails with a
+  zero byte count as the minimised input, states recorded at boot pass, and `anygba difftest
+  --mark-verified` records the pass in a copy of the module.

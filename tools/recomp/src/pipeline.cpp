@@ -74,6 +74,7 @@ void resolve_overrides(const Options& options, const config::GameConfig* game, A
         info.impl = o.impl;
         info.engine = o.engine;
         info.enabled = o.enabled;
+        info.verified = o.verified;
         if (o.addr) {
             info.addr = *o.addr;
             info.thumb = o.mode == analysis::Mode::Thumb;

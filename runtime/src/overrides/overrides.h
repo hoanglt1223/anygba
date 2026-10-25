@@ -1,6 +1,7 @@
 #pragma once
 
 #include "anygba/cpu.h"
+#include "anygba/override.hpp"
 
 #include <functional>
 #include <optional>
@@ -30,6 +31,11 @@ std::vector<Active> activate(const anygba_game& game, Mode mode);
 // "StringCopy at 0x08008ba0 thumb -> pokemon_gen3_StringCopy [pokemon-gen3]: on"; an override
 // given by address starts "0x08008ba0 thumb".
 std::string describe(const Active& active);
+
+// The implementation registered as `name`, or null.
+guest::Impl find_impl(std::string_view name);
+// Runs override `index` with `impl` from now on (difftest --impl). Call after activate().
+void set_impl(std::uint32_t index, guest::Impl impl);
 
 // Where Guest::osd() messages go; empty: dropped.
 void set_osd_sink(std::function<void(const std::string&)> sink);

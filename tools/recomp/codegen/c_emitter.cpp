@@ -181,6 +181,7 @@ std::string FunctionEmitter::run() {
         // Code is emitted in address order; a branch target below the entry comes first.
         line("goto L_%08x;", fn_.entry);
     }
+    const Insn* previous = nullptr;
     for (auto it = fn_.insns.begin(); it != fn_.insns.end(); ++it) {
         const Insn& in = it->second;
         const std::uint32_t region = (in.addr >> 24) & 15;
@@ -190,6 +191,17 @@ std::string FunctionEmitter::run() {
         } else if (pending_insns_ != 0 && region != pending_region_) {
             flush_cycles(in.addr);
         }
+        if (!options_.coverage.empty() && options_.blocks) {
+            // Blocks: the entry, branch targets and return points, and the fall-through of a
+            // conditional branch (whose cycles emit_instruction has already charged).
+            const bool fall_through = previous && previous->next() == in.addr && previous->cond != Cond::AL &&
+                                      is_control(*previous);
+            if (in.addr == fn_.entry || is_label(in.addr) || fall_through) {
+                line("%s[%zu]++;", options_.coverage.c_str(), options_.blocks->size());
+                options_.blocks->push_back(in.addr);
+            }
+        }
+        previous = &in;
         if (pending_insns_ == 0) {
             pending_region_ = region;
         }

@@ -30,8 +30,8 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 | `cheats/` | | Curated cheat databases, installed to `share/anygba/cheats/` |
 | `tools/cheats/` | | `import-libretro.py`: converts libretro-database cheat lists to cheat databases |
 | `runtime/src/main.cpp` | `anygba_game_main` (`anygba::game_main`) | `main()` for generated games |
-| `runtime/src/overrides/`, `include/anygba/override.hpp` | `anygba_runtime` | Function overrides: registry, startup checks, guest API ([OVERRIDES.md](OVERRIDES.md)) |
-| `overrides/` | | Override modules by engine or game (C++ sources plus `overrides.toml`) |
+| `runtime/src/overrides/`, `include/anygba/override.hpp` | `anygba_runtime` | Function overrides: registry, startup checks, guest API, differential tests (`difftest.*`) ([OVERRIDES.md](OVERRIDES.md)) |
+| `overrides/` | | Override modules by engine or game (C++ sources, `overrides.toml`, difftest argument specs in `difftest.toml`) |
 | `tools/recomp/decode/` | `anygba_decode` | ARMv4T ARM/Thumb decoder (`Insn`) and Capstone-syntax disassembler; shared with the runtime interpreter |
 | `tools/recomp/analysis/` | `anygba_recomp_lib` | ROM image with RAM regions, CFG walker with constant tracking, jump tables, function discovery |
 | `tools/recomp/config/`, `io/` | `anygba_recomp_lib` | Per-game TOML config, runtime miss-log reader ([GAME-CONFIG.md](GAME-CONFIG.md)) |

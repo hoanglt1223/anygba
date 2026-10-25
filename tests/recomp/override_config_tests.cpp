@@ -61,6 +61,7 @@ addr = 0x08000400
 mode = "arm"
 impl = "skip_logo"
 enabled = false
+verified = true
 )",
                                            "game.toml");
     REQUIRE(c.functions.size() == 1);
@@ -76,6 +77,8 @@ enabled = false
     CHECK(*c.overrides[1].addr == 0x08000400);
     CHECK(c.overrides[1].mode == Mode::Arm);
     CHECK_FALSE(c.overrides[1].enabled);
+    CHECK_FALSE(c.overrides[0].verified);
+    CHECK(c.overrides[1].verified);
 }
 
 TEST_CASE("game config: override errors name the file and line") {
@@ -196,13 +199,23 @@ TEST_CASE("generated project: an overridden function keeps its translation behin
                      "\n        return;\n    }\n    f_08000040_orig(c);\n}") != std::string::npos);
     const std::string dispatch = read(out / "dispatch.c");
     CHECK(dispatch.find("uint8_t ag_override_on[1];") != std::string::npos);
-    CHECK(dispatch.find("{0x08000040u, 0, \"test_Helper\", \"Helper\", \"test\", 1, f_08000040_orig},") !=
+    // The translation counts its blocks for difftest coverage: one block here (bx lr).
+    CHECK(funcs.find("uint32_t f_08000040_hits[1];\nconst uint32_t f_08000040_blocks[1] = {0x08000040u};") !=
           std::string::npos);
+    CHECK(funcs.find("f_08000040_hits[0]++;") != std::string::npos);
+    CHECK(funcs.find("++;") == funcs.rfind("++;"));  // functions without an override count nothing
+    CHECK(header.find("extern uint32_t f_08000040_hits[];") != std::string::npos);
+    CHECK(dispatch.find("{0x08000040u, 0, \"test_Helper\", \"Helper\", \"test\", 1, f_08000040_orig, 0, "
+                        "f_08000040_hits, f_08000040_blocks, 1u},") != std::string::npos);
     CHECK(dispatch.find("    overrides,\n    1u,\n    ag_override_on,\n};") != std::string::npos);
     const std::string cmake = read(out / "CMakeLists.txt");
     CHECK(cmake.find("*.cpp") != std::string::npos);
     CHECK(cmake.find("cxx_std_20") != std::string::npos);
     CHECK(read(out / "mod.cpp") == "// override module\n");
+
+    info.overrides[0].verified = true;
+    anygba::codegen::write_project(out, image, discovery, info);
+    CHECK(read(out / "dispatch.c").find("1, f_08000040_orig, 1, f_08000040_hits") != std::string::npos);
 
     info.overrides[0].thumb = true;
     CHECK_THROWS_WITH(anygba::codegen::write_project(out, image, discovery, info), doctest::Contains("is ARM code"));

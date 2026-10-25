@@ -1,4 +1,5 @@
 #include "build.h"
+#include "difftest.h"
 #include "hdpack.h"
 
 #include <cstdio>
@@ -18,9 +19,10 @@ const char* const kUsage =
     "  build <game.gba> [options]   recompile and compile a ROM into a native program or an Android app\n"
     "  android-launcher [options]   build the AnyGBA launcher app (AnyGBA-Launcher.apk) for game packages\n"
     "  hdpack <command> ...         HD pack creator: dedupe, preview, import, ai-upscale\n"
+    "  difftest <game> --func NAME  compare a function override with the recompiled original\n"
     "  help [command]               show help\n"
     "\n"
-    "Run `anygba help build` or `anygba help hdpack` for the options. The recompiler alone is\n"
+    "Run `anygba help build`, `anygba help hdpack` or `anygba help difftest` for the options. The recompiler alone is\n"
     "anygba-recomp.\n";
 
 const char* const kLauncherUsage =
@@ -87,6 +89,8 @@ int main(int argc, char** argv) {
             std::fputs(anygba::driver::build_usage().c_str(), stdout);
         } else if (args.size() > 1 && args[1] == "hdpack") {
             std::fputs(anygba::hdpack::usage().c_str(), stdout);
+        } else if (args.size() > 1 && args[1] == "difftest") {
+            std::fputs(anygba::driver::difftest_usage().c_str(), stdout);
         } else {
             std::fputs(kUsage, args.empty() ? stderr : stdout);
         }
@@ -97,6 +101,9 @@ int main(int argc, char** argv) {
     }
     if (args[0] == "hdpack") {
         return anygba::hdpack::run(std::span<const std::string_view>(args.data() + 1, args.size() - 1));
+    }
+    if (args[0] == "difftest") {
+        return anygba::driver::difftest(std::span<const std::string_view>(args.data() + 1, args.size() - 1));
     }
     if (args[0] != "build") {
         std::fprintf(stderr, "anygba: unknown command '%.*s'\n\n%s", static_cast<int>(args[0].size()), args[0].data(),

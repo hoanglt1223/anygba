@@ -53,6 +53,7 @@ struct Override {
     std::string impl;
     bool enabled = true;
     std::string engine;
+    bool verified = false;  // set after a passing `anygba difftest`
     std::string where;  // "file:line", for error messages
 };
 

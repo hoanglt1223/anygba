@@ -7,6 +7,7 @@
 #include "control/controller.h"
 #include "control/net.h"
 #include "input_map.h"
+#include "overrides/difftest.h"
 #include "overrides/overrides.h"
 #include "player/lifecycle.h"
 #include "journal/journal.h"
@@ -125,6 +126,13 @@ struct Args {
     anygba::journal::Settings journal_settings;
     std::vector<fs::path> symbol_files;
     anygba::overrides::Mode overrides = anygba::overrides::Mode::On;
+    // Differential tests of overrides (docs/dev/OVERRIDES.md).
+    bool difftest = false;
+    bool difftest_option = false;  // a difftest-only option was given
+    anygba::difftest::Options difftest_options;
+    std::optional<std::string> record_entry;
+    std::uint64_t record_count = 100;
+    std::optional<fs::path> record_out;
 };
 
 const char* const kUsage =
@@ -178,6 +186,19 @@ const char* const kUsage =
     "  --no-miss-log       do not write the miss log\n"
     "  --overrides MODE    function overrides compiled into the game: on (the enabled ones, default), off\n"
     "                      (the original code everywhere, for comparison) or all (also the disabled ones)\n"
+    "\n"
+    "Differential tests of overrides (docs/dev/OVERRIDES.md; `anygba difftest` wraps these):\n"
+    "  --difftest FUNC     compare override FUNC (symbol or address) with its translation, print the report and\n"
+    "                      exit: 0 pass, 1 fail; random states start from --load-state FILE (default: reset)\n"
+    "  --spec FILE         argument spec for random states (the module's difftest.toml)\n"
+    "  --states N          random states (default 10000)      --seed N   random seed (default 1)\n"
+    "  --recorded FILE     also test states written by --record-entry; repeatable\n"
+    "  --impl NAME         test another implementation compiled into the program\n"
+    "  --tick-limit N      a run longer than N scanlines of cycles is stuck (default: the spec's, else 10000)\n"
+    "  --json FILE         write the report as JSON (- for stdout)\n"
+    "  --record-entry FUNC record the state at each entry of FUNC (override name or address) during the run\n"
+    "  --count N           stop after N recorded states (default 100)\n"
+    "  --record-out FILE   where --record-entry writes the states\n"
     "\n"
     "AI agent control and the play journal (both can also be switched in the menu: Settings):\n"
     "  --control           start the control server (127.0.0.1 only, token in the per-user control folder)\n"
@@ -338,6 +359,33 @@ std::optional<Args> parse(int argc, char** argv) {
             a.overrides = *mode;
         } else if (arg == "--symbols" && has_value) {
             a.symbol_files.emplace_back(argv[++i]);
+        } else if (arg == "--difftest" && has_value) {
+            a.difftest = true;
+            a.difftest_options.function = argv[++i];
+        } else if (arg == "--spec" && has_value) {
+            a.difftest_option = true;
+            a.difftest_options.spec = utf8_arg(argv[++i]);
+        } else if (arg == "--recorded" && has_value) {
+            a.difftest_option = true;
+            a.difftest_options.recorded.push_back(utf8_arg(argv[++i]));
+        } else if (arg == "--impl" && has_value) {
+            a.difftest_option = true;
+            a.difftest_options.impl = argv[++i];
+        } else if (arg == "--json" && has_value) {
+            a.difftest_option = true;
+            a.difftest_options.json = utf8_arg(argv[++i]);
+        } else if ((arg == "--states" || arg == "--seed" || arg == "--tick-limit" || arg == "--count") && has_value) {
+            const unsigned long long n = std::strtoull(argv[++i], &end, 10);
+            if (*end != '\0' || argv[i][0] == '-') return std::nullopt;
+            if (arg == "--states") a.difftest_options.states = n;
+            if (arg == "--seed") a.difftest_options.seed = n;
+            if (arg == "--tick-limit") a.difftest_options.tick_limit = n;
+            if (arg == "--count") a.record_count = n;
+            if (arg != "--count") a.difftest_option = true;
+        } else if (arg == "--record-entry" && has_value) {
+            a.record_entry = argv[++i];
+        } else if (arg == "--record-out" && has_value) {
+            a.record_out = utf8_arg(argv[++i]);
         } else if ((arg == "--hd-pack" || arg == "--hd-dump") && has_value) {
             (arg == "--hd-pack" ? a.hd_pack : a.hd_dump) = utf8_arg(argv[++i]);
             a.video += std::string(a.video.empty() ? "" : ";") + (arg == "--hd-pack" ? "hd-pack=true" : "hd-dump=true");
@@ -372,6 +420,14 @@ std::optional<Args> parse(int argc, char** argv) {
     }
     if (a.headless && !a.pace_given) {
         a.pace = false;
+    }
+    if ((a.difftest_option && !a.difftest) || a.record_entry.has_value() != a.record_out.has_value() ||
+        (a.difftest && a.record_entry) || a.record_count == 0) {
+        return std::nullopt;  // difftest options need --difftest; --record-entry and --record-out go together
+    }
+    if (a.difftest) {
+        a.difftest_options.base_state = a.load_state;
+        a.runtime.log_misses = false;
     }
     return a;
 }
@@ -2252,9 +2308,18 @@ int main(int argc, char** argv) {
 
         for (const auto& active : anygba::overrides::activate(anygba_game_info, args->overrides)) {
             std::printf("override: %s\n", anygba::overrides::describe(active).c_str());
+            if (active.on && !active.entry->verified) {
+                std::fprintf(stderr,
+                             "warning: override %s (%s) is not verified: run `anygba difftest` on it, then set "
+                             "verified = true (docs/dev/OVERRIDES.md)\n",
+                             active.entry->name, active.entry->impl);
+            }
         }
         system = std::make_unique<anygba::System>(std::move(rom), &anygba_game_info, args->runtime);
         anygba::System& sys = *system;
+        if (args->difftest) {
+            return anygba::difftest::run(sys, anygba_game_info, args->difftest_options);
+        }
         // --save-dir, else the settings file's SaveFolder (relative to that file), else the default.
         std::optional<fs::path> dir = args->save_dir;
         if (!dir && !mapping.mapping.save_folder.empty()) {
@@ -2323,6 +2388,12 @@ int main(int argc, char** argv) {
         if (args->load_state) {
             player.load_state_file(*args->load_state);
         }
+        std::unique_ptr<anygba::difftest::Recorder> recorder;
+        if (args->record_entry) {
+            if (args->control) throw std::runtime_error("--record-entry cannot be combined with --control");
+            recorder = std::make_unique<anygba::difftest::Recorder>(sys, anygba_game_info, *args->record_entry,
+                                                                    args->record_count, *args->record_out);
+        }
         sys.on_vblank = [&player](anygba::System&) { player.on_vblank(); };
         bool idle = false;
         if (args->exit_on_idle) {
@@ -2333,6 +2404,9 @@ int main(int argc, char** argv) {
         }
         const std::uint64_t start = anyport::platform::now_ns();
         sys.run();
+        if (recorder) {
+            if (const std::string message = recorder->finish(); !message.empty()) std::printf("%s\n", message.c_str());
+        }
         player.print_hd_stats();
         const double elapsed = static_cast<double>(anyport::platform::now_ns() - start) / 1e9;
         int status = 0;

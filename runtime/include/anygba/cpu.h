@@ -317,6 +317,11 @@ typedef struct anygba_override_entry {
     const char* engine; /* engine tag, "" when none */
     uint32_t enabled;   /* on by default */
     anygba_fn original; /* the translation of the guest function */
+    uint32_t verified;  /* the config records a passing difftest */
+    /* Block coverage of `original`: block_hits[i] counts runs of the block at block_addrs[i]. */
+    uint32_t* block_hits;
+    const uint32_t* block_addrs;
+    uint32_t block_count;
 } anygba_override_entry;
 
 typedef struct anygba_game {
