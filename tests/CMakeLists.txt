@@ -171,6 +171,9 @@ if(Python3_FOUND)
   add_test(NAME compat-site
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tools/compat-site/generate.py"
       --out "${CMAKE_CURRENT_BINARY_DIR}/compat-site")
+  # anygba decomp (tools/decomp): parsing, module files and the attempt loop with a stub model.
+  add_test(NAME decomp-tool
+    COMMAND Python3::Interpreter -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/decomp/tests")
 endif()
 
 # Agent control end to end: anygba-mcp over stdio drives a recompiled game.
@@ -242,6 +245,16 @@ if(EXISTS "${corpus}/gba-tests/save/sram.gba")
       "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/driver-build" -DCONFIG=$<CONFIG> "-DGENERATOR=${CMAKE_GENERATOR}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/driver-build.cmake")
   set_tests_properties(driver-build PROPERTIES FIXTURES_REQUIRED runtime_install LABELS slow TIMEOUT 900)
+endif()
+# anygba decomp --engine none end to end (Ghidra export, generation, scaffold); needs Ghidra
+# (ANYGBA_GHIDRA, plus ANYGBA_JAVA_HOME unless Java 25 is the default) when configuring.
+if(Python3_FOUND AND DEFINED ENV{ANYGBA_GHIDRA} AND EXISTS "${corpus}/tonc/bin/tte_demo.gba")
+  add_test(NAME decomp-scaffold
+    COMMAND "${CMAKE_COMMAND}" "-DDRIVER=$<TARGET_FILE:anygba>" "-DPREFIX=${test_prefix}"
+      "-DROM=${corpus}/tonc/bin/tte_demo.gba" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/decomp-scaffold"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/decomp-scaffold.cmake")
+  set_tests_properties(decomp-scaffold PROPERTIES FIXTURES_REQUIRED runtime_install LABELS slow TIMEOUT 900
+    ENVIRONMENT "ANYGBA_GHIDRA=$ENV{ANYGBA_GHIDRA};ANYGBA_JAVA_HOME=$ENV{ANYGBA_JAVA_HOME};ANYGBA_PYTHON=${Python3_EXECUTABLE}")
 endif()
 foreach(demo irq_demo dma_demo)
   if(EXISTS "${corpus}/tonc/bin/${demo}.gba")

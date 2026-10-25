@@ -142,7 +142,11 @@ GitHub Release, together with the Android runtime archive and the launcher APK.
 - `anygba build <rom.gba> [options]`: recompile, compile and package in one step (`anygba help build`).
 - `anygba difftest <game> --func NAME [--overrides DIR] [--load-state FILE] [--recorded FILE]... [--json FILE]
   [--mark-verified]`: compare a function override with the recompiled original on random and recorded start
-  states (`anygba help difftest`, [docs/dev/OVERRIDES.md](docs/dev/OVERRIDES.md)).
+  states (`anygba help difftest`, [docs/dev/OVERRIDES.md](docs/dev/OVERRIDES.md)). Exit code 3: insufficient
+  (too few states returned normally).
+- `anygba decomp <rom.gba> --func NAME|ADDR [--func ...] [--symbols FILE] [--engine claude-cli|anthropic-api|none]
+  [--attempts N]`: draft overrides with Ghidra and an LLM, accepted only when the difftest passes; output goes
+  to the per-user data folder (`anygba help decomp`, setup in [docs/dev/OVERRIDES.md](docs/dev/OVERRIDES.md)).
 - `anygba-mcp [--control-dir DIR] [--journal-dir DIR]`: MCP server on stdin/stdout for AI agents
   ([docs/user/AI-CONTROL.md](docs/user/AI-CONTROL.md); protocol: [docs/dev/control-protocol.md](docs/dev/control-protocol.md)).
 - A generated game: `game [rom.gba] [--headless] [--pace | --fast] [--speed N] [--frames N] [--seconds S]

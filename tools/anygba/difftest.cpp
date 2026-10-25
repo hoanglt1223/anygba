@@ -77,7 +77,8 @@ std::string difftest_usage() {
     return "usage: anygba difftest <game program | folder> --func NAME [options]\n"
            "\n"
            "Runs the override of NAME (its symbol or entry address) and the recompiled original from the same\n"
-           "start states and compares them (docs/dev/OVERRIDES.md). Exit code 0: pass, 1: fail.\n"
+           "start states and compares them (docs/dev/OVERRIDES.md). Exit code 0: pass, 1: fail, 2: error,\n"
+           "3: insufficient (no ABI difference, but fewer states than the spec's min_returned returned normally).\n"
            "\n"
            "  --rom FILE          the ROM, when the program does not embed it\n"
            "  --overrides DIR     the override module: its difftest.toml is the argument spec\n"
@@ -161,7 +162,7 @@ int difftest(std::span<const std::string_view> args) {
         if (json || mark) argv.insert(argv.end(), {"--json", report.string()});
         argv.insert(argv.end(), pass.begin(), pass.end());
         const int rc = run_process(argv);
-        if (rc != 0 || !mark) return rc == 0 ? 0 : rc == 1 ? 1 : 2;
+        if (rc != 0 || !mark) return rc == 0 || rc == 1 || rc == 3 ? rc : 2;
 
         const std::string text = read_text(report);
         if (!json) {
@@ -171,10 +172,16 @@ int difftest(std::span<const std::string_view> args) {
         const auto configured = json_field(text, R"re("configured_impl":"([^"]*)")re");
         const auto total = json_field(text, R"re("total":([0-9]+))re");
         const auto percent = json_field(text, R"re("percent":([0-9.eE+-]+))re");
-        if (!configured || !total) throw std::runtime_error("the difftest report lacks the fields --mark-verified needs");
+        const auto returned = json_field(text, R"re("returned_share":([0-9.eE+-]+))re");
+        if (!configured || !total || !returned) {
+            throw std::runtime_error("the difftest report lacks the fields --mark-verified needs");
+        }
         char cov[32] = "unknown";
         if (percent) std::snprintf(cov, sizeof cov, "%.1f%%", std::strtod(percent->c_str(), nullptr));
-        const std::string comment = "anygba difftest passed " + today() + ": " + *total + " states, block coverage " + cov;
+        char ret[32];
+        std::snprintf(ret, sizeof ret, "%.1f%%", 100.0 * std::strtod(returned->c_str(), nullptr));
+        const std::string comment = "anygba difftest passed " + today() + ": " + *total + " states (" + ret +
+                                    " returned normally), block coverage " + cov;
         mark_verified(*module / "overrides.toml", *configured, comment);
         std::printf("anygba: %s: verified = true for %s (%s)\n", (*module / "overrides.toml").string().c_str(),
                     configured->c_str(), comment.c_str());

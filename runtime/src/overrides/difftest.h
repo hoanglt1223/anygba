@@ -57,7 +57,16 @@ struct Spec {
     std::uint32_t dead_stack = 256;  // bytes below the entry sp that are dead after the return
     std::vector<std::pair<std::uint32_t, std::uint32_t>> ignore_memory;  // [begin, end), compared nowhere
     std::uint64_t tick_limit = 10000;  // scanlines of cycles before a run counts as stuck
+    // Share of states in which both sides must return to the caller's lr within the tick limit;
+    // below it a run without ABI differences is "insufficient", not a pass.
+    double min_returned = 0.95;
 };
+
+// Outcome of a run. Exit codes of `--difftest`: pass 0, fail 1, insufficient 3 (2 is an error).
+enum class Status : std::uint8_t { Pass, Fail, Insufficient };
+Status classify(std::uint64_t total, std::uint64_t failed, std::uint64_t returned, double min_returned);
+const char* status_name(Status status);
+int exit_code(Status status);
 
 // The [<name>] table of a spec file, also found under the function's address ("0x08008ba0").
 // nullopt when the file has neither. Throws anygba::Error naming file and line for bad specs.
@@ -141,8 +150,8 @@ struct Options {
     std::optional<std::filesystem::path> json;         // report for tools; "-" prints it
 };
 
-// Runs the differential test and prints the report. Returns 0 when every state passes at the ABI
-// level, 1 when one does not. Throws anygba::Error for unusable input. Activate the game's
+// Runs the differential test and prints the report. Returns exit_code() of the status: pass when
+// every state passes at the ABI level and enough states returned normally. Throws anygba::Error for unusable input. Activate the game's
 // overrides first (overrides::activate).
 int run(System& sys, const anygba_game& game, const Options& options);
 

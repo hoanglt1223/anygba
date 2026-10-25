@@ -59,8 +59,10 @@ public:
     void set_nz(std::uint32_t result) { ag_nz(c_, result); }
 
     // ---- guest memory (the same bus as translated code: mirrors, IO, open bus) ----
-    // T is std::uint8_t, std::uint16_t, std::uint32_t or a signed variant. Addresses are aligned
-    // down to the access size, as the hardware does for plain stores (and loads, minus rotation).
+    // T is std::uint8_t, std::uint16_t, std::uint32_t or a signed variant. Loads read the unit the
+    // address falls in (aligned down, no rotation). Stores reach the bus exactly as a translated
+    // str/strh does: aligned down to the access size, except on SRAM's 8-bit bus, where the byte lane
+    // of the unaligned address is stored.
     template <typename T>
     T read(std::uint32_t addr) {
         static_assert(std::is_integral_v<T> && (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4));
@@ -78,9 +80,9 @@ public:
         if constexpr (sizeof(T) == 1) {
             ag_wr8(c_, addr, static_cast<std::uint8_t>(value));
         } else if constexpr (sizeof(T) == 2) {
-            ag_wr16(c_, addr & ~1u, static_cast<std::uint16_t>(value));
+            ag_wr16(c_, addr, static_cast<std::uint16_t>(value));
         } else {
-            ag_wr32(c_, addr & ~3u, static_cast<std::uint32_t>(value));
+            ag_wr32(c_, addr, static_cast<std::uint32_t>(value));
         }
     }
 

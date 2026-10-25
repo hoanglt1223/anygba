@@ -64,6 +64,10 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/configs/" DESTINATION ${CMAKE_INSTALL_D
 # Override modules for `anygba build --overrides <prefix>/share/anygba/overrides/<module>`.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/overrides/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/overrides
   FILES_MATCHING PATTERN "*.toml" PATTERN "*.cpp" PATTERN "*.c" PATTERN "*.h" PATTERN "*.hpp")
+# `anygba decomp` (tools/decomp): the Python driver, prompts, examples and the Ghidra export script.
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/tools/decomp/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/decomp
+  FILES_MATCHING PATTERN "*.py" PATTERN "*.md" PATTERN "*.cpp" PATTERN "*.toml" PATTERN "*.java"
+  PATTERN "tests" EXCLUDE PATTERN "__pycache__" EXCLUDE)
 # Per-game widescreen rules, copied next to the game the same way.
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/widescreen/" DESTINATION ${CMAKE_INSTALL_DATADIR}/anygba/widescreen
   FILES_MATCHING PATTERN "*.toml")

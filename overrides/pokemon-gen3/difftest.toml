@@ -3,9 +3,44 @@
 #   anygba difftest <Emerald program> --func StringCopy --overrides overrides/pokemon-gen3 --load-state FILE
 
 # u8 *StringCopy(u8 *dest, const u8 *src): copies a 0xFF-terminated string, terminator included.
+# Most sources are planted terminated strings, so almost every state returns normally (min_returned);
+# the unbounded shapes (ROM and IO sources, a copy over the pushed return address) keep a small weight
+# because they stop at the tick limit or return elsewhere in both translation and override.
 [StringCopy]
 dead_stack = 64  # push {lr} leaves the return address below the caller's sp
 tick_limit = 200  # ~250,000 cycles, a copy of about 20 KB: sources with no 0xFF in reach stop there
+min_returned = 0.95
+
+[[StringCopy.shape]]
+name = "ram-src"
+weight = 30
+r0 = "ram"
+r1 = { string = "ram", length = [0, 300] }
+
+[[StringCopy.shape]]
+name = "overlap"  # dest just below src: the copy overwrites bytes it reads later
+weight = 6
+r1 = { string = "ram", length = [0, 300] }
+r0 = { near = "r1", offset = [-8, 0] }
+
+[[StringCopy.shape]]
+name = "vram-dest"
+weight = 6
+r0 = "vram"
+r1 = { string = "ram", length = [0, 40] }
+
+[[StringCopy.shape]]
+name = "vram-src"  # source read through the VRAM bus
+weight = 4
+r0 = "ram"
+r1 = { string = "vram", length = [0, 40] }
+
+[[StringCopy.shape]]
+name = "low-budget"  # scheduler ticks inside the copy
+weight = 6
+r0 = "ram"
+r1 = { string = "ram", length = [0, 300] }
+cycles = { range = [0, 400] }
 
 [[StringCopy.shape]]
 name = "rom-src"  # whatever the cartridge holds, up to the next 0xFF
@@ -13,33 +48,11 @@ r0 = "ram"
 r1 = "rom"
 
 [[StringCopy.shape]]
-name = "ram-src"
-weight = 2
+name = "io-src"  # IO registers: rarely 0xFF, so most of these reach the tick limit
 r0 = "ram"
-r1 = { string = "ram", length = [0, 300] }
-
-[[StringCopy.shape]]
-name = "overlap"  # dest just below src: the copy overwrites bytes it reads later
-r1 = { string = "ram", length = [0, 300] }
-r0 = { near = "r1", offset = [-8, 0] }
-
-[[StringCopy.shape]]
-name = "bus-src"  # source read through the bus
-r0 = "ram"
-r1 = ["io", "vram"]
-
-[[StringCopy.shape]]
-name = "vram-dest"
-r0 = "vram"
-r1 = { string = "ram", length = [0, 40] }
+r1 = "io"
 
 [[StringCopy.shape]]
 name = "stack-overlap"  # the copy runs over the pushed return address
 r1 = { string = "ewram", length = [8, 32] }
 r0 = { near = "sp", offset = [-20, -4] }
-
-[[StringCopy.shape]]
-name = "low-budget"  # scheduler ticks inside the copy
-r0 = "ram"
-r1 = { string = "ram", length = [0, 300] }
-cycles = { range = [0, 400] }

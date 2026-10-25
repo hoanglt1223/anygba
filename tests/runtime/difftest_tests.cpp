@@ -171,6 +171,36 @@ cycles = { range = [0, 400] }
                          doctest::Contains("needs at least one [[F.shape]]"), anygba::Error);
 }
 
+TEST_CASE("difftest: min_returned defaults to 0.95, is per function, and is checked") {
+    const auto defaults = dt::parse_spec("[F]\n[[F.shape]]\n", "s.toml", "F", 0);
+    REQUIRE(defaults);
+    CHECK(defaults->min_returned == doctest::Approx(0.95));
+    const auto set = dt::parse_spec("[F]\nmin_returned = 0.5\n[[F.shape]]\n[G]\nmin_returned = 1\n[[G.shape]]\n",
+                                    "s.toml", "F", 0);
+    REQUIRE(set);
+    CHECK(set->min_returned == doctest::Approx(0.5));
+    CHECK(dt::parse_spec("[G]\nmin_returned = 1\n[[G.shape]]\n", "s.toml", "G", 0)->min_returned == doctest::Approx(1.0));
+    CHECK_THROWS_WITH_AS(dt::parse_spec("[F]\nmin_returned = 1.5\n[[F.shape]]\n", "s.toml", "F", 0),
+                         doctest::Contains("s.toml:2: min_returned must be a number in 0..1"), anygba::Error);
+    CHECK_THROWS_WITH_AS(dt::parse_spec("[F]\nmin_returned = \"most\"\n[[F.shape]]\n", "s.toml", "F", 0),
+                         doctest::Contains("min_returned must be a number"), anygba::Error);
+}
+
+TEST_CASE("difftest: too few normal returns make a run insufficient, not a pass") {
+    using dt::Status;
+    CHECK(dt::classify(100, 0, 100, 0.95) == Status::Pass);
+    CHECK(dt::classify(100, 0, 95, 0.95) == Status::Pass);
+    CHECK(dt::classify(100, 0, 94, 0.95) == Status::Insufficient);
+    CHECK(dt::classify(100, 0, 0, 0.95) == Status::Insufficient);
+    CHECK(dt::classify(100, 0, 0, 0.0) == Status::Pass);
+    CHECK(dt::classify(100, 1, 100, 0.95) == Status::Fail);  // an ABI difference outranks the share
+    CHECK(dt::classify(100, 1, 10, 0.95) == Status::Fail);
+    CHECK(dt::exit_code(Status::Pass) == 0);
+    CHECK(dt::exit_code(Status::Fail) == 1);
+    CHECK(dt::exit_code(Status::Insufficient) == 3);
+    CHECK(std::string(dt::status_name(Status::Insufficient)) == "insufficient");
+}
+
 TEST_CASE("difftest: random states are deterministic, planted strings end with the terminator, forcing one slot keeps the rest") {
     const auto spec = dt::parse_spec(R"(
 [F]

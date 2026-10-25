@@ -425,6 +425,7 @@ struct Verdict {
     std::vector<Diff> abi;   // the gate
     std::vector<Diff> full;  // the rest of the machine state
     std::string stop;        // both runs stopped the same way (timeout, fault): compared no further
+    bool returned = false;   // both returned to the caller's lr
 };
 
 std::string describe_write(const Write& w) {
@@ -480,7 +481,7 @@ public:
             current_->calls.push_back({addr, {c.r[0], c.r[1], c.r[2], c.r[3]}, c.r[14]});
         };
         sys_.on_watch = [this](System&, const System::Access& a) {
-            // The address the store reaches: translated code passes it unaligned, overrides aligned.
+            // The address the store reaches (stores pass it unaligned; SRAM's byte store keeps it).
             if (current_ && a.write) current_->writes.push_back({a.addr & ~(a.size - 1u), a.value, a.size});
         };
         sys_.set_watched_regions(0xFFFF);  // every access takes the bus, so every write is seen
@@ -589,6 +590,8 @@ private:
             }
             return v;
         }
+        const std::uint32_t expected = state.r[14] & ~1u;
+        v.returned = (a.r[15] & ~1u) == expected && (b.r[15] & ~1u) == expected;
         const auto reg = [&](int r, std::vector<Diff>& out) {
             if (a.r[static_cast<std::size_t>(r)] != b.r[static_cast<std::size_t>(r)]) {
                 const std::string name = slot_name(r);
@@ -865,6 +868,10 @@ std::optional<Spec> parse_spec(std::string_view text, const std::string& source,
             spec.dead_stack = static_cast<std::uint32_t>(r.integer(node, "dead_stack", 0, 0x8000));
         } else if (k == "tick_limit") {
             spec.tick_limit = static_cast<std::uint64_t>(r.integer(node, "tick_limit", 1, 100000000));
+        } else if (k == "min_returned") {
+            const std::optional<double> share = node.value<double>();
+            if (!share || !(*share >= 0.0 && *share <= 1.0)) r.fail(node, "min_returned must be a number in 0..1");
+            spec.min_returned = *share;
         } else if (k == "ignore_memory") {
             const auto* a = node.as_array();
             if (!a) r.fail(node, "ignore_memory must be a list of [begin, end) address pairs");
@@ -881,13 +888,38 @@ std::optional<Spec> parse_spec(std::string_view text, const std::string& source,
                 spec.shapes.push_back(r.shape(*t, spec.shapes.size()));
             }
         } else {
-            r.fail(node, "unknown key '" + std::string(k) + "' (dead_stack, tick_limit, ignore_memory, shape)");
+            r.fail(node, "unknown key '" + std::string(k) +
+                            "' (dead_stack, tick_limit, min_returned, ignore_memory, shape)");
         }
     }
     if (spec.shapes.empty()) {
         throw Error(source + ": [" + std::string(name) + "] needs at least one [[" + std::string(name) + ".shape]]");
     }
     return spec;
+}
+
+Status classify(std::uint64_t total, std::uint64_t failed, std::uint64_t returned, double min_returned) {
+    if (failed) return Status::Fail;
+    const double share = total ? static_cast<double>(returned) / static_cast<double>(total) : 0.0;
+    return share >= min_returned ? Status::Pass : Status::Insufficient;
+}
+
+const char* status_name(Status status) {
+    switch (status) {
+    case Status::Pass: return "pass";
+    case Status::Fail: return "fail";
+    case Status::Insufficient: return "insufficient";
+    }
+    return "?";
+}
+
+int exit_code(Status status) {
+    switch (status) {
+    case Status::Pass: return 0;
+    case Status::Fail: return 1;
+    case Status::Insufficient: return 3;
+    }
+    return 2;
 }
 
 std::size_t pick_shape(const Spec& spec, std::uint64_t seed, std::uint64_t index) {
@@ -1218,7 +1250,7 @@ int run(System& sys, const anygba_game& game, const Options& options) {
     if (!recorded.empty()) tallies.push_back({"recorded"});
 
     std::map<std::string, std::uint64_t> abi_counts, full_counts, stops;
-    std::uint64_t total = 0, failed = 0, full_identical = 0;
+    std::uint64_t total = 0, failed = 0, full_identical = 0, returned = 0;
     struct Failure {
         std::uint64_t number = 0;
         bool random = true;
@@ -1233,6 +1265,7 @@ int run(System& sys, const anygba_game& game, const Options& options) {
     const auto tally = [&](std::size_t t, const Verdict& v, const auto& make_failure) {
         ++total;
         ++tallies[t].states;
+        if (v.returned) ++returned;
         if (!v.stop.empty()) {
             ++stops[v.stop];
             ++tallies[t].stopped;
@@ -1333,14 +1366,19 @@ int run(System& sys, const anygba_game& game, const Options& options) {
     }
 
     // ---- text report ----
-    const bool pass = failed == 0;
+    const Status status = classify(total, failed, returned, spec.min_returned);
+    const bool abi_pass = failed == 0;
+    const double returned_share = total ? static_cast<double>(returned) / static_cast<double>(total) : 0.0;
     std::printf("states: %llu random (seed %llu)", static_cast<unsigned long long>(random_states),
                 static_cast<unsigned long long>(options.seed));
     std::uint64_t recorded_total = 0;
     for (const auto& set : recorded) recorded_total += set.states.size();
     std::printf(", %llu recorded\n", static_cast<unsigned long long>(recorded_total));
-    std::printf("ABI (gate): %s %llu/%llu\n", pass ? "PASS" : "FAIL", static_cast<unsigned long long>(total - failed),
-                static_cast<unsigned long long>(total));
+    std::printf("ABI (gate): %s %llu/%llu\n", abi_pass ? "PASS" : "FAIL",
+                static_cast<unsigned long long>(total - failed), static_cast<unsigned long long>(total));
+    std::printf("returned normally (gate): %llu/%llu (%.1f%%, required %.1f%%)\n",
+                static_cast<unsigned long long>(returned), static_cast<unsigned long long>(total),
+                100.0 * returned_share, 100.0 * spec.min_returned);
     for (const Tally& t : tallies) {
         std::printf("  %-16s %llu/%llu%s\n", t.name.c_str(), static_cast<unsigned long long>(t.states - t.failed),
                     static_cast<unsigned long long>(t.states),
@@ -1403,7 +1441,8 @@ int run(System& sys, const anygba_game& game, const Options& options) {
         j["impl"] = impl_name;
         j["configured_impl"] = std::string(e.impl);
         j["verified_in_config"] = e.verified != 0;
-        j["pass"] = pass;
+        j["pass"] = status == Status::Pass;
+        j["status"] = std::string(status_name(status));
         Json states = Json::object();
         states["total"] = static_cast<unsigned long long>(total);
         states["random"] = static_cast<unsigned long long>(random_states);
@@ -1412,6 +1451,8 @@ int run(System& sys, const anygba_game& game, const Options& options) {
         states["passed"] = static_cast<unsigned long long>(total - failed);
         states["failed"] = static_cast<unsigned long long>(failed);
         states["full_identical"] = static_cast<unsigned long long>(full_identical);
+        states["returned"] = static_cast<unsigned long long>(returned);
+        states["returned_share"] = returned_share;
         Json stop_json = Json::object();
         for (const auto& [why, count] : stops) stop_json[why] = static_cast<unsigned long long>(count);
         states["same_stop"] = std::move(stop_json);
@@ -1459,6 +1500,7 @@ int run(System& sys, const anygba_game& game, const Options& options) {
         }
         mask["ignore_memory"] = std::move(ign);
         mask["tick_limit"] = static_cast<unsigned long long>(tick_limit);
+        mask["min_returned"] = spec.min_returned;
         j["masks"] = std::move(mask);
         if (first) {
             Json f = Json::object();
@@ -1487,8 +1529,12 @@ int run(System& sys, const anygba_game& game, const Options& options) {
             write_text_file(*options.json, text);
         }
     }
+    std::printf("result: %s\n", status == Status::Pass   ? "PASS"
+                                : status == Status::Fail ? "FAIL"
+                                                         : "INSUFFICIENT (too few states returned normally; widen the "
+                                                           "tick limit or bound the spec's inputs)");
     std::fflush(stdout);
-    return pass ? 0 : 1;
+    return exit_code(status);
 }
 
 }  // namespace anygba::difftest

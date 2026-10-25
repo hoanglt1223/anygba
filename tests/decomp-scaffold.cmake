@@ -1,0 +1,30 @@
+# anygba decomp --engine none on tonc's tte_demo: Ghidra exports a string-length loop, the recompiler
+# generates its translation, and the scaffold carries the per-block cycle table.
+#   cmake -DDRIVER=<anygba exe> -DPREFIX=<install prefix> -DROM=<tte_demo.gba> -DWORK=<dir> -P decomp-scaffold.cmake
+foreach(var DRIVER PREFIX ROM WORK)
+  if(NOT DEFINED ${var})
+    message(FATAL_ERROR "${var} is required")
+  endif()
+endforeach()
+file(REMOVE_RECURSE "${WORK}")
+execute_process(COMMAND "${DRIVER}" decomp "${ROM}" --engine none --func 0x08006310:thumb --prefix "${PREFIX}"
+    --work "${WORK}"
+  RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+if(NOT rc EQUAL 0)
+  message(FATAL_ERROR "anygba decomp --engine none: exit code ${rc}:\n${out}\n${err}")
+endif()
+file(READ "${WORK}/module/sub_08006310.cpp" scaffold)
+foreach(expected "ANYGBA_OVERRIDE(decomp_sub_08006310, g)" "g.run_original();" "-> g.block(entry + 0x08, 4, 1)")
+  string(FIND "${scaffold}" "${expected}" at)
+  if(at EQUAL -1)
+    message(FATAL_ERROR "the scaffold lacks '${expected}':\n${scaffold}")
+  endif()
+endforeach()
+file(GLOB prompts "${WORK}/runs/*/sub_08006310/prompt.md")
+if(NOT prompts)
+  message(FATAL_ERROR "no prompt written:\n${out}")
+endif()
+file(READ "${WORK}/module/overrides.toml" config)
+if(NOT config MATCHES "addr = 0x08006310\nmode = \"thumb\"\nimpl = \"decomp_sub_08006310\"\nenabled = false")
+  message(FATAL_ERROR "unexpected overrides.toml:\n${config}")
+endif()

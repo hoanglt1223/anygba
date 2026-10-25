@@ -1,6 +1,8 @@
 # `anygba build game.gba`: recompile, compile against the installed runtime, package.
-add_library(anygba_driver_lib STATIC build.cpp android.cpp difftest.cpp zip.cpp)
-target_compile_definitions(anygba_driver_lib PRIVATE ANYGBA_VERSION="${PROJECT_VERSION}")
+add_library(anygba_driver_lib STATIC build.cpp android.cpp decomp.cpp difftest.cpp zip.cpp)
+# ANYGBA_SOURCE_DIR: `anygba decomp` from the build tree runs tools/decomp from the sources.
+target_compile_definitions(anygba_driver_lib PRIVATE ANYGBA_VERSION="${PROJECT_VERSION}"
+  ANYGBA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_include_directories(anygba_driver_lib PUBLIC .)
 target_link_libraries(anygba_driver_lib PUBLIC anygba_recomp_lib anygba::common)
 anygba_configure_target(anygba_driver_lib)

@@ -1,5 +1,6 @@
 #include "anygba/system.hpp"
 #include "anygba/embedded_rom.h"
+#include "anygba/override.hpp"
 #include "input_map.h"
 #include "save/save.h"
 #include "support/temp_dir.h"
@@ -107,6 +108,19 @@ TEST_CASE("the per-game save type overrides detection; an unknown one is an erro
     CHECK(sys.backup().type() == Type::Flash128);
     o.save_type = "flash";
     CHECK_THROWS_AS(anygba::System(rom_containing(""), nullptr, o), anygba::Error);
+}
+
+TEST_CASE("SRAM: an unaligned 32-bit store keeps its byte lane, from translated code and from an override") {
+    anygba::System translated(rom_containing("SRAM_V113"), nullptr, quiet());
+    anygba::System overridden(rom_containing("SRAM_V113"), nullptr, quiet());
+    ag_wr32(&translated.cpu(), 0x0E000011, 0xAABBCCDD);  // what a translated str does
+    anygba::guest::Guest g(&overridden.cpu(), 0x08000000);
+    g.write<std::uint32_t>(0x0E000011, 0xAABBCCDD);
+    for (std::uint32_t a = 0x0E000010; a < 0x0E000014; ++a) {
+        CHECK(overridden.read8(a) == translated.read8(a));
+    }
+    CHECK(translated.read8(0x0E000011) == 0xCC);
+    CHECK(translated.read8(0x0E000010) == 0xFF);
 }
 
 TEST_CASE("SRAM: 32 KB mirrored, no save reads 0xFF") {

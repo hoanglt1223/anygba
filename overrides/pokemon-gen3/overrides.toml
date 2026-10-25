@@ -7,5 +7,5 @@
 [[override]]
 symbol = "StringCopy"
 impl = "pokemon_gen3_StringCopy"
-verified = true  # anygba difftest passed 2026-10-25: 10072 states, block coverage 100.0%
+verified = true  # anygba difftest passed 2026-10-25: 10072 states (96.8% returned normally), block coverage 100.0%
 engine = "pokemon-gen3"

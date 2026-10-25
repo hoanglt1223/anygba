@@ -142,7 +142,8 @@ anygba difftest <game program or its folder> --func StringCopy --overrides overr
 ```
 
 It is a front end for the game's own `--difftest FUNC` mode (`<game> --help`), which holds both the
-translation (`f_XXXXXXXX_orig`) and the override. Exit code 0: every state passed the gate; 1: one did not.
+translation (`f_XXXXXXXX_orig`) and the override. Exit code 0: pass; 1: fail (a state differs at the
+ABI level); 3: insufficient (no ABI difference, but too few states returned normally; see below); 2: error.
 
 **What is compared.** The gate is the ABI-level comparison: r0, r4-r11, sp, where the function returns
 to (address and instruction set), every memory write (address, size and value; in order per address, and
@@ -156,7 +157,12 @@ restored, the state's memory is planted and its registers loaded, and the functi
 code. Ticks are isolated: when the cycle budget runs out the runtime adds one scanline (1,232 cycles) and
 counts a tick instead of running video, timers, DMA or interrupts, so both sides see the same machine
 however long they take. A run past `tick_limit` ticks stops with a timeout; when both sides stop the same
-way the state counts as passed and the report lists how many did, per shape. Code that waits for an
+way the state passes the ABI comparison and the report lists how many did, per shape. Such states prove
+little, so the gate also needs a share of states (`min_returned`, default 0.95) in which both sides
+return normally: within the tick limit, to the address in the state's lr. A run with no ABI difference
+below that share is **insufficient**, not a pass; the report prints `returned normally (gate): n/total
+(share, required ...)`. Bound the spec's inputs (planted terminated strings rather than raw pointers) or
+raise `tick_limit`, rather than lowering `min_returned`. Code that waits for an
 interrupt (BIOS Halt, Stop, IntrWait) stops with an error: such functions need a recorded state that does
 not reach the wait. Calls are seen at the entries of generated functions (all of them are breakpoints
 during a difftest) and of the interpreter; writes through the bus (every region is watched). BIOS calls
@@ -170,6 +176,7 @@ for one given by address), with weighted shapes:
 [StringCopy]
 dead_stack = 64                  # default 256
 tick_limit = 200                 # default 10000
+min_returned = 0.95              # default 0.95: share of states that must return normally
 ignore_memory = [[0x03007ff0, 0x03008000]]   # optional [begin, end) ranges compared nowhere; listed in the report
 
 [[StringCopy.shape]]
@@ -222,18 +229,86 @@ first failing state: #1 (random, shape vram, index 0)
     memory writes (by address): original 0 writes, override 1; first difference at #0: original (none), override str32 [0x06001af0] = 0x00000000
 ```
 
-`--json FILE` writes the same as JSON for tools: `pass`, `states` (total, random, recorded, passed, failed,
-`full_identical`, `same_stop`), per-shape counts, `abi_differences` and `full_differences` (counts per
-kind), `coverage` (blocks, covered, percent, uncovered addresses, runs per block), `masks`, and
+`--json FILE` writes the same as JSON for tools: `status` (`pass`, `fail` or `insufficient`), `pass` (true
+only for `pass`), `states` (total, random, recorded, passed, failed, `full_identical`, `returned`,
+`returned_share`, `same_stop`), per-shape counts, `abi_differences` and `full_differences` (counts per
+kind), `coverage` (blocks, covered, percent, uncovered addresses, runs per block), `masks` (with
+`min_returned`), and
 `first_failure` (input, differences, `minimised_input`, `minimised_differences`).
 
 `--impl NAME` tests another implementation compiled into the program (a module may register candidates
 besides the configured one). `--mark-verified` (with `--overrides DIR`) writes, after a pass,
-`verified = true  # anygba difftest passed <date>: <states> states, block coverage <percent>` into the
+`verified = true  # anygba difftest passed <date>: <states> states (<share> returned normally), block coverage <percent>` into the
 override's entry in `DIR/overrides.toml`. Set `verified` only this way, and rebuild the game to pick it up.
 
 Results so far: Emerald's StringCopy passes 10,000 random states (seeds 12345 and 777) and 72 states
-recorded in the Bag menu, at the ABI level and in full state, with 4 of 4 blocks covered.
+recorded in the Bag menu, at the ABI level and in full state, with 4 of 4 blocks covered; 96.8% and 96.7%
+of the states return normally (the rest are the small ROM, IO and stack-overlap shapes, and copies whose
+destination overruns their own source).
+
+## AI-assisted decompilation
+
+`anygba decomp` drafts overrides: Ghidra exports the function, an LLM writes the C++ against the guest
+API, and the differential test decides. A failure (compiler errors, the minimised difftest diff, or too
+few normal returns) goes back to the model, up to `--attempts` times.
+
+```
+anygba decomp game.gba --func StringLength [--func 0x08008c44 ...] [--funcs list.txt] [--symbols names.toml] \
+    [--engine claude-cli|anthropic-api|none] [--model M] [--attempts 4] [--load-state FILE] [--recorded FILE]... \
+    [--spec FILE] [--miss-log FILE]... [--states 10000] [--seed 1] [--difftest-timeout 300]
+```
+
+**Setup.**
+
+- Python 3.11 or newer (`ANYGBA_PYTHON` names the interpreter), CMake and the C++ compiler `anygba build`
+  uses, and an installed anygba (`--prefix`; `anygba decomp` passes its own install).
+- Ghidra 12.2 (tested; Apache-2.0, not bundled): `--ghidra DIR` or `ANYGBA_GHIDRA`. Ghidra 12.2 needs
+  Java 25: `--java-home DIR`, `ANYGBA_JAVA_HOME` or `JAVA_HOME`.
+- An engine: `claude-cli` runs the Claude Code CLI (`claude -p`, logged in with your own account; no API
+  key) with the prompt on stdin, no tools and `--safe-mode`, so your CLAUDE.md, skills and MCP servers stay
+  out of the prompt; `anthropic-api` calls the Messages API with `ANTHROPIC_API_KEY`; `none` exports and
+  writes scaffolds only, for writing the override by hand. The default is `claude-cli` when `claude` is
+  installed, else `anthropic-api` when the key is set, else `none`. `--model` picks the model (CLI alias
+  `opus` by default; any alias or model ID the engine accepts).
+
+**What it does**, per run:
+
+1. Resolves each `--func`: a name from a `[functions]` table (`--symbols`, plus the shipped
+   `share/anygba/symbols/<game code>.toml`) or an address (`0x...`, `0x...:thumb|arm`, an odd address is
+   Thumb). With several functions they run callees first.
+2. Ghidra headless (`tools/decomp/ghidra/AnygbaExport.java`) imports the ROM once into a cached project
+   without auto-analysis, adds the GBA memory map (the ROM read-only, so literal-pool loads fold into
+   constants), disassembles from each entry and exports pseudo-C, disassembly, callees (with the `g.call`
+   arguments they need), globals and known names. Ghidra reads the Thumb return `pop {rN}; bx rN` as a
+   computed jump (often a bogus jump table); the script marks those `bx` as returns before decompiling.
+3. Generates the game with a module of scaffolds (`g.run_original()`) and the functions as recompiler
+   entries, and reads each `f_XXXXXXXX_orig` for its block table: every `AG_SPEND`/`AG_TICK` pair is one
+   `g.block(next_pc, insns, extra)`.
+4. Prompts the model with the guest API header, the rules, a passing example (StringCopy and its spec;
+   a word fill when the target is StringCopy), the export, the block table and naming hints. The first
+   answer also holds the function's argument spec (unless `--spec` gives one, which is then never
+   changed); the model may revise it only after a rejected spec, an insufficient run or a difftest that
+   ran past `--difftest-timeout`.
+5. Compiles the candidate into the game (one source file and a link), runs the difftest on random states
+   and the `--recorded` files for that entry, and loops on failure. A candidate that calls
+   `g.run_original()` is rejected without a test (it would pass trivially).
+
+Random states start from the reset state unless `--load-state` names a save state. Functions that use
+memory set up at boot (code or tables that crt0 or the game copies to IWRAM, pointers in EWRAM) need one:
+a save state from play, or the base state of a `<game> --record-entry` file, which holds the machine at
+the function's first call.
+
+**Output** (ROM-derived, so it stays out of the repository: a `--work` folder inside the source tree is
+refused unless git ignores it): `<data folder>/decomp/<game code>-<hash>/` (`%APPDATA%/anyport/anygba`
+on Windows, `ANYGBA_DATA_DIR` to move it) holds `ghidra/` (the project), `gen/` and `cmake/` (the game),
+`module/` (the overrides: passing ones `verified = true` with the difftest result, the rest scaffolds
+with `enabled = false`; `specs/` per function) and `runs/<time>/` (per function: export, every prompt,
+reply, candidate, build log and difftest report; `summary.md` and `summary.json` with attempts, failure
+classes, tokens, time and the cost the engine reports). Build a game with the module like any other:
+`anygba build game.gba --overrides <work>/module`. Read a passing override before relying on it: the
+difftest covers what its spec and recorded states reach.
+
+Exit code 0 when every function passed, 1 when some did not, 2 on errors.
 
 ## Tests
 
@@ -246,6 +321,13 @@ recorded in the Bag menu, at the ABI level and in full state, with 4 of 4 blocks
 - `tests/runtime/difftest_tests.cpp`: spec parsing, random state generation, recorded-state files, and a
   difftest of a correct and an off-by-one override on a small test program.
 - `override-difftest` (ctest): irq_demo with `tests/overrides/difftest` (crt0's word fill): the override
-  passes 10,000 random states with all blocks covered, an off-by-one variant (`--impl`) fails with a
+  passes 10,000 random states with all blocks covered (all returning normally), a spec whose states run
+  past a one-tick limit is insufficient (exit code 3, also through `anygba difftest`, which then does not
+  mark it verified), an off-by-one variant (`--impl`) fails with a
   zero byte count as the minimised input, states recorded at boot pass, and `anygba difftest
   --mark-verified` records the pass in a copy of the module.
+- `decomp-tool` (ctest, Python): block tables from generated code, reply and spec parsing, symbols and
+  addresses, callee order, the module files, and the attempt loop (retry on missing code, compile errors,
+  difftest failures; scaffold restored after the last attempt) with a stub model and game.
+- `decomp-scaffold` (ctest, `slow`, only when `ANYGBA_GHIDRA` is set at configure time): `anygba decomp
+  --engine none` on tonc's tte_demo writes the export, prompt and a scaffold with the block table.

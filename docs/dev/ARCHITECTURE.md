@@ -29,6 +29,7 @@ ROM ──► anygba-recomp (C++20)                       libanygba (C++20, SDL3
 | `runtime/src/player/` | `anygba_runtime` | Player front end pieces: menu, on-screen text, speed and resampler, scripted input |
 | `cheats/` | | Curated cheat databases, installed to `share/anygba/cheats/` |
 | `tools/cheats/` | | `import-libretro.py`: converts libretro-database cheat lists to cheat databases |
+| `tools/decomp/` | | `anygba decomp` driver (Python): Ghidra export script, prompts, LLM engines, compile and difftest loop ([OVERRIDES.md](OVERRIDES.md)) |
 | `runtime/src/main.cpp` | `anygba_game_main` (`anygba::game_main`) | `main()` for generated games |
 | `runtime/src/overrides/`, `include/anygba/override.hpp` | `anygba_runtime` | Function overrides: registry, startup checks, guest API, differential tests (`difftest.*`) ([OVERRIDES.md](OVERRIDES.md)) |
 | `overrides/` | | Override modules by engine or game (C++ sources, `overrides.toml`, difftest argument specs in `difftest.toml`) |
