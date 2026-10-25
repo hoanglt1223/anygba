@@ -54,6 +54,7 @@ struct Override {
     bool enabled = true;
     std::string engine;
     bool verified = false;  // set after a passing `anygba difftest`
+    std::vector<std::string> games;  // game codes (ROM header 0xAC) it applies to; empty: every game
     std::string where;  // "file:line", for error messages
 };
 

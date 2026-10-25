@@ -171,6 +171,34 @@ TEST_CASE("pipeline: override symbols resolve through symbols files; conflicts a
                                         "[[override]]) lies in [[skip]] 0x08000030-0x08000050"));
 }
 
+TEST_CASE("pipeline: overrides limited to other game codes are skipped") {
+    const anygba::test::TempDir temp("anygba-override-games-test");
+    const auto& dir = temp.path;
+    {
+        auto rom = small_rom();
+        const char code[] = "ABCE";
+        std::copy(code, code + 4, rom.begin() + 0xAC);
+        std::ofstream(dir / "game.gba", std::ios::binary).write(reinterpret_cast<const char*>(rom.data()),
+                                                                  static_cast<std::streamsize>(rom.size()));
+    }
+    std::filesystem::create_directories(dir / "module");
+    write(dir / "module" / "overrides.toml",
+          "[[override]]\naddr = 0x08000040\nmode = \"arm\"\nimpl = \"for_us\"\ngames = [\"XYZE\", \"ABCE\"]\n"
+          "[[override]]\nsymbol = \"NotInThisGame\"\nimpl = \"for_others\"\ngames = [\"XYZE\"]\n");
+    write(dir / "module" / "a.cpp", "");
+    anygba::recomp::Options options;
+    options.rom = dir / "game.gba";
+    options.override_modules = {dir / "module"};
+    const anygba::recomp::Analysis analysis = anygba::recomp::analyze(options);
+    REQUIRE(analysis.overrides.size() == 1);
+    CHECK(analysis.overrides[0].impl == "for_us");
+
+    CHECK(error_of("[[override]]\naddr = 0x08000040\nmode = \"arm\"\nimpl = \"x\"\ngames = [\"BPE\"]\n")
+              .find("4-character game codes") != std::string::npos);
+    CHECK(error_of("[[override]]\naddr = 0x08000040\nmode = \"arm\"\nimpl = \"x\"\ngames = []\n")
+              .find("non-empty list") != std::string::npos);
+}
+
 TEST_CASE("generated project: an overridden function keeps its translation behind a runtime switch") {
     const anygba::test::TempDir temp("anygba-override-codegen-test");
     const auto& dir = temp.path;

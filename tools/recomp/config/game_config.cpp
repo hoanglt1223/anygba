@@ -178,7 +178,7 @@ FunctionTable parse_functions(const Reader& r, const toml::table& root) {
 
 void parse_overrides(const Reader& r, const toml::table& root, std::string_view source_name, std::vector<Override>& out) {
     r.each_table(root, "override", [&](const toml::table& t) {
-        r.only_keys(t, "[[override]]", {"addr", "mode", "symbol", "impl", "enabled", "engine", "verified"});
+        r.only_keys(t, "[[override]]", {"addr", "mode", "symbol", "impl", "enabled", "engine", "verified", "games"});
         Override o;
         o.where = std::string(source_name) + ":" + std::to_string(t.source().begin.line);
         const bool has_addr = t.contains("addr");
@@ -216,6 +216,15 @@ void parse_overrides(const Reader& r, const toml::table& root, std::string_view 
                 r.fail(*engine, "override.engine must be a non-empty string");
             }
             o.engine = engine->as_string()->get();
+        }
+        if (const toml::node* games = t.get("games")) {
+            const auto* list = games->as_array();
+            if (!list || list->empty()) r.fail(*games, "override.games must be a non-empty list of 4-character game codes");
+            for (const toml::node& g : *list) {
+                const auto* code = g.as_string();
+                if (!code || code->get().size() != 4) r.fail(g, "override.games: \"BPEE\"-style 4-character game codes");
+                o.games.push_back(code->get());
+            }
         }
         out.push_back(std::move(o));
     });

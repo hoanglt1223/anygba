@@ -37,8 +37,8 @@ std::string hex(std::uint32_t v) {
 
 // Overrides from the config and the modules, with symbols looked up in the [functions] tables of
 // the config and the symbols files. Adds the modules' sources to `analysis`.
-void resolve_overrides(const Options& options, const config::GameConfig* game, Analysis& analysis,
-                       analysis::DiscoveryOptions& discovery) {
+void resolve_overrides(const Options& options, const config::GameConfig* game, const std::string& game_code,
+                       Analysis& analysis, analysis::DiscoveryOptions& discovery) {
     std::vector<config::Override> wanted;
     if (game) wanted = game->overrides;
     for (const auto& dir : options.override_modules) {
@@ -46,6 +46,10 @@ void resolve_overrides(const Options& options, const config::GameConfig* game, A
         wanted.insert(wanted.end(), module.overrides.begin(), module.overrides.end());
         analysis.sources.insert(analysis.sources.end(), module.sources.begin(), module.sources.end());
     }
+    // An engine module may hold overrides that replay one game's machine code; other games skip them.
+    std::erase_if(wanted, [&](const config::Override& o) {
+        return !o.games.empty() && std::find(o.games.begin(), o.games.end(), game_code) == o.games.end();
+    });
     if (wanted.empty()) return;
     if (analysis.sources.empty()) {
         throw config::ConfigError(wanted.front().where +
@@ -137,7 +141,9 @@ Analysis analyze(const Options& options) {
         }
         discovery_options = config::apply_game_config(game, *result.image);
     }
-    resolve_overrides(options, game_config ? &*game_config : nullptr, result, discovery_options);
+    const std::span<const std::uint8_t> bytes = result.image->rom();
+    const std::string game_code = bytes.size() >= 0xB0 ? std::string(bytes.begin() + 0xAC, bytes.begin() + 0xB0) : "";
+    resolve_overrides(options, game_config ? &*game_config : nullptr, game_code, result, discovery_options);
     for (const auto& e : discovery_options.entries) {
         for (const auto& r : discovery_options.skip) {
             if (e.source == analysis::EntrySource::Config && r.contains(e.addr)) {

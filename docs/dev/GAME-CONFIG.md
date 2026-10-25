@@ -50,6 +50,7 @@ impl = "pokemon_gen3_StringCopy"
 enabled = true          # optional; false: compiled in, used only with --overrides all
 engine = "pokemon-gen3" # optional tag
 verified = true         # optional; set by `anygba difftest --mark-verified` after a pass
+games = ["BPEE"]        # optional; only for these game codes (ROM header 0xAC)
 
 # Named guest functions, for [[override]] symbol = "...". Symbols files may hold the same table.
 [functions]

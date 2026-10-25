@@ -45,7 +45,12 @@ impl = "pokemon_gen3_StringCopy"   # the name given to ANYGBA_OVERRIDE
 enabled = true                     # optional (default true); false: compiled in, off unless --overrides all
 engine = "pokemon-gen3"            # optional tag, shown in the list of overrides
 verified = true                    # optional (default false): a difftest passed (see below)
+games = ["BPEE"]                   # optional: only for these game codes (ROM header 0xAC); default every game
 ```
+
+An override replays one translation block by block, so it fits only the machine code it was written
+against. When the engine's games compile a function differently, limit the override to the game it was
+tested on with `games`; the build skips it for other games (their [functions] table need not name it).
 
 Symbols resolve through `[functions]` tables, so an engine module names functions and each game supplies
 the addresses. The recompiler reads the table from the game config, from `--symbols FILE`, and (with
