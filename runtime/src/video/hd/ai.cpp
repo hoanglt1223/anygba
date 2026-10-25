@@ -132,7 +132,7 @@ bool write_file(const fs::path& p, const std::vector<std::uint8_t>& bytes) {
     return !ec;
 }
 
-// Unpacks a zip archive (also .nupkg) into `dir`, all of it or only `members`.
+// Unpacks a zip archive (also .nupkg) or a .tgz into `dir`, all of it or only `members`.
 std::optional<std::string> extract(const fs::path& archive, const fs::path& dir, const std::vector<const char*>& members) {
     std::error_code ec;
     fs::create_directories(dir, ec);
@@ -145,10 +145,12 @@ std::optional<std::string> extract(const fs::path& archive, const fs::path& dir,
     for (const char* m : members) args.emplace_back(m);
     return run_process(args);
 #else
-    std::vector<std::string> args{"unzip", "-o", "-q", utf8(archive)};
-    for (const char* m : members) args.emplace_back(m);
-    args.insert(args.end(), {"-d", utf8(dir)});
-    if (!run_process(args)) return std::nullopt;
+    if (archive.extension() != ".tgz") {
+        std::vector<std::string> args{"unzip", "-o", "-q", utf8(archive)};
+        for (const char* m : members) args.emplace_back(m);
+        args.insert(args.end(), {"-d", utf8(dir)});
+        if (!run_process(args)) return std::nullopt;
+    }
     std::vector<std::string> tar{"tar", "-xf", utf8(archive), "-C", utf8(dir)};
     for (const char* m : members) tar.emplace_back(m);
     return run_process(tar);
