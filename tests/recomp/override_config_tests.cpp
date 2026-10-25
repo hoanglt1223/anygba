@@ -216,6 +216,7 @@ TEST_CASE("generated project: an overridden function keeps its translation behin
     const std::string cmake = read(out / "CMakeLists.txt");
     CHECK(cmake.find("*.cpp") != std::string::npos);
     CHECK(cmake.find("cxx_std_20") != std::string::npos);
+    CHECK(cmake.find("CXX_SCAN_FOR_MODULES OFF") != std::string::npos);
     CHECK(read(out / "mod.cpp") == "// override module\n");
 
     info.overrides[0].verified = true;

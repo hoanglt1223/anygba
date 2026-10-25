@@ -219,6 +219,7 @@ std::vector<std::pair<std::string, fs::path>> build_native(const Game& game, con
                "file(GLOB game_sources CONFIGURE_DEPENDS \"" + gen + "/*.c\" \"" + gen + "/*.cpp\")\n"
                "add_library(main SHARED ${game_sources})\n"
                "target_compile_features(main PRIVATE cxx_std_20)  # C++ override modules\n"
+               "set_target_properties(main PROPERTIES CXX_SCAN_FOR_MODULES OFF)\n"
                "# Nothing calls SDL_main or the JNI entry points from C, so keep them explicitly.\n"
                "target_link_libraries(main PRIVATE \"$<LINK_LIBRARY:WHOLE_ARCHIVE,anygba::game_main>\")\n"
                "target_link_options(main PRIVATE -Wl,--undefined=JNI_OnLoad -Wl,--no-undefined\n"

@@ -218,7 +218,9 @@ std::vector<std::filesystem::path> write_project(const std::filesystem::path& di
         // C++ override modules (docs/dev/OVERRIDES.md).
         cmake += "file(GLOB game_cpp_sources CONFIGURE_DEPENDS \"${CMAKE_CURRENT_SOURCE_DIR}/*.cpp\")\n"
                  "target_sources(game PRIVATE ${game_cpp_sources})\n"
-                 "target_compile_features(game PRIVATE cxx_std_20)\n";
+                 "target_compile_features(game PRIVATE cxx_std_20)\n"
+                 // No modules here; scanning needs clang-scan-deps, which Linux clang packages often lack.
+                 "set_target_properties(game PROPERTIES CXX_SCAN_FOR_MODULES OFF)\n";
     }
     write_file(dir / "CMakeLists.txt", cmake, written);
     for (const auto& source : info.sources) {
