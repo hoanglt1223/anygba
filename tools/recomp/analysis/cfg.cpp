@@ -141,11 +141,11 @@ public:
     }
 
     WalkResult run() {
-        work_.push_back(entry_.addr);
+        work_.push_back({entry_.addr, {}});
         while (!work_.empty()) {
-            const std::uint32_t start = work_.front();
+            const Path path = work_.front();
             work_.pop_front();
-            walk_path(start);
+            walk_path(path.start, path.bound);
         }
         return std::move(result_);
     }
@@ -174,13 +174,13 @@ private:
     }
 
     // Branch to `target` that stays in this function unless it is another function's entry.
-    void branch_to(std::uint32_t target) {
+    void branch_to(std::uint32_t target, const std::array<std::uint32_t, 16>& bound = {}) {
         if (target != entry_.addr && known_.contains(target)) {
             fn().tail_calls.insert(target);
             return;
         }
         fn().labels.insert(target);
-        work_.push_back(target);
+        work_.push_back({target, bound});
     }
 
     // An indirect jump that leaves the function: a constant target is a tail call.
@@ -205,8 +205,9 @@ private:
     }
 
     // Walks forward from `start` until the path ends or meets code already walked.
-    void walk_path(std::uint32_t start) {
+    void walk_path(std::uint32_t start, const std::array<std::uint32_t, 16>& bound) {
         State st;
+        st.bound = bound;
         std::uint32_t pc = start;
         for (;;) {
             if (fn().insns.contains(pc)) {
@@ -241,7 +242,9 @@ private:
 
         switch (in.op) {
         case Op::B:
-            branch_to(in.imm_value);
+            // agbcc's switch: `cmp rI, #n ; bls table ; b default`. The case bound holds on the
+            // taken path of an unsigned lower-or-same or lower branch only.
+            branch_to(in.imm_value, in.cond == Cond::LS || in.cond == Cond::CC ? st.bound : std::array<std::uint32_t, 16>{});
             return !always;
         case Op::BL: {
             add_entry(in.imm_value, entry_.mode, EntrySource::Call);
@@ -387,7 +390,7 @@ private:
     void adopt_table(JumpTable table) {
         for (const std::uint32_t target : table.targets) {
             fn().labels.insert(target);
-            work_.push_back(target);
+            work_.push_back({target, {}});
         }
         fn().jump_tables.push_back(std::move(table));
     }
@@ -585,7 +588,11 @@ private:
     const std::set<std::uint32_t>& known_;
     const std::set<std::uint32_t>& noreturn_;
     const std::vector<AddressRange>& skip_;
-    std::deque<std::uint32_t> work_;
+    struct Path {
+        std::uint32_t start;
+        std::array<std::uint32_t, 16> bound;  // case bounds known on entry
+    };
+    std::deque<Path> work_;
     WalkResult result_;
 };
 

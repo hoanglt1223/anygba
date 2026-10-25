@@ -505,3 +505,33 @@ TEST_CASE("call targets in a [[skip]] range or on undefined bytes get no bodiles
     CHECK(noted("0x08000010 (call) lies in a [[skip]] range"));
     CHECK(noted("0x08000020 (call) does not start with a valid instruction"));
 }
+
+TEST_CASE("discovery resolves agbcc's switch with the table behind a bls") {
+    const Image image = Rom()
+                            .w32(A(0x00), 0xEAFFFFFE)  // b .
+                            .w16(A(0x100), 0x2802)     // cmp r0, #2
+                            .w16(A(0x102), 0xD900)     // bls 0x08000106
+                            .w16(A(0x104), 0xE009)     // b 0x0800011a   (default)
+                            .w16(A(0x106), 0x0080)     // lsls r0, r0, #2
+                            .w16(A(0x108), 0x4901)     // ldr r1, [pc, #4]  (=table)
+                            .w16(A(0x10A), 0x1840)     // adds r0, r0, r1
+                            .w16(A(0x10C), 0x6800)     // ldr r0, [r0]
+                            .w16(A(0x10E), 0x4687)     // mov pc, r0
+                            .w32(A(0x110), A(0x120))
+                            .w16(A(0x114), 0x4770)     // case 0: bx lr
+                            .w16(A(0x116), 0x4770)     // case 1: bx lr
+                            .w16(A(0x118), 0x4770)     // case 2: bx lr
+                            .w16(A(0x11A), 0x4770)     // default: bx lr
+                            .w32(A(0x120), A(0x115))
+                            .w32(A(0x124), A(0x117))
+                            .w32(A(0x128), A(0x119))
+                            .w32(A(0x12C), A(0x101))   // past the bound: not a case
+                            .image();
+    const Discovery d = run(image, {{A(0x100), Mode::Thumb, EntrySource::Config}}, false);
+    const Function& f = d.functions.at(A(0x100));
+    REQUIRE(f.jump_tables.size() == 1);
+    CHECK(f.jump_tables[0].table_addr == A(0x120));
+    CHECK(f.jump_tables[0].targets == std::vector<std::uint32_t>{A(0x114), A(0x116), A(0x118)});
+    CHECK(f.insns.contains(A(0x118)));
+    CHECK(f.insns.contains(A(0x11A)));
+}
