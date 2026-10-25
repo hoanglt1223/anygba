@@ -34,6 +34,13 @@
 namespace hd = anygba::video::hd;
 namespace fs = std::filesystem;
 
+// Hosts with a pinned ONNX Runtime download (ai.cpp).
+#if (defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))) || (defined(__linux__) && defined(__x86_64__))
+#define PINNED_RUNTIME 1
+#else
+#define PINNED_RUNTIME 0
+#endif
+
 namespace {
 
 void set_env(const char* name, const std::string& value) {
@@ -191,6 +198,34 @@ TEST_CASE("ai download: cancelling a stalled download is prompt and leaves no pa
     CHECK_FALSE(fs::exists(dir.path / "runtime.nupkg"));
 }
 
+// `anygba hdpack fetch-runtime`: the pinned archive is fetched by its own file name and a file
+// with another hash is refused and removed; hosts without a pinned build say what to install.
+TEST_CASE("ai download: fetch_runtime checks the pinned runtime archive") {
+    anygba::test::TempDir dir("anygba-ai-runtime");
+    const fs::path mirror = dir.path / "mirror";
+    fs::create_directories(mirror);
+    ScopedEnv source("ANYGBA_AI_MIRROR", file_url(mirror));
+    std::string error;
+#if PINNED_RUNTIME
+#ifdef _WIN32
+    const char* archive = "microsoft.ml.onnxruntime.directml.1.24.4.nupkg";
+#else
+    const char* archive = "onnxruntime-linux-x64-1.24.4.tgz";
+#endif
+    CHECK_FALSE(hd::ai::fetch_runtime(dir.path / "cache", false, &error));
+    CHECK(error.find("failed") != std::string::npos);
+    std::ofstream(mirror / archive, std::ios::binary) << "not the runtime";
+    error.clear();
+    CHECK_FALSE(hd::ai::fetch_runtime(dir.path / "cache", false, &error));
+    CHECK(error.find("pinned SHA-256") != std::string::npos);
+    CHECK(files_ending(dir.path / "cache", ".part").empty());
+    CHECK(files_ending(dir.path / "cache", archive).empty());
+#else
+    CHECK_FALSE(hd::ai::fetch_runtime(dir.path / "cache", false, &error));
+    CHECK(error.find("ANYGBA_ONNXRUNTIME") != std::string::npos);
+#endif
+}
+
 // The player's path: turning AI on starts the download on the session's worker thread with
 // progress messages; turning it off again returns at once and the picture stays without AI.
 TEST_CASE("ai download: session shows progress, cancels on AI off, and reports failures") {
@@ -209,10 +244,10 @@ TEST_CASE("ai download: session shows progress, cancels on AI off, and reports f
         hd::Session s(setup);
         s.set_options(on);
         std::vector<std::string> seen;
-#ifdef _WIN32
+#if PINNED_RUNTIME
         const std::string first = "AI download: ONNX Runtime";
 #else
-        const std::string first = "AI download: ";  // ONNX Runtime is not downloaded off Windows
+        const std::string first = "AI download: ";  // no ONNX Runtime build is pinned for this host
         if (!wait_for_message(s, "AI download: ", seen, 3)) {
             MESSAGE("skipped: no download on this platform without ONNX Runtime");
             return;

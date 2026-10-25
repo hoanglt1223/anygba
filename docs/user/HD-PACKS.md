@@ -170,8 +170,10 @@ first used, so games do not depend on it. It is looked up in:
 3. the AI cache (`ANYGBA_AI_CACHE`, default `<data folder>/ai`). On Windows x64 the pinned ONNX
    Runtime 1.24.4 DirectML build is downloaded there on first use (12 MB, SHA-256 checked). It uses
    Windows' own DirectML.dll; `anygba hdpack fetch-runtime --directml` also fetches Microsoft's
-   DirectML redistributable for Windows versions whose DirectML is too old. On Linux and macOS
-   install ONNX Runtime 1.24 or later and set `ANYGBA_ONNXRUNTIME`.
+   DirectML redistributable for Windows versions whose DirectML is too old. On Linux x64 the
+   pinned ONNX Runtime 1.24.4 CPU build is downloaded from its GitHub release (8 MB, SHA-256
+   checked) the same way. On macOS and other hosts install ONNX Runtime 1.24 or later and set
+   `ANYGBA_ONNXRUNTIME`.
 
 Models are downloaded on first use into the cache with `curl` and unpacked with `tar` (or `unzip`),
 checked against pinned SHA-256 hashes, and never shipped with AnyGBA. They are published with fixed

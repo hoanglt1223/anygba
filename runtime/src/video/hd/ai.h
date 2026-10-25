@@ -54,10 +54,10 @@ std::filesystem::path default_cache(const std::optional<std::filesystem::path>& 
 std::optional<std::filesystem::path> ensure_model(AiModel model, const std::filesystem::path& cache, std::string* error,
                                                   const Fetch& fetch = {});
 
-// Windows x64: downloads the pinned ONNX Runtime (DirectML build) into the cache if missing, and
-// with `directml_redistributable` also Microsoft's DirectML redistributable (for Windows versions
-// whose own DirectML.dll is too old). Returns the library's path. Elsewhere: an error naming
-// ANYGBA_ONNXRUNTIME.
+// Downloads the pinned ONNX Runtime into the cache if missing and returns the library's path:
+// Windows x64 the DirectML build (with `directml_redistributable` also Microsoft's DirectML
+// redistributable, for Windows versions whose own DirectML.dll is too old), Linux x64 the CPU
+// build. Elsewhere: an error naming ANYGBA_ONNXRUNTIME.
 std::optional<std::filesystem::path> fetch_runtime(const std::filesystem::path& cache, bool directml_redistributable,
                                                    std::string* error, const Fetch& fetch = {});
 

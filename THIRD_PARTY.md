@@ -29,8 +29,9 @@ or translated from the implementations named here, several of which are under co
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT): the C API headers
   `onnxruntime_c_api.h` and `onnxruntime_ep_c_api.h` of v1.24.4 are downloaded at configure time
   (SHA-256 pinned in `cmake/dependencies.cmake`); the library is loaded at run time and, on Windows,
-  downloaded on first use from nuget.org (Microsoft.ML.OnnxRuntime.DirectML 1.24.4, pinned), never
-  committed. `anygba hdpack fetch-runtime --directml` can also fetch Microsoft.AI.DirectML 1.15.4
+  downloaded on first use from nuget.org (Microsoft.ML.OnnxRuntime.DirectML 1.24.4, pinned) on
+  Windows x64 and from the GitHub release (onnxruntime-linux-x64-1.24.4.tgz, pinned) on Linux x64,
+  never committed. `anygba hdpack fetch-runtime --directml` can also fetch Microsoft.AI.DirectML 1.15.4
   (Microsoft's DirectML licence).
 - Models: Real-ESRGAN weights (BSD-3-Clause, Xintao Wang et al.), as ONNX exports by Qualcomm AI Hub;
   downloaded on first use, SHA-256 pinned, never committed ([HD-PACKS.md](docs/user/HD-PACKS.md#ai-upscaling)).

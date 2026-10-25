@@ -423,8 +423,8 @@ std::string usage() {
            "  ai-upscale DUMP PACK             generate a pack from a dump with an AI upscaler (ONNX Runtime)\n"
            "      [--model general-x4v3|x4plus] [--device auto|dml|cuda|cpu] [--kinds tiles,objs,bitmaps]\n"
            "      [--min-frames N] [--no-context] [--force] [--cache DIR]\n"
-           "  fetch-runtime [--directml]       download the pinned ONNX Runtime (Windows; --directml also the\n"
-           "      [--cache DIR]                DirectML redistributable for older Windows)\n";
+           "  fetch-runtime [--directml]       download the pinned ONNX Runtime (Windows x64, Linux x64;\n"
+           "      [--cache DIR]                --directml also the DirectML redistributable for older Windows)\n";
 }
 
 int run(std::span<const std::string_view> args) {

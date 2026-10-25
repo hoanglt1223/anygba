@@ -15,6 +15,7 @@
 #include <iterator>
 #include <mutex>
 #include <stdexcept>
+#include <string_view>
 #include <system_error>
 
 #ifdef _WIN32
@@ -58,15 +59,29 @@ constexpr std::array kModels = {
               "real_esrgan_x4plus-onnx-float/real_esrgan_x4plus.onnx", 4},
 };
 
-// ONNX Runtime 1.24.4 with DirectML for Windows x64 (MIT), and the DirectML redistributable it
-// needs (Microsoft's DirectML licence), from nuget.org.
+#ifdef _WIN32
+constexpr const char* kLibrary = "onnxruntime.dll";
+#elif defined(__APPLE__)
+constexpr const char* kLibrary = "libonnxruntime.dylib";
+#else
+constexpr const char* kLibrary = "libonnxruntime.so";
+#endif
+
 struct Package {
     const char* url;
     const char* sha256;
     std::vector<const char*> members;  // files taken from the archive into the runtime folder
+    const char* library = nullptr;     // the member stored as kLibrary (when its own name differs)
+    bool optional = false;             // only with fetch_runtime(..., directml_redistributable)
 };
-const std::array<Package, 2>& windows_runtime() {
-    static const std::array<Package, 2> kPackages = {
+
+// The pinned ONNX Runtime 1.24.4 build (MIT) for this host, empty where none is pinned.
+// Windows x64: the DirectML build from nuget.org, plus the DirectML redistributable it can use
+// (Microsoft's DirectML licence). Linux x64: the CPU build from the GitHub release.
+#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
+constexpr const char* kRuntimeFolder = "onnxruntime-1.24.4-directml";
+const std::vector<Package>& runtime_packages() {
+    static const std::vector<Package> kPackages = {
         Package{"https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.24.4/"
                 "microsoft.ml.onnxruntime.directml.1.24.4.nupkg",
                 "57e9f11b73437bef7a309496135d4c1f96b1a8e9ddba60013fa27bfc1d788681",
@@ -74,18 +89,28 @@ const std::array<Package, 2>& windows_runtime() {
                  "LICENSE", "ThirdPartyNotices.txt"}},
         Package{"https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
                 "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9",
-                {"bin/x64-win/DirectML.dll", "LICENSE.txt"}},
+                {"bin/x64-win/DirectML.dll", "LICENSE.txt"}, nullptr, true},
     };
     return kPackages;
 }
-constexpr const char* kRuntimeFolder = "onnxruntime-1.24.4-directml";
-
-#ifdef _WIN32
-constexpr const char* kLibrary = "onnxruntime.dll";
-#elif defined(__APPLE__)
-constexpr const char* kLibrary = "libonnxruntime.dylib";
+#elif defined(__linux__) && defined(__x86_64__)
+constexpr const char* kRuntimeFolder = "onnxruntime-1.24.4-cpu";
+const std::vector<Package>& runtime_packages() {
+    static const std::vector<Package> kPackages = {
+        Package{"https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-linux-x64-1.24.4.tgz",
+                "3a211fbea252c1e66290658f1b735b772056149f28321e71c308942cdb54b747",
+                {"onnxruntime-linux-x64-1.24.4/lib/libonnxruntime.so.1.24.4", "onnxruntime-linux-x64-1.24.4/LICENSE",
+                 "onnxruntime-linux-x64-1.24.4/ThirdPartyNotices.txt"},
+                "onnxruntime-linux-x64-1.24.4/lib/libonnxruntime.so.1.24.4"},
+    };
+    return kPackages;
+}
 #else
-constexpr const char* kLibrary = "libonnxruntime.so";
+constexpr const char* kRuntimeFolder = "onnxruntime-1.24.4";
+const std::vector<Package>& runtime_packages() {
+    static const std::vector<Package> kPackages;
+    return kPackages;
+}
 #endif
 
 std::optional<std::vector<std::uint8_t>> read_file(const fs::path& p) {
@@ -511,17 +536,35 @@ const char* device_name(Device d) {
 
 std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redistributable, std::string* error,
                                       const Fetch& fetch) {
-#ifdef _WIN32
+    const auto& packages = runtime_packages();
+    if (packages.empty()) {
+        *error = std::string("no ONNX Runtime found: set ANYGBA_ONNXRUNTIME to ") + kLibrary +
+                 " from an ONNX Runtime 1.24+ release, or put it next to the program";
+        return std::nullopt;
+    }
     const fs::path dir = cache / kRuntimeFolder;
     std::error_code ec;
-    const bool have_dml = fs::exists(dir / "DirectML.dll", ec);
-    if (fs::exists(dir / kLibrary, ec) && (have_dml || !directml_redistributable)) return dir / kLibrary;
-    for (const Package& p : windows_runtime()) {
-        // Without the redistributable, Windows' own DirectML.dll (System32, 1903 and later) is used.
-        if (&p != &windows_runtime()[0] && !directml_redistributable) continue;
+    const auto stored_as = [&](const Package& p, const char* member) {
+        return dir / (p.library && std::string_view(member) == p.library ? fs::path(kLibrary)
+                                                                          : from_utf8(member).filename());
+    };
+    const auto have = [&](const Package& p) {
+        return std::all_of(p.members.begin(), p.members.end(),
+                           [&](const char* m) { return fs::exists(stored_as(p, m), ec); });
+    };
+    bool complete = true;
+    for (const Package& p : packages) {
+        if (p.optional && !directml_redistributable) continue;
+        complete = complete && have(p);
+    }
+    if (complete) return dir / kLibrary;
+    for (const Package& p : packages) {
+        // Without the DirectML redistributable, Windows' own DirectML.dll (System32, 1903 and later) is used.
+        if (p.optional && !directml_redistributable) continue;
+        if (have(p)) continue;
         const std::string url = p.url;
         const fs::path archive = cache / "downloads" / from_utf8(url.substr(url.rfind('/') + 1));
-        if (auto e = download(url, p.sha256, archive, &p == &windows_runtime()[0] ? "ONNX Runtime" : "DirectML", fetch)) {
+        if (auto e = download(url, p.sha256, archive, p.optional ? "DirectML" : "ONNX Runtime", fetch)) {
             *error = *e;
             return std::nullopt;
         }
@@ -538,7 +581,7 @@ std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redis
         for (const char* m : p.members) {
             // ONNX Runtime's LICENSE and DirectML's LICENSE.txt keep their own names.
             const fs::path from = unpacked / from_utf8(m);
-            fs::copy_file(from, dir / from.filename(), fs::copy_options::overwrite_existing, ec);
+            fs::copy_file(from, stored_as(p, m), fs::copy_options::overwrite_existing, ec);
             if (ec) {
                 *error = "cannot copy " + utf8(from) + ": " + ec.message();
                 return std::nullopt;
@@ -546,14 +589,6 @@ std::optional<fs::path> fetch_runtime(const fs::path& cache, bool directml_redis
         }
     }
     return dir / kLibrary;
-#else
-    (void)cache;
-    (void)directml_redistributable;
-    (void)fetch;
-    *error = std::string("no ONNX Runtime found: set ANYGBA_ONNXRUNTIME to ") + kLibrary +
-             " from an ONNX Runtime 1.24+ release, or put it next to the program";
-    return std::nullopt;
-#endif
 }
 
 std::optional<fs::path> ensure_model(AiModel model, const fs::path& cache, std::string* error, const Fetch& fetch) {
