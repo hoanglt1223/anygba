@@ -7,5 +7,5 @@ evidence = "anygba build with two trace-feedback passes, Windows, headless, one 
 blockers = []
 misses = 5
 widescreen = "partial"
-widescreen_notes = "widescreen/BPEE.toml: overworld widened at 16:9 and 16:10 with the map rebuilt beyond the game's tile buffer (pokeemerald-field provider), text boxes and menus kept in the middle; battles widened (BG3 background and sprites from VRAM, BG0 text box clamped); other scenes (title, intro, transitions into battle, bag, party) pillarboxed. Checked headless with screenshots."
+widescreen_notes = "widescreen/BPEE.toml: overworld widened at 16:9 and 16:10 with the map rebuilt beyond the game's tile buffer (pokeemerald-field provider), text boxes and menus kept in the middle; battles widened (BG3 background and sprites from VRAM, BG0 text box clamped); other scenes (title, intro, transitions into battle, bag, party) pillarboxed; the game's object culling is widened by ROM patches while widescreen is on, so people no longer appear late at the 16:9 edges. Checked headless with screenshots."
 updated = 2026-10-24

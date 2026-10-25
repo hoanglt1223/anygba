@@ -35,3 +35,29 @@ name = "battle"
 when = ["u32 0x030022C4 == 0x08038421"]
 mode = "widen"
 clamp = ["bg0"]
+
+# Object culling, widened so people and objects stay drawn in the extra columns. The game hides
+# an object once its left edge is past x 255 or its right edge before x -16, but 16:9 shows x -22
+# to 261. Each pair raises the right limit to 511 (the compared value is shifted one bit further)
+# and lowers the left one to -64, in UpdateObjectEventOffscreen, UpdateObjectEventSpriteInvisibility
+# and RotatingGate_HideGatesOutsideViewport (pokeemerald names, checked against its symbol map).
+# The GBA's own 240 columns do not change: OAM x is 9 bits, so x 256-495 lands left of the screen,
+# and the game removes objects before they get further away.
+[[patch]]
+address = 0x080965D2
+value = 0x1440        # asrs r0, r0, #17 (was #16)
+[[patch]]
+address = 0x080965DC
+value = 0x2140        # movs r1, #64 (was #16)
+[[patch]]
+address = 0x08097A84
+value = 0x1440
+[[patch]]
+address = 0x08097A8E
+value = 0x2140
+[[patch]]
+address = 0x080FBBB8
+value = 0x1452        # asrs r2, r2, #17 (was #16)
+[[patch]]
+address = 0x080FBBC2
+value = 0x2140
