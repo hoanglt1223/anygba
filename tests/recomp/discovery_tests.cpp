@@ -479,3 +479,29 @@ TEST_CASE("entries the image does not hold stay with the interpreter") {
     CHECK(std::any_of(d.notes.begin(), d.notes.end(),
                       [](const std::string& n) { return n.find("0x06014000") != std::string::npos; }));
 }
+
+TEST_CASE("call targets in a [[skip]] range or on undefined bytes get no bodiless function") {
+    const Image image = Rom()
+                            .w32(A(0x00), 0xEB000002)  // bl 0x08000010   (inside the skip range)
+                            .w32(A(0x04), 0xEB000005)  // bl 0x08000020   (undefined first word)
+                            .w32(A(0x08), 0xEAFFFFFE)  // b .
+                            .w32(A(0x10), 0xE12FFF1E)  // bx lr
+                            .w32(A(0x20), 0xE7F000F0)  // udf
+                            .image();
+    DiscoveryOptions options;
+    options.entries.push_back({kRomBase, Mode::Arm, EntrySource::RomEntry});
+    options.skip.push_back({A(0x10), A(0x18)});
+    const Discovery d = discover(image, options);
+    CHECK_FALSE(d.functions.contains(A(0x10)));
+    CHECK_FALSE(d.functions.contains(A(0x20)));
+    for (const auto& [addr, fn] : d.functions) {
+        CHECK_FALSE(fn.insns.empty());
+        CHECK_FALSE(fn.tail_calls.contains(A(0x10)));
+    }
+    const auto noted = [&](const char* text) {
+        return std::any_of(d.notes.begin(), d.notes.end(),
+                           [&](const std::string& n) { return n.find(text) != std::string::npos; });
+    };
+    CHECK(noted("0x08000010 (call) lies in a [[skip]] range"));
+    CHECK(noted("0x08000020 (call) does not start with a valid instruction"));
+}

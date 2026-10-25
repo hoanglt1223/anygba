@@ -164,6 +164,11 @@ TEST_CASE("pipeline: override symbols resolve through symbols files; conflicts a
     options.symbol_files = {dir / "symbols.toml"};
     options.config = dir / "game.toml";
     CHECK_THROWS_WITH(anygba::recomp::analyze(options), doctest::Contains("a second override for 0x08000040"));
+
+    write(dir / "game.toml", "[[skip]]\nstart = 0x08000030\nend = 0x08000050\n");
+    CHECK_THROWS_WITH(anygba::recomp::analyze(options),
+                      doctest::Contains("the entry point 0x08000040 (from [entry], [[ram_region]], [[replace]] or "
+                                        "[[override]]) lies in [[skip]] 0x08000030-0x08000050"));
 }
 
 TEST_CASE("generated project: an overridden function keeps its translation behind a runtime switch") {

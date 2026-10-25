@@ -138,6 +138,15 @@ Analysis analyze(const Options& options) {
         discovery_options = config::apply_game_config(game, *result.image);
     }
     resolve_overrides(options, game_config ? &*game_config : nullptr, result, discovery_options);
+    for (const auto& e : discovery_options.entries) {
+        for (const auto& r : discovery_options.skip) {
+            if (e.source == analysis::EntrySource::Config && r.contains(e.addr)) {
+                throw config::ConfigError("the entry point " + hex(e.addr) + " (from [entry], [[ram_region]], [[replace]] or "
+                                          "[[override]]) lies in [[skip]] " + hex(r.begin) + "-" + hex(r.end) +
+                                          ": skipped bytes are never translated; shrink the skip range");
+            }
+        }
+    }
     discovery_options.entries.insert(discovery_options.entries.begin(),
                                      {analysis::kRomBase, analysis::Mode::Arm, analysis::EntrySource::RomEntry});
     for (const auto& path : options.miss_logs) {

@@ -102,6 +102,15 @@ private:
             }
             return;
         }
+        // Skipped bytes are never decoded, so a function starting there would have no body and
+        // would return without moving the PC: the game would call it forever.
+        if (skipped(e.addr)) {
+            if (rejected_.insert(e.addr).second) {
+                out_.notes.push_back("entry " + hex(e.addr) + " (" + to_string(e.source) +
+                                     ") lies in a [[skip]] range; it stays in the interpreter");
+            }
+            return;
+        }
         if (const auto it = modes_.find(e.addr); it != modes_.end()) {
             if (it->second != e.mode) {
                 out_.notes.push_back("entry " + hex(e.addr) + " seen as both ARM and Thumb; keeping the first (" +
@@ -127,6 +136,14 @@ private:
             }
             for (const auto& c : walk.candidates) {
                 candidates_.push_back(c);
+            }
+            if (walk.function.insns.empty()) {
+                // No first instruction (undefined): same as a skipped entry, no bodiless stub.
+                known_.erase(e.addr);
+                rejected_.insert(e.addr);
+                out_.notes.push_back("entry " + hex(e.addr) + " (" + to_string(e.source) +
+                                     ") does not start with a valid instruction; it stays in the interpreter");
+                continue;
             }
             out_.functions.emplace(e.addr, std::move(walk.function));
         }
