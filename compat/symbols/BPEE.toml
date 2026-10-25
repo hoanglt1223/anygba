@@ -255,3 +255,17 @@ description = "VAR_RESULT of the running script"
 
 [functions]
 StringCopy = { addr = 0x08008BA0, mode = "thumb" }
+# Text printer (src/text.c): the per-frame step, the printer state machine, glyph lookup and rendering
+# into window tiles, and the down arrow.
+RunTextPrinters = { addr = 0x08004778, mode = "thumb" }
+RenderFont = { addr = 0x08004818, mode = "thumb" }
+DecompressGlyphTile = { addr = 0x08004C10, mode = "thumb" }
+CopyGlyphToWindow = { addr = 0x08004DA0, mode = "thumb" }
+ClearTextSpan = { addr = 0x080052C8, mode = "thumb" }
+FontFunc_Normal = { addr = 0x08005370, mode = "thumb" }
+TextPrinterDrawDownArrow = { addr = 0x08005528, mode = "thumb" }
+TextPrinterWaitWithDownArrow = { addr = 0x08005650, mode = "thumb" }
+DrawDownArrow = { addr = 0x080056E0, mode = "thumb" }
+RenderText = { addr = 0x080057B4, mode = "thumb" }
+DecompressGlyph_Normal = { addr = 0x08006840, mode = "thumb" }
+GetGlyphWidth_Normal = { addr = 0x08006908, mode = "thumb" }

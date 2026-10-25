@@ -1,0 +1,417 @@
+# Argument specs (difftest shapes, no game code) for regenerating Emerald's (BPEE) text printer overrides
+# from your own ROM with `anygba decomp` (docs/dev/OVERRIDES.md, "Emerald's text printer"). The overrides
+# themselves replay Emerald's code and are not shipped. Addresses below are Emerald's globals
+# (pokeemerald.sym): sTextPrinters[31] 0x020206A4, gCurGlyph 0x03002F90, gTextFlags 0x03003014.
+
+# void RunTextPrinters(void): steps the 32 text printers unless text printing is disabled.
+# No arguments: the work depends on the global printer table and flag in the loaded state.
+[RunTextPrinters]
+dead_stack = 24  # push {r4-r7, lr} and push {r8}
+tick_limit = 200
+
+[[RunTextPrinters.shape]]
+name = "typical"
+weight = 10
+
+[[RunTextPrinters.shape]]
+name = "low-budget"  # scheduler ticks inside the loop
+weight = 2
+cycles = { range = [0, 400] }
+
+# u16 RenderFont(struct TextPrinter *textPrinter): runs the font's render function until it stops
+# returning 2. The printer is a 0x24-byte struct in RAM; fontId at +5 indexes the ROM font table, so
+# buffer bytes are kept small (fontId 0/1, small state fields) to stay on valid font functions.
+[RenderFont]
+dead_stack = 256  # push {r4, lr} plus the font functions' own frames
+tick_limit = 100
+
+[[RenderFont.shape]]
+name = "typical"
+weight = 10
+r0 = { buffer = "ewram", size = [36, 64], bytes = [0, 1], align = 4 }
+
+[[RenderFont.shape]]
+name = "iwram-printer"
+weight = 3
+r0 = { buffer = "iwram", size = [36, 64], bytes = [0, 1], align = 4 }
+
+[[RenderFont.shape]]
+name = "zeroed"
+weight = 3
+r0 = { buffer = "ewram", size = [36, 64], bytes = [0, 0], align = 4 }
+
+[[RenderFont.shape]]
+name = "low-budget"
+weight = 2
+r0 = { buffer = "ewram", size = [36, 64], bytes = [0, 1], align = 4 }
+cycles = { range = [0, 400] }
+
+# u16 FontFunc_Normal(struct TextPrinter *printer): first-call font setup, then RenderText.
+# Most printers carry bytes >= 7 so RenderText's state (+0x1C) falls to its default case and
+# returns at once; bit 7 of +0x15 is random, covering both the init and skip paths.
+[FontFunc_Normal]
+dead_stack = 256
+tick_limit = 50
+
+[[FontFunc_Normal.shape]]
+name = "default-state"
+weight = 20
+r0 = { buffer = "ewram", size = [0x24, 0x24], bytes = [7, 0xFF], align = 4 }
+
+[[FontFunc_Normal.shape]]
+name = "default-state-iwram"
+weight = 6
+r0 = { buffer = "iwram", size = [0x24, 0x24], bytes = [7, 0xFF], align = 4 }
+
+[[FontFunc_Normal.shape]]
+name = "low-budget"
+weight = 4
+r0 = { buffer = "ewram", size = [0x24, 0x24], bytes = [7, 0xFF], align = 4 }
+cycles = { range = [0, 60] }
+
+# u16 RenderText(struct TextPrinter *textPrinter): one step of the text printer state machine.
+# Small-byte buffers cover the states' control flow; the planted printer (sTextPrinters[31] at
+# 0x020206A4, its text at 0x0203FF00) covers characters and escape codes: currentChar points at the
+# planted text, window 0 or 1, fonts 0-2, no callback.
+[RenderText]
+dead_stack = 256
+tick_limit = 100
+
+[[RenderText.shape]]
+name = "small-fields"
+weight = 20
+r0 = { buffer = "ewram", size = [40, 64], bytes = [0, 6], align = 4 }
+
+[[RenderText.shape]]
+name = "iwram-printer"
+weight = 6
+r0 = { buffer = "iwram", size = [40, 64], bytes = [0, 6], align = 4 }
+
+[[RenderText.shape]]
+name = "low-budget"
+weight = 4
+r0 = { buffer = "ewram", size = [40, 64], bytes = [0, 6], align = 4 }
+cycles = { range = [0, 400] }
+
+[[RenderText.shape]]
+name = "random-bytes"  # mostly state > 6: returns 1 at once
+weight = 3
+r0 = { buffer = "ewram", size = [40, 64], align = 4 }
+
+[[RenderText.shape]]
+name = "text-any-state"
+weight = 10
+r0 = 0x020206a4
+memory = [
+    { addr = 0x020206A4, bytes = [0, 0] },
+    { addr = 0x020206A5, bytes = [255, 255] },
+    { addr = 0x020206A6, bytes = [3, 3] },
+    { addr = 0x020206A7, bytes = [2, 2] },
+    { addr = 0x020206A8, size = 1, bytes = [0, 1] },
+    { addr = 0x020206A9, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AA, size = 1, bytes = [0, 40] },
+    { addr = 0x020206AB, size = 1, bytes = [0, 16] },
+    { addr = 0x020206AC, size = 1, bytes = [0, 200] },
+    { addr = 0x020206AD, size = 1, bytes = [0, 30] },
+    { addr = 0x020206AE, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AF, size = 1, bytes = [0, 2] },
+    { addr = 0x020206B0, size = 2, bytes = [0, 255] },
+    { addr = 0x020206B4, bytes = [0, 0] },
+    { addr = 0x020206B5, bytes = [0, 0] },
+    { addr = 0x020206B6, bytes = [0, 0] },
+    { addr = 0x020206B7, bytes = [0, 0] },
+    { addr = 0x020206B8, size = 7, bytes = [0, 255] },
+    { addr = 0x020206BF, bytes = [1, 1] },
+    { addr = 0x020206C1, size = 1, bytes = [0, 3] },
+    { addr = 0x020206C2, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C3, size = 1, bytes = [0, 20] },
+    { addr = 0x020206C4, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C5, bytes = [0, 0] },
+    { addr = 0x020206C0, size = 1, bytes = [0, 6] },
+    { addr = 0x0203FF00, size = 16, bytes = [0, 255] },
+]
+
+[[RenderText.shape]]
+name = "text-char"
+weight = 10
+r0 = 0x020206a4
+memory = [
+    { addr = 0x020206A4, bytes = [0, 0] },
+    { addr = 0x020206A5, bytes = [255, 255] },
+    { addr = 0x020206A6, bytes = [3, 3] },
+    { addr = 0x020206A7, bytes = [2, 2] },
+    { addr = 0x020206A8, size = 1, bytes = [0, 1] },
+    { addr = 0x020206A9, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AA, size = 1, bytes = [0, 40] },
+    { addr = 0x020206AB, size = 1, bytes = [0, 16] },
+    { addr = 0x020206AC, size = 1, bytes = [0, 200] },
+    { addr = 0x020206AD, size = 1, bytes = [0, 30] },
+    { addr = 0x020206AE, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AF, size = 1, bytes = [0, 2] },
+    { addr = 0x020206B0, size = 2, bytes = [0, 255] },
+    { addr = 0x020206B4, bytes = [0, 0] },
+    { addr = 0x020206B5, bytes = [0, 0] },
+    { addr = 0x020206B6, bytes = [0, 0] },
+    { addr = 0x020206B7, bytes = [0, 0] },
+    { addr = 0x020206B8, size = 7, bytes = [0, 255] },
+    { addr = 0x020206BF, bytes = [1, 1] },
+    { addr = 0x020206C1, size = 1, bytes = [0, 3] },
+    { addr = 0x020206C2, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C3, size = 1, bytes = [0, 20] },
+    { addr = 0x020206C4, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C5, bytes = [0, 0] },
+    { addr = 0x020206C0, bytes = [0, 0] },
+    { addr = 0x0203FF00, size = 16, bytes = [0, 255] },
+]
+
+[[RenderText.shape]]
+name = "text-escape"
+weight = 15
+r0 = 0x020206a4
+memory = [
+    { addr = 0x020206A4, bytes = [0, 0] },
+    { addr = 0x020206A5, bytes = [255, 255] },
+    { addr = 0x020206A6, bytes = [3, 3] },
+    { addr = 0x020206A7, bytes = [2, 2] },
+    { addr = 0x020206A8, size = 1, bytes = [0, 1] },
+    { addr = 0x020206A9, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AA, size = 1, bytes = [0, 40] },
+    { addr = 0x020206AB, size = 1, bytes = [0, 16] },
+    { addr = 0x020206AC, size = 1, bytes = [0, 200] },
+    { addr = 0x020206AD, size = 1, bytes = [0, 30] },
+    { addr = 0x020206AE, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AF, size = 1, bytes = [0, 2] },
+    { addr = 0x020206B0, size = 2, bytes = [0, 255] },
+    { addr = 0x020206B4, bytes = [0, 0] },
+    { addr = 0x020206B5, bytes = [0, 0] },
+    { addr = 0x020206B6, bytes = [0, 0] },
+    { addr = 0x020206B7, bytes = [0, 0] },
+    { addr = 0x020206B8, size = 7, bytes = [0, 255] },
+    { addr = 0x020206BF, bytes = [1, 1] },
+    { addr = 0x020206C1, size = 1, bytes = [0, 3] },
+    { addr = 0x020206C2, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C3, size = 1, bytes = [0, 20] },
+    { addr = 0x020206C4, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C5, bytes = [0, 0] },
+    { addr = 0x020206C0, bytes = [0, 0] },
+    { addr = 0x0203FF00, bytes = [252, 252] },
+    { addr = 0x0203FF01, size = 1, bytes = [0, 24] },
+    { addr = 0x0203FF02, size = 14, bytes = [0, 255] },
+]
+
+[[RenderText.shape]]
+name = "text-special"
+weight = 8
+r0 = 0x020206a4
+memory = [
+    { addr = 0x020206A4, bytes = [0, 0] },
+    { addr = 0x020206A5, bytes = [255, 255] },
+    { addr = 0x020206A6, bytes = [3, 3] },
+    { addr = 0x020206A7, bytes = [2, 2] },
+    { addr = 0x020206A8, size = 1, bytes = [0, 1] },
+    { addr = 0x020206A9, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AA, size = 1, bytes = [0, 40] },
+    { addr = 0x020206AB, size = 1, bytes = [0, 16] },
+    { addr = 0x020206AC, size = 1, bytes = [0, 200] },
+    { addr = 0x020206AD, size = 1, bytes = [0, 30] },
+    { addr = 0x020206AE, size = 1, bytes = [0, 2] },
+    { addr = 0x020206AF, size = 1, bytes = [0, 2] },
+    { addr = 0x020206B0, size = 2, bytes = [0, 255] },
+    { addr = 0x020206B4, bytes = [0, 0] },
+    { addr = 0x020206B5, bytes = [0, 0] },
+    { addr = 0x020206B6, bytes = [0, 0] },
+    { addr = 0x020206B7, bytes = [0, 0] },
+    { addr = 0x020206B8, size = 7, bytes = [0, 255] },
+    { addr = 0x020206BF, bytes = [1, 1] },
+    { addr = 0x020206C1, size = 1, bytes = [0, 3] },
+    { addr = 0x020206C2, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C3, size = 1, bytes = [0, 20] },
+    { addr = 0x020206C4, size = 1, bytes = [0, 2] },
+    { addr = 0x020206C5, bytes = [0, 0] },
+    { addr = 0x020206C0, bytes = [0, 0] },
+    { addr = 0x0203FF00, size = 1, bytes = [247, 255] },
+    { addr = 0x0203FF01, size = 15, bytes = [0, 255] },
+]
+
+# void DecompressGlyph_Normal(u16 glyphId, bool32 isJapanese): glyph from ROM into gCurGlyph.
+[DecompressGlyph_Normal]
+dead_stack = 64  # own push of 16 bytes plus DecompressGlyphTile's frame
+tick_limit = 50
+
+[[DecompressGlyph_Normal.shape]]
+name = "latin"
+weight = 12
+r0 = { range = [0, 0x1FF] }
+r1 = 0
+
+[[DecompressGlyph_Normal.shape]]
+name = "japanese"
+weight = 8
+r0 = { range = [0, 0x1FF] }
+r1 = 1
+
+[[DecompressGlyph_Normal.shape]]
+name = "other-flag"  # any isJapanese other than 1 takes the latin path
+weight = 3
+r0 = { range = [0, 0x1FF] }
+r1 = "any"
+
+[[DecompressGlyph_Normal.shape]]
+name = "high-bits"  # upper half of r0 is discarded by the u16 truncation
+weight = 2
+r0 = "any"
+r1 = { range = [0, 1] }
+
+# void DecompressGlyphTile(const u16 *src, u32 *dest): 8 halfwords in, 8 words out, table lookups only.
+[DecompressGlyphTile]
+dead_stack = 24  # push {r4-r7, lr} and push {r8}
+tick_limit = 10
+
+[[DecompressGlyphTile.shape]]
+name = "ram-src"
+weight = 20
+r0 = { buffer = "ram", size = [16, 16], align = 2 }
+r1 = { buffer = "ram", size = [32, 32], align = 4 }
+
+[[DecompressGlyphTile.shape]]
+name = "rom-src"
+weight = 10
+r0 = { pointer = "rom", align = 2 }
+r1 = { buffer = "ewram", size = [32, 32], align = 4 }
+
+[[DecompressGlyphTile.shape]]
+name = "vram-dest"
+weight = 4
+r0 = { buffer = "ram", size = [16, 16], align = 2 }
+r1 = { pointer = "vram", align = 4 }
+
+[[DecompressGlyphTile.shape]]
+name = "overlap"  # dest overlaps src: later source halfwords are overwritten first
+weight = 2
+r0 = { buffer = "ewram", size = [16, 16], align = 2 }
+r1 = { near = "r0", offset = [-16, 8], align = 4 }
+
+[[DecompressGlyphTile.shape]]
+name = "low-budget"
+weight = 3
+r0 = { buffer = "ram", size = [16, 16], align = 2 }
+r1 = { buffer = "ram", size = [32, 32], align = 4 }
+cycles = { range = [0, 300] }
+
+# void CopyGlyphToWindow(struct TextPrinter *printer): byte +4 window id, +8/+9 pixel x/y in the window.
+# The glyph (gCurGlyph at 0x03002F90: 0x40 bytes top half, 0x40 bottom half, width at +0x80, height at
+# +0x81) is planted too, so every quadrant case and the clipping at the window edge run.
+[CopyGlyphToWindow]
+dead_stack = 192
+tick_limit = 3000
+min_returned = 0.95
+
+[[CopyGlyphToWindow.shape]]
+name = "typical"
+weight = 10
+r0 = { buffer = "ewram", size = [12, 16], bytes = [0, 31], align = 4 }
+
+[[CopyGlyphToWindow.shape]]
+name = "any-glyph"
+weight = 20
+memory = [{ addr = 0x03002F90, size = 0x80 }, { addr = 0x03003010, size = 2, bytes = [0, 16] }]
+r0 = { buffer = "ewram", size = [12, 16], bytes = [0, 31], align = 4 }
+
+[[CopyGlyphToWindow.shape]]
+name = "any-glyph-near-edge"
+weight = 10
+memory = [{ addr = 0x03002F90, size = 0x80 }, { addr = 0x03003010, size = 2, bytes = [0, 16] }]
+r0 = { buffer = "ewram", size = [12, 16], bytes = [0, 255], align = 4 }
+
+[[CopyGlyphToWindow.shape]]
+name = "iwram-printer"
+weight = 3
+memory = [{ addr = 0x03003010, size = 2, bytes = [0, 16] }]
+r0 = { buffer = "iwram", size = [12, 16], bytes = [0, 31], align = 4 }
+
+[[CopyGlyphToWindow.shape]]
+name = "low-budget"
+weight = 3
+memory = [{ addr = 0x03003010, size = 2, bytes = [0, 16] }]
+r0 = { buffer = "ewram", size = [12, 16], bytes = [0, 31], align = 4 }
+cycles = { range = [0, 400] }
+
+# void ClearTextSpan(struct TextPrinter *printer, u32 width): fills one glyph-high span with the last
+# text background colour through FillBitmapRect4Bit. Window id, x and y are small bytes of the printer.
+[ClearTextSpan]
+dead_stack = 64
+tick_limit = 200
+
+[[ClearTextSpan.shape]]
+name = "typical"
+weight = 20
+r0 = { buffer = "ram", size = [12, 16], bytes = [0, 31] }
+r1 = { range = [0, 64] }
+
+[[ClearTextSpan.shape]]
+name = "wide"
+weight = 4
+r0 = { buffer = "ram", size = [12, 16], bytes = [0, 31] }
+r1 = { range = [0, 255] }
+
+[[ClearTextSpan.shape]]
+name = "any-bytes"
+weight = 3
+r0 = { buffer = "ram", size = [12, 16], bytes = [0, 255] }
+r1 = { range = [0, 32] }
+
+[[ClearTextSpan.shape]]
+name = "low-budget"
+weight = 3
+r0 = { buffer = "ram", size = [12, 16], bytes = [0, 31] }
+r1 = { range = [0, 64] }
+cycles = { range = [0, 400] }
+
+# void TextPrinterDrawDownArrow(struct TextPrinter *printer); gTextFlags (0x03003014) picks the arrow.
+[TextPrinterDrawDownArrow]
+dead_stack = 64
+tick_limit = 50
+
+[[TextPrinterDrawDownArrow.shape]]
+name = "delay-countdown"  # byte +0x15 low 5 bits nonzero: only decrements the delay
+weight = 10
+r0 = { buffer = "ewram", size = [0x24, 0x24], bytes = [1, 0x1F] }
+
+[[TextPrinterDrawDownArrow.shape]]
+name = "draw-window0"  # delay 0, window 0, coordinates 0: draws the arrow
+weight = 6
+r0 = { buffer = "ewram", size = [0x24, 0x24], bytes = [0, 0] }
+
+[[TextPrinterDrawDownArrow.shape]]
+name = "draw-any-flags"  # delay 0 with every gTextFlags value: both arrow pictures and the flag 4 skip
+weight = 8
+r0 = { buffer = "ewram", size = [0x24, 0x24], bytes = [0, 0] }
+memory = [{ addr = 0x03003014, size = 1 }]
+
+[[TextPrinterDrawDownArrow.shape]]
+name = "iwram-printer"
+weight = 3
+r0 = { buffer = "iwram", size = [0x24, 0x24], bytes = [1, 0x1F] }
+
+# bool16 TextPrinterWaitWithDownArrow(struct TextPrinter *textPrinter): auto-scroll wait or
+# down-arrow draw plus A/B check. The printer is a RAM struct; its window id and arrow fields are
+# whatever the random buffer holds, which both versions handle the same way.
+[TextPrinterWaitWithDownArrow]
+dead_stack = 256  # push {r4, lr} plus the callees' frames
+tick_limit = 50
+
+[[TextPrinterWaitWithDownArrow.shape]]
+name = "typical"
+weight = 10
+r0 = { buffer = "ram", size = [32, 64], align = 4 }
+
+[[TextPrinterWaitWithDownArrow.shape]]
+name = "small-window-id"  # zeroed-ish printer: low window ids and counters
+weight = 6
+r0 = { buffer = "ram", size = [32, 64], bytes = [0, 3], align = 4 }
+
+[[TextPrinterWaitWithDownArrow.shape]]
+name = "low-budget"  # scheduler ticks inside the function
+weight = 3
+r0 = { buffer = "ram", size = [32, 64], align = 4 }
+cycles = { range = [0, 200] }

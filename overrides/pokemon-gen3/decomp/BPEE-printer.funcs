@@ -1,0 +1,11 @@
+# Emerald's text printer, for `anygba decomp --funcs` (callees are ordered first)
+RunTextPrinters
+RenderFont
+FontFunc_Normal
+RenderText
+DecompressGlyph_Normal
+DecompressGlyphTile
+CopyGlyphToWindow
+ClearTextSpan
+TextPrinterDrawDownArrow
+TextPrinterWaitWithDownArrow

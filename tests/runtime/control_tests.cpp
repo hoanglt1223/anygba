@@ -1,4 +1,5 @@
 #include "cheats/cheat_list.h"
+#include "config/game_config.h"
 #include "control/controller.h"
 #include "control/json.h"
 #include "control/net.h"
@@ -358,8 +359,23 @@ TEST_CASE("shipped symbol files parse") {
     for (const auto& e : fs::directory_iterator(dir)) {
         if (e.path().extension() != ".toml") continue;
         CAPTURE(e.path().string());
-        CHECK_FALSE(Symbols::load(e.path()).empty());
+        // Named memory for agents, guest functions for overrides, or both.
+        CHECK((!Symbols::load(e.path()).empty() || !anygba::config::load_function_symbols(e.path()).empty()));
         ++files;
     }
     CHECK(files >= 1);
+}
+
+TEST_CASE("every function the pokemon-gen3 override module names for a game is in its symbols file") {
+    const fs::path root = fs::path(ANYGBA_GOLDEN_DIR).parent_path().parent_path();
+    const auto module = anygba::config::load_override_module(root / "overrides" / "pokemon-gen3");
+    for (const char* game : {"BPEE", "BPRE"}) {
+        CAPTURE(game);
+        const auto functions = anygba::config::load_function_symbols(root / "compat" / "symbols" / (std::string(game) + ".toml"));
+        for (const auto& o : module.overrides) {
+            if (!o.games.empty() && std::find(o.games.begin(), o.games.end(), game) == o.games.end()) continue;
+            CAPTURE(o.symbol);
+            CHECK(functions.contains(o.symbol));
+        }
+    }
 }
