@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iterator>
 #include <optional>
+#include <random>
 #include <regex>
 #include <stdexcept>
 #include <vector>
@@ -69,6 +70,13 @@ std::string today() {
     char buf[16];
     std::strftime(buf, sizeof buf, "%Y-%m-%d", &tm);
     return buf;
+}
+
+fs::path temp_report_path() {
+    std::random_device rd;
+    char name[64];
+    std::snprintf(name, sizeof name, "anygba-difftest-%08x%08x.json", rd(), rd());
+    return fs::temp_directory_path() / name;
 }
 
 }  // namespace
@@ -158,17 +166,25 @@ int difftest(std::span<const std::string_view> args) {
         argv.insert(argv.end(), {"--difftest", *func});
         if (spec) argv.insert(argv.end(), {"--spec", spec->string()});
         if (impl) argv.insert(argv.end(), {"--impl", *impl});
-        fs::path report = json ? *json : fs::temp_directory_path() / "anygba-difftest-report.json";
-        if (json || mark) argv.insert(argv.end(), {"--json", report.string()});
+        // The game also exits with 1 on errors (wrong ROM, bad spec), so a verdict counts only when the
+        // report it wrote for this run agrees with the exit code.
+        const fs::path report = json ? *json : temp_report_path();
+        std::error_code ec;
+        fs::remove(report, ec);
+        argv.insert(argv.end(), {"--json", report.string()});
         argv.insert(argv.end(), pass.begin(), pass.end());
         const int rc = run_process(argv);
-        if (rc != 0 || !mark) return rc == 0 || rc == 1 || rc == 3 ? rc : 2;
-
-        const std::string text = read_text(report);
-        if (!json) {
-            std::error_code ec;
-            fs::remove(report, ec);
+        const std::string text = fs::exists(report, ec) ? read_text(report) : std::string();
+        if (!json) fs::remove(report, ec);
+        const auto status = json_field(text, R"re("status":"([a-z]+)")re");
+        const char* expected = rc == 0 ? "pass" : rc == 1 ? "fail" : rc == 3 ? "insufficient" : nullptr;
+        if (!expected || status != expected) {
+            std::fprintf(stderr, "anygba difftest: the game stopped with exit code %d before finishing the difftest%s\n",
+                         rc, status ? (" (report status: " + *status + ")").c_str() : " (no report written)");
+            return 2;
         }
+        if (rc != 0 || !mark) return rc;
+
         const auto configured = json_field(text, R"re("configured_impl":"([^"]*)")re");
         const auto total = json_field(text, R"re("total":([0-9]+))re");
         const auto percent = json_field(text, R"re("percent":([0-9.eE+-]+))re");

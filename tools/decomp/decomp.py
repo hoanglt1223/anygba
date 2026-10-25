@@ -318,7 +318,9 @@ class Game:
                 report = None
         # The game exits with 1 for errors too (a bad spec, a missing implementation): a verdict
         # always comes with its report.
-        status = EXIT_CLASSES.get(rc, "error") if report is not None else "error"
+        status = EXIT_CLASSES.get(rc, "error")
+        if report is None or report.get("status") != status:
+            status = "error"
         if status == "error" and re.search(r"^error: .*difftest\.toml:\d+:", tail(log, 60), re.M):
             status = "spec-error"
         return status, report

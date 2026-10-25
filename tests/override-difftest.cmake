@@ -125,3 +125,11 @@ file(READ "${WORK}/stuck-module/overrides.toml" unmarked)
 if(unmarked MATCHES "verified = true")
   message(FATAL_ERROR "an insufficient run was marked verified:\n${unmarked}")
 endif()
+
+# The game exits with 1 for errors too (here: no such override); the front end reports them as errors (2),
+# not as a failed difftest, because no report with status "fail" was written.
+execute_process(COMMAND "${ANYGBA}" difftest "${GAME}" --rom "${ROM}" --func NoSuchFunction --states 10
+  WORKING_DIRECTORY "${WORK}" RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+if(NOT rc EQUAL 2 OR NOT err MATCHES "stopped with exit code 1 before finishing the difftest")
+  message(FATAL_ERROR "anygba difftest on a game error: exit code ${rc}, expected 2:\n${out}\n${err}")
+endif()
